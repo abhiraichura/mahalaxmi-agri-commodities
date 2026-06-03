@@ -5,7 +5,7 @@ import { generateBrokerageBillPDF, downloadPDF } from '../utils/pdfGenerator';
 import toast from 'react-hot-toast';
 
 export default function BrokerageBills() {
-  const { contracts, parties, settings, updateContract } = useAppStore();
+  const { contracts, parties, settings } = useAppStore();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [viewingBill, setViewingBill] = useState<any>(null);
@@ -218,13 +218,18 @@ export default function BrokerageBills() {
 
       {/* View Modal */}
       {viewingBill && (
-        <BillPreviewModal bill={viewingBill} settings={settings} months={months} onClose={() => setViewingBill(null)} onDownload={handleDownload} />
+        <BillPreviewModal 
+          bill={viewingBill} 
+          settings={settings} 
+          months={months} 
+          onClose={() => setViewingBill(null)} 
+          onDownload={() => { handleDownload(viewingBill); setViewingBill(null); }} 
+        />
       )}
 
       {/* Edit Status Modal */}
       {editingBill && (
         <EditBillModal bill={editingBill} onClose={() => setEditingBill(null)} onSave={(updated: any) => {
-          // In a real app, save to Firebase. For now, just update local state.
           toast.success('Bill status updated!');
           setEditingBill(null);
         }} />
@@ -286,7 +291,7 @@ function BillPreviewModal({ bill, settings, months, onClose, onDownload }: any) 
         </div>
         <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 text-gray-600 font-medium">Close</button>
-          <button onClick={() => { onDownload(viewingBill); onClose(); }}
+          <button onClick={onDownload}
             className="px-6 py-2 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 flex items-center gap-2">
             <Download className="w-4 h-4" /> Download PDF
           </button>

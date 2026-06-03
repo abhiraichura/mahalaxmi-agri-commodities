@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { Party, ProductSpec, Contract, CompanySettings } from '../types';
 import { 
   addDoc, updateDocData, deleteDocData, getColData,
-  COLLECTIONS, db, Timestamp, setDocData
+  COLLECTIONS, db, setDocData
 } from '../utils/firebase';
 
 const defaultSettings: CompanySettings = {
@@ -110,7 +110,7 @@ export const useAppStore = create<AppState>()(
       updateParty: async (id, updates) => {
         await updateDocData(COLLECTIONS.PARTIES, id, updates);
         set({
-          parties: get().parties.map(p => p.id === id ? { ...p, ...updates, updatedAt: Timestamp.now() } : p)
+          parties: get().parties.map(p => p.id === id ? { ...p, ...updates, updatedAt: new Date() } : p)
         });
       },
       deleteParty: async (id) => {
@@ -148,7 +148,6 @@ export const useAppStore = create<AppState>()(
       addContract: async (contract) => {
         await addDoc(COLLECTIONS.CONTRACTS, contract.id, contract);
         set({ contracts: [contract, ...get().contracts] });
-        // Increment next contract number
         const nextNum = (get().settings.nextContractNumber || 1) + 1;
         set({ settings: { ...get().settings, nextContractNumber: nextNum } });
       },

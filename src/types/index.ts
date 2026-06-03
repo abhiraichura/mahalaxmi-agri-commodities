@@ -1,7 +1,16 @@
+export interface SpecField {
+  id: string;
+  label: string;
+  value: string;
+  unit?: string;
+  order?: number;
+}
+
 export interface ProductSpec {
   id: string;
   name: string;
-  specs: { label: string; value: string; unit?: string }[];
+  specs: SpecField[];
+  defaultBrokerage?: number;
   createdAt: Date;
   updatedAt: Date;
 }
