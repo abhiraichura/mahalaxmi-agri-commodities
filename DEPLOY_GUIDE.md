@@ -206,6 +206,13 @@ service firebase.storage {
 ✅ **Logo upload** - Custom branding in Settings
 ✅ **Terms & conditions** - Customizable per company
 
+## ⚠️ IMPORTANT: Free Tier Fix
+
+**Firebase Storage requires paid plan**, but we fixed this:
+- **Logos now store in Firestore as base64** (completely free)
+- **No Firebase Storage needed**
+- **Everything works on Spark (free) plan**
+
 ## Alternative Hosting (if not using Firebase)
 
 ### Option 1: BigRock Hosting

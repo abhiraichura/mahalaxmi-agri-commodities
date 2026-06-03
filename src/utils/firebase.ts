@@ -1,24 +1,41 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where, orderBy, Timestamp, enableIndexedDbPersistence } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged 
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  setDoc, 
+  getDoc, 
+  getDocs, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  where, 
+  orderBy, 
+  Timestamp, 
+  enableIndexedDbPersistence 
+} from 'firebase/firestore';
 
+// Your Firebase config - REPLACE THESE VALUES from Firebase Console
 const firebaseConfig = {
-  // REPLACE WITH YOUR FIREBASE CONFIG
-  apiKey: "YOUR_API_KEY",
-  authDomain: "mahalaxmi-contracts.firebaseapp.com",
-  projectId: "mahalaxmi-contracts",
-  storageBucket: "mahalaxmi-contracts.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "YOUR_APP_ID"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "mahalaxmi-contracts.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "mahalaxmi-contracts",
+  // No storageBucket needed - we store logos in Firestore as base64
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "YOUR_APP_ID"
 };
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
 
-// Enable offline persistence
+// Enable offline persistence (works on free tier)
 enableIndexedDbPersistence(db).catch((err) => {
   if (err.code === 'failed-precondition') {
     console.warn('Multiple tabs open, persistence enabled in first tab only');
@@ -31,16 +48,17 @@ export const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
 export const logoutUser = () => signOut(auth);
-export const onAuthChange = (callback: (user: FirebaseUser | null) => void) => onAuthStateChanged(auth, callback);
+export const onAuthChange = (callback: (user: any) => void) => onAuthStateChanged(auth, callback);
 
-// Firestore helpers with offline support
+// Firestore helpers
 export const COLLECTIONS = {
   PARTIES: 'parties',
   PRODUCTS: 'products',
   CONTRACTS: 'contracts',
   BROKERAGE_BILLS: 'brokerageBills',
   SETTINGS: 'settings',
-  USERS: 'users'
+  USERS: 'users',
+  LOGOS: 'logos'  // Store logos as base64 in Firestore
 };
 
 export const createDocument = async (collectionName: string, id: string, data: any) => {
@@ -76,10 +94,19 @@ export const deleteDocument = async (collectionName: string, id: string) => {
   await deleteDoc(doc(db, collectionName, id));
 };
 
-export const uploadFile = async (path: string, file: File) => {
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
-  return getDownloadURL(storageRef);
+// Logo storage in Firestore (base64) - FREE, no Storage needed
+export const saveLogoToFirestore = async (userId: string, base64Image: string) => {
+  const logoRef = doc(db, COLLECTIONS.LOGOS, userId);
+  await setDoc(logoRef, { 
+    image: base64Image, 
+    updatedAt: Timestamp.now() 
+  });
+  return base64Image;
+};
+
+export const getLogoFromFirestore = async (userId: string) => {
+  const logoSnap = await getDoc(doc(db, COLLECTIONS.LOGOS, userId));
+  return logoSnap.exists() ? logoSnap.data().image : null;
 };
 
 export { Timestamp };

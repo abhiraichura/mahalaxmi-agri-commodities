@@ -1,30 +1,55 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Upload, Building2, Save, Trash2, Plus, X } from 'lucide-react';
+import { saveLogoToFirestore, getLogoFromFirestore } from '../utils/firebase';
 import toast from 'react-hot-toast';
 
 export default function Settings() {
-  const { settings, updateSettings, currentYear, setCurrentYear } = useAppStore();
+  const { settings, updateSettings, currentYear, setCurrentYear, user } = useAppStore();
   const [formData, setFormData] = useState(settings);
   const [logoPreview, setLogoPreview] = useState(settings.logo);
+  const [logoLoading, setLogoLoading] = useState(false);
   const [newTerm, setNewTerm] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error('Logo must be less than 2MB');
-        return;
+  // Load logo from Firestore on mount
+  useEffect(() => {
+    const loadLogo = async () => {
+      if (user?.uid) {
+        const savedLogo = await getLogoFromFirestore(user.uid);
+        if (savedLogo) {
+          setLogoPreview(savedLogo);
+          setFormData(prev => ({ ...prev, logo: savedLogo }));
+        }
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setLogoPreview(result);
-        setFormData({ ...formData, logo: result });
-      };
-      reader.readAsDataURL(file);
+    };
+    loadLogo();
+  }, [user]);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 500 * 1024) {  // 500KB limit for base64 in Firestore
+      toast.error('Logo must be less than 500KB. Use a compressed image.');
+      return;
     }
+
+    setLogoLoading(true);
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const result = reader.result as string;
+      setLogoPreview(result);
+      setFormData({ ...formData, logo: result });
+
+      // Save to Firestore (free, no Storage needed)
+      if (user?.uid) {
+        await saveLogoToFirestore(user.uid, result);
+        toast.success('Logo saved!');
+      }
+      setLogoLoading(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSave = () => {
@@ -66,13 +91,16 @@ export default function Settings() {
         </h2>
 
         <div className="space-y-6">
-          {/* Logo Upload */}
+          {/* Logo Upload - Now stores in Firestore as base64 (FREE) */}
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">Company Logo</label>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">
+              Company Logo 
+              <span className="text-xs text-gray-400 font-normal ml-2">(Stores in database, max 500KB)</span>
+            </label>
             <div className="flex items-center gap-4">
               <div 
                 onClick={() => fileInputRef.current?.click()}
-                className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center cursor-pointer hover:border-rose-500 transition-colors overflow-hidden"
+                className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center cursor-pointer hover:border-rose-500 transition-colors overflow-hidden bg-gray-50"
               >
                 {logoPreview ? (
                   <img src={logoPreview} alt="Logo" className="w-full h-full object-contain" />
@@ -83,11 +111,13 @@ export default function Settings() {
               <div>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2 bg-gray-50 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
+                  disabled={logoLoading}
+                  className="px-4 py-2 bg-gray-50 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors disabled:opacity-50"
                 >
-                  Upload Logo
+                  {logoLoading ? 'Uploading...' : 'Upload Logo'}
                 </button>
-                <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 2MB</p>
+                <p className="text-xs text-gray-500 mt-1">PNG or JPG, max 500KB</p>
+                <p className="text-xs text-green-600 mt-1">✓ Free storage - no paid plan needed</p>
               </div>
               <input
                 ref={fileInputRef}
