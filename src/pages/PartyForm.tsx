@@ -17,7 +17,8 @@ export default function PartyForm() {
 
   const [form, setForm] = useState({
     name: '', legalName: '', gstin: '', address: '', city: '', state: '', pincode: '',
-    phone: '', email: '', pan: '', type: 'buyer', brokeragePercent: 0.5, brokerageFixed: 0
+    phone: '', email: '', pan: '', type: 'buyer' as 'buyer' | 'seller' | 'both',
+    brokeragePercent: 0.5, brokerageFixed: 0
   });
 
   useEffect(() => { loadParties(); }, []);
@@ -59,7 +60,19 @@ export default function PartyForm() {
     if (!form.legalName || !form.gstin) { toast.error('Legal name and GSTIN required'); return; }
     const party: Party = {
       id: id || uuidv4(),
-      ...form,
+      name: form.name,
+      legalName: form.legalName,
+      gstin: form.gstin,
+      address: form.address,
+      city: form.city,
+      state: form.state,
+      pincode: form.pincode,
+      phone: form.phone,
+      email: form.email,
+      pan: form.pan,
+      type: form.type,
+      brokeragePercent: form.brokeragePercent,
+      brokerageFixed: form.brokerageFixed,
       createdAt: existing?.createdAt || new Date(),
       updatedAt: new Date()
     };
@@ -101,7 +114,7 @@ export default function PartyForm() {
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             <input value={form.pan} onChange={e => setForm({ ...form, pan: e.target.value.toUpperCase() })} maxLength={10} placeholder="PAN" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm uppercase" />
-            <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value as any })}
+            <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value as 'buyer' | 'seller' | 'both' })}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
               <option value="buyer">Buyer</option>
               <option value="seller">Seller</option>

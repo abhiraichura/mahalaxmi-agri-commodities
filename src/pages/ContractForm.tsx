@@ -2,26 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Search, Plus, Trash2, FileText, Save, X, Users, Package, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Party, ProductSpec, Contract, SpecField } from '../types';
+import { Party, ProductSpec, Contract } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import toast from 'react-hot-toast';
-
-interface FormData {
-  date: string;
-  quantity: number;
-  quantityUnit: string;
-  price: number;
-  priceUnit: string;
-  deliveryLocation: string;
-  deliveryAddress: string;
-  packing: string;
-  loadingCondition: string;
-  paymentTerms: string;
-  gstPercent: number;
-  otherTerms: string;
-  brokeragePercent: number;
-  brokerageFixed: number;
-}
 
 export default function ContractForm() {
   const navigate = useNavigate();
@@ -39,29 +22,28 @@ export default function ContractForm() {
   const [saving, setSaving] = useState(false);
   const [gstLoading, setGstLoading] = useState(false);
 
-  const { register, handleSubmit, setValue, watch, reset } = useForm<FormData>({
-    defaultValues: {
-      date: new Date().toISOString().split('T')[0],
-      quantityUnit: 'M. TONES',
-      priceUnit: 'M. TONES F.O.R.',
-      packing: settings.defaultPacking,
-      loadingCondition: settings.defaultLoadingCondition,
-      paymentTerms: settings.defaultPaymentTerms,
-      gstPercent: settings.defaultGstPercent,
-      quantity: 10,
-      price: 63000,
-      brokeragePercent: 0.5,
-      brokerageFixed: 0
-    }
+  // Form state
+  const [form, setForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    quantity: 10,
+    quantityUnit: 'M. TONES',
+    price: 63000,
+    priceUnit: 'M. TONES F.O.R.',
+    deliveryLocation: '',
+    deliveryAddress: '',
+    packing: settings.defaultPacking,
+    loadingCondition: settings.defaultLoadingCondition,
+    paymentTerms: settings.defaultPaymentTerms,
+    gstPercent: settings.defaultGstPercent,
+    otherTerms: '',
+    brokeragePercent: 0.5,
+    brokerageFixed: 0
   });
 
   // Load data
-  useEffect(() => {
-    loadParties();
-    loadProducts();
-  }, []);
+  useEffect(() => { loadParties(); loadProducts(); }, []);
 
-  // Edit mode
+  // Edit mode - populate form
   useEffect(() => {
     if (id && contracts.length > 0) {
       const c = contracts.find(x => x.id === id);
@@ -69,7 +51,7 @@ export default function ContractForm() {
         setSelectedSeller(c.seller);
         setSelectedBuyer(c.buyer);
         setSelectedProduct(c.product);
-        reset({
+        setForm({
           date: c.date,
           quantity: c.quantity,
           quantityUnit: c.quantityUnit,
@@ -95,7 +77,7 @@ export default function ContractForm() {
     return `${random}${year}`;
   };
 
-  const onSubmit = async (data: FormData) => {
+  const handleSave = async () => {
     if (!selectedSeller || !selectedBuyer || !selectedProduct) {
       toast.error('Please select seller, buyer, and product');
       return;
@@ -103,31 +85,31 @@ export default function ContractForm() {
 
     setSaving(true);
     try {
-      const totalValue = data.quantity * data.price;
-      const brokerage = data.brokerageFixed > 0 ? data.brokerageFixed : (totalValue * data.brokeragePercent) / 100;
+      const totalValue = form.quantity * form.price;
+      const brokerage = form.brokerageFixed > 0 ? form.brokerageFixed : (totalValue * form.brokeragePercent) / 100;
 
       const contract: Contract = {
         id: id || uuidv4(),
         contractNo: id ? (contracts.find(c => c.id === id)?.contractNo || generateContractNo()) : generateContractNo(),
         year: currentYear,
-        date: data.date,
+        date: form.date,
         sellerId: selectedSeller.id,
         seller: selectedSeller,
         buyerId: selectedBuyer.id,
         buyer: selectedBuyer,
         productId: selectedProduct.id,
         product: selectedProduct,
-        quantity: data.quantity,
-        quantityUnit: data.quantityUnit,
-        price: data.price,
-        priceUnit: data.priceUnit,
-        deliveryLocation: data.deliveryLocation,
-        deliveryAddress: data.deliveryAddress,
-        packing: data.packing,
-        loadingCondition: data.loadingCondition,
-        paymentTerms: data.paymentTerms,
-        gstPercent: data.gstPercent,
-        otherTerms: data.otherTerms,
+        quantity: form.quantity,
+        quantityUnit: form.quantityUnit,
+        price: form.price,
+        priceUnit: form.priceUnit,
+        deliveryLocation: form.deliveryLocation,
+        deliveryAddress: form.deliveryAddress,
+        packing: form.packing,
+        loadingCondition: form.loadingCondition,
+        paymentTerms: form.paymentTerms,
+        gstPercent: form.gstPercent,
+        otherTerms: form.otherTerms,
         notes: '',
         status: 'confirmed',
         brokerageAmount: brokerage,
@@ -152,7 +134,7 @@ export default function ContractForm() {
     }
   };
 
-  const filteredParties = parties.filter(p =>
+  const filteredParties = parties.filter((p: Party) =>
     p.legalName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.gstin.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.city.toLowerCase().includes(searchQuery.toLowerCase())
@@ -171,7 +153,7 @@ export default function ContractForm() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <div className="space-y-6">
         {/* Parties */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -196,14 +178,12 @@ export default function ContractForm() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Package className="w-5 h-5 text-rose-600" /> Product
           </h2>
-          <select {...register('productId')}
-            onChange={(e) => {
-              const p = products.find(x => x.id === e.target.value);
-              setSelectedProduct(p || null);
-            }}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm mb-4">
+          <select value={selectedProduct?.id || ''} onChange={e => {
+            const p = products.find((x: ProductSpec) => x.id === e.target.value);
+            setSelectedProduct(p || null);
+          }} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm mb-4">
             <option value="">Select Product...</option>
-            {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {products.map((p: ProductSpec) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
 
           {selectedProduct && selectedProduct.specs && (
@@ -228,40 +208,50 @@ export default function ContractForm() {
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">Quantity</label>
               <div className="flex gap-2">
-                <input {...register('quantity', { valueAsNumber: true })} type="number" step="0.001" className="flex-1 input-field" />
-                <input {...register('quantityUnit')} className="w-32 input-field" placeholder="Unit" />
+                <input type="number" step="0.001" value={form.quantity} onChange={e => setForm({ ...form, quantity: parseFloat(e.target.value) || 0 })}
+                  className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+                <input value={form.quantityUnit} onChange={e => setForm({ ...form, quantityUnit: e.target.value })}
+                  className="w-32 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" placeholder="Unit" />
               </div>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">Price</label>
               <div className="flex gap-2">
-                <input {...register('price', { valueAsNumber: true })} type="number" step="0.01" className="flex-1 input-field" />
-                <input {...register('priceUnit')} className="w-40 input-field" placeholder="Per unit" />
+                <input type="number" step="0.01" value={form.price} onChange={e => setForm({ ...form, price: parseFloat(e.target.value) || 0 })}
+                  className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+                <input value={form.priceUnit} onChange={e => setForm({ ...form, priceUnit: e.target.value })}
+                  className="w-40 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" placeholder="Per unit" />
               </div>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">Delivery Location</label>
-              <input {...register('deliveryLocation')} placeholder="e.g., Unjha" className="w-full input-field" />
+              <input value={form.deliveryLocation} onChange={e => setForm({ ...form, deliveryLocation: e.target.value })}
+                placeholder="e.g., Unjha" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">Delivery Address</label>
-              <input {...register('deliveryAddress')} placeholder="Address will be provided by buyer" className="w-full input-field" />
+              <input value={form.deliveryAddress} onChange={e => setForm({ ...form, deliveryAddress: e.target.value })}
+                placeholder="Address will be provided by buyer" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">Packing</label>
-              <input {...register('packing')} className="w-full input-field" />
+              <input value={form.packing} onChange={e => setForm({ ...form, packing: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">Loading Condition</label>
-              <input {...register('loadingCondition')} className="w-full input-field" />
+              <input value={form.loadingCondition} onChange={e => setForm({ ...form, loadingCondition: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">Payment Terms</label>
-              <input {...register('paymentTerms')} className="w-full input-field" />
+              <input value={form.paymentTerms} onChange={e => setForm({ ...form, paymentTerms: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">GST %</label>
-              <input {...register('gstPercent', { valueAsNumber: true })} type="number" step="0.01" className="w-full input-field" />
+              <input type="number" step="0.01" value={form.gstPercent} onChange={e => setForm({ ...form, gstPercent: parseFloat(e.target.value) || 0 })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
             </div>
           </div>
         </div>
@@ -272,11 +262,13 @@ export default function ContractForm() {
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">Brokerage %</label>
-              <input {...register('brokeragePercent', { valueAsNumber: true })} type="number" step="0.01" className="w-full input-field" />
+              <input type="number" step="0.01" value={form.brokeragePercent} onChange={e => setForm({ ...form, brokeragePercent: parseFloat(e.target.value) || 0 })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">Fixed Brokerage (Rs.)</label>
-              <input {...register('brokerageFixed', { valueAsNumber: true })} type="number" step="0.01" className="w-full input-field" />
+              <input type="number" step="0.01" value={form.brokerageFixed} onChange={e => setForm({ ...form, brokerageFixed: parseFloat(e.target.value) || 0 })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
             </div>
           </div>
         </div>
@@ -284,21 +276,21 @@ export default function ContractForm() {
         {/* Other Terms */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Other Terms</h2>
-          <textarea {...register('otherTerms')} rows={3} placeholder="Additional terms..." className="w-full input-field resize-none" />
+          <textarea value={form.otherTerms} onChange={e => setForm({ ...form, otherTerms: e.target.value })}
+            rows={3} placeholder="Additional terms and conditions..."
+            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
         </div>
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-4">
-          <button type="button" onClick={() => navigate('/')} className="px-6 py-3 text-gray-600 hover:text-gray-900 font-medium">
-            Cancel
-          </button>
-          <button type="submit" disabled={saving}
-            className="px-8 py-3 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 disabled:opacity-50 flex items-center gap-2">
-            {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
+          <button type="button" onClick={() => navigate('/')} className="px-6 py-3 text-gray-600 hover:text-gray-900 font-medium">Cancel</button>
+          <button onClick={handleSave} disabled={saving}
+            className="px-8 py-3 bg-gradient-to-r from-rose-600 to-rose-700 text-white rounded-xl font-medium shadow-lg shadow-rose-200 hover:shadow-xl hover:shadow-rose-300 transition-all disabled:opacity-50 flex items-center gap-2">
+            {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <FileText className="w-4 h-4" />}
             {id ? 'Update Contract' : 'Save Contract'}
           </button>
         </div>
-      </form>
+      </div>
 
       {/* New Party Modal */}
       {showNewParty && (
@@ -335,7 +327,7 @@ function PartySelector({ label, selected, onSelect, parties, showSearch, setShow
           <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-80 overflow-auto">
             <div className="p-3 border-b border-gray-100">
               <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search name, GSTIN, city..." autoFocus
+                placeholder="Search by name, GSTIN, or city..." autoFocus
                 className="w-full px-4 py-2 bg-gray-50 rounded-lg text-sm" />
             </div>
             <div className="p-2">
@@ -365,12 +357,16 @@ function PartySelector({ label, selected, onSelect, parties, showSearch, setShow
 }
 
 function NewPartyModal({ type, onClose, onSave }: any) {
-  const [form, setForm] = useState({ name: '', legalName: '', gstin: '', address: '', city: '', state: '', pincode: '', phone: '', email: '', pan: '', brokeragePercent: 0.5, brokerageFixed: 0 });
+  const [form, setForm] = useState({
+    name: '', legalName: '', gstin: '', address: '', city: '', state: '', pincode: '',
+    phone: '', email: '', pan: '', type: (type === 'seller' ? 'seller' : 'buyer') as 'buyer' | 'seller',
+    brokeragePercent: 0.5, brokerageFixed: 0
+  });
   const [gstVerified, setGstVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
   const verifyGST = async () => {
-    if (form.gstin.length !== 15) { toast.error('Enter valid 15-digit GSTIN'); return; }
+    if (form.gstin.length !== 15) { toast.error('Enter valid GSTIN'); return; }
     setVerifying(true);
     try {
       const res = await fetch(`https://sheet.gstincheck.co.in/check/${form.gstin}`);
@@ -382,18 +378,12 @@ function NewPartyModal({ type, onClose, onSave }: any) {
           ...prev,
           legalName: info.lgnm || prev.legalName,
           address: `${addr.bno || ''} ${addr.st || ''} ${addr.loc || ''}`.trim(),
-          city: addr.city || addr.dst || '',
-          state: addr.stcd || '',
-          pincode: addr.pncd || ''
+          city: addr.city || addr.dst || '', state: addr.stcd || '', pincode: addr.pncd || ''
         }));
         setGstVerified(true);
         toast.success('GST verified!');
-      } else {
-        toast.error('Could not verify GSTIN');
-      }
-    } catch (e) {
-      toast.error('GST service unavailable');
-    }
+      } else { toast.error('Could not verify'); }
+    } catch (e) { toast.error('Service unavailable'); }
     setVerifying(false);
   };
 
@@ -401,8 +391,19 @@ function NewPartyModal({ type, onClose, onSave }: any) {
     if (!form.legalName || !form.gstin) { toast.error('Legal name and GSTIN required'); return; }
     const party: Party = {
       id: uuidv4(),
-      ...form,
-      type: type === 'seller' ? 'seller' : 'buyer',
+      name: form.name,
+      legalName: form.legalName,
+      gstin: form.gstin,
+      address: form.address,
+      city: form.city,
+      state: form.state,
+      pincode: form.pincode,
+      phone: form.phone,
+      email: form.email,
+      pan: form.pan,
+      type: form.type,
+      brokeragePercent: form.brokeragePercent,
+      brokerageFixed: form.brokerageFixed,
       createdAt: new Date(),
       updatedAt: new Date()
     };
