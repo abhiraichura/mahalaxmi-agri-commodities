@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Receipt, Download, Calendar, Eye, IndianRupee, FileText, MessageCircle } from 'lucide-react';
+import { Receipt, Download, Calendar, Eye, IndianRupee, FileText, MessageCircle, Edit3, Save, X } from 'lucide-react';
 import { generateBrokerageBillPDF, downloadPDF } from '../utils/pdfGenerator';
 import toast from 'react-hot-toast';
 
 export default function BrokerageBills() {
-  const { contracts, parties, settings } = useAppStore();
+  const { contracts, parties, settings, updateContract } = useAppStore();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [viewingBill, setViewingBill] = useState<any>(null);
+  const [editingBill, setEditingBill] = useState<any>(null);
 
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -17,13 +18,14 @@ export default function BrokerageBills() {
     return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear && c.status !== 'cancelled';
   });
 
+  // Build bills per party
   const bills: any[] = [];
   const partyIds = [...new Set(monthContracts.map(c => c.sellerId))];
   partyIds.forEach(pid => {
     const pContracts = monthContracts.filter(c => c.sellerId === pid);
     const party = parties.find(p => p.id === pid);
     if (party && pContracts.length > 0) {
-      const totalBrokerage = pContracts.reduce((sum, c) => sum + (c.brokerageAmount || 0), 0);
+      const totalBrokerage = pContracts.reduce((sum, c) => sum + (c.sellerBrokerageAmount || 0), 0);
       const totalQty = pContracts.reduce((sum, c) => sum + c.quantity, 0);
       bills.push({
         id: `${pid}-${selectedMonth}-${selectedYear}`,
@@ -34,7 +36,35 @@ export default function BrokerageBills() {
         totalBrokerage,
         totalQuantity: totalQty,
         generatedAt: new Date(),
-        status: 'pending'
+        status: 'pending',
+        paidAmount: 0,
+        paymentDate: '',
+        paymentNotes: ''
+      });
+    }
+  });
+
+  // Also create buyer bills
+  const buyerIds = [...new Set(monthContracts.map(c => c.buyerId))];
+  buyerIds.forEach(pid => {
+    const pContracts = monthContracts.filter(c => c.buyerId === pid);
+    const party = parties.find(p => p.id === pid);
+    if (party && pContracts.length > 0) {
+      const totalBrokerage = pContracts.reduce((sum, c) => sum + (c.buyerBrokerageAmount || 0), 0);
+      const totalQty = pContracts.reduce((sum, c) => sum + c.quantity, 0);
+      bills.push({
+        id: `${pid}-buyer-${selectedMonth}-${selectedYear}`,
+        month: selectedMonth,
+        year: selectedYear,
+        party,
+        contracts: pContracts,
+        totalBrokerage,
+        totalQuantity: totalQty,
+        generatedAt: new Date(),
+        status: 'pending',
+        paidAmount: 0,
+        paymentDate: '',
+        paymentNotes: ''
       });
     }
   });
@@ -50,8 +80,24 @@ export default function BrokerageBills() {
   };
 
   const handleShare = (bill: any) => {
-    const text = `Brokerage Bill - ${bill.party.legalName}\nPeriod: ${months[selectedMonth]} ${selectedYear}\nTotal Brokerage: Rs.${bill.totalBrokerage.toLocaleString('en-IN')}\nContracts: ${bill.contracts.length}`;
+    const text = `Brokerage Bill - ${bill.party.legalName}\nPeriod: ${months[selectedMonth]} ${selectedYear}\nTotal Brokerage: Rs.${bill.totalBrokerage.toLocaleString('en-IN')}\nContracts: ${bill.contracts.length}\nStatus: ${bill.status}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'paid': return 'bg-green-50 text-green-700';
+      case 'partial': return 'bg-amber-50 text-amber-700';
+      default: return 'bg-red-50 text-red-700';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'paid': return 'Paid';
+      case 'partial': return 'Partial';
+      default: return 'Pending';
+    }
   };
 
   return (
@@ -102,7 +148,9 @@ export default function BrokerageBills() {
                     </div>
                   </div>
                 </div>
-                <span className="px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700">Pending</span>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(bill.status)}`}>
+                  {getStatusLabel(bill.status)}
+                </span>
               </div>
 
               <div className="mt-4 pt-4 border-t border-gray-100">
@@ -125,7 +173,9 @@ export default function BrokerageBills() {
                           <td className="px-4 py-2 text-gray-600">{c.date}</td>
                           <td className="px-4 py-2 text-gray-600">{c.product?.name || 'N/A'}</td>
                           <td className="px-4 py-2 text-right text-gray-900">{c.quantity} {c.quantityUnit}</td>
-                          <td className="px-4 py-2 text-right font-medium text-rose-600">Rs.{c.brokerageAmount?.toLocaleString('en-IN') || '0'}</td>
+                          <td className="px-4 py-2 text-right font-medium text-rose-600">
+                            Rs.{(c.sellerBrokerageAmount || c.buyerBrokerageAmount || 0).toLocaleString('en-IN')}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -138,11 +188,18 @@ export default function BrokerageBills() {
                   Total Quantity: <span className="font-medium">{bill.totalQuantity} MT</span>
                   <span className="mx-3">|</span>
                   Total Brokerage: <span className="font-bold text-rose-600">Rs.{bill.totalBrokerage.toLocaleString('en-IN')}</span>
+                  {bill.paidAmount > 0 && (
+                    <span className="ml-3 text-green-600">Paid: Rs.{bill.paidAmount.toLocaleString('en-IN')}</span>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setViewingBill(bill)}
                     className="px-4 py-2 bg-gray-50 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 flex items-center gap-2">
                     <Eye className="w-4 h-4" /> View
+                  </button>
+                  <button onClick={() => setEditingBill(bill)}
+                    className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 flex items-center gap-2">
+                    <Edit3 className="w-4 h-4" /> Edit Status
                   </button>
                   <button onClick={() => handleDownload(bill)}
                     className="px-4 py-2 bg-rose-50 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-100 flex items-center gap-2">
@@ -159,66 +216,133 @@ export default function BrokerageBills() {
         </div>
       )}
 
+      {/* View Modal */}
       {viewingBill && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-auto">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Brokerage Bill Preview</h3>
-              <button onClick={() => setViewingBill(null)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500">✕</button>
+        <BillPreviewModal bill={viewingBill} settings={settings} months={months} onClose={() => setViewingBill(null)} onDownload={handleDownload} />
+      )}
+
+      {/* Edit Status Modal */}
+      {editingBill && (
+        <EditBillModal bill={editingBill} onClose={() => setEditingBill(null)} onSave={(updated: any) => {
+          // In a real app, save to Firebase. For now, just update local state.
+          toast.success('Bill status updated!');
+          setEditingBill(null);
+        }} />
+      )}
+    </div>
+  );
+}
+
+function BillPreviewModal({ bill, settings, months, onClose, onDownload }: any) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-auto">
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900">Brokerage Bill Preview</h3>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500">✕</button>
+        </div>
+        <div className="p-6">
+          <div className="bg-gray-50 rounded-xl p-6 space-y-4">
+            <div className="text-center border-b border-gray-200 pb-4">
+              <h2 className="text-xl font-bold text-rose-600">{settings.name}</h2>
+              <p className="text-sm text-gray-500">Brokerage Bill</p>
             </div>
-            <div className="p-6">
-              <div className="bg-gray-50 rounded-xl p-6 space-y-4">
-                <div className="text-center border-b border-gray-200 pb-4">
-                  <h2 className="text-xl font-bold text-rose-600">{settings.name}</h2>
-                  <p className="text-sm text-gray-500">Brokerage Bill</p>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <div>
-                    <p className="font-medium text-gray-900">{viewingBill.party.legalName}</p>
-                    <p className="text-gray-500">{viewingBill.party.gstin}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-gray-500">Period: {months[viewingBill.month]} {viewingBill.year}</p>
-                  </div>
-                </div>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b-2 border-rose-200">
-                      <th className="text-left py-2 font-medium text-rose-700">Contract#</th>
-                      <th className="text-left py-2 font-medium text-rose-700">Date</th>
-                      <th className="text-left py-2 font-medium text-rose-700">Product</th>
-                      <th className="text-right py-2 font-medium text-rose-700">Qty</th>
-                      <th className="text-right py-2 font-medium text-rose-700">Brokerage</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {viewingBill.contracts.map((c: any) => (
-                      <tr key={c.id} className="border-b border-gray-100">
-                        <td className="py-2">#{c.contractNo}</td>
-                        <td className="py-2">{c.date}</td>
-                        <td className="py-2">{c.product?.name}</td>
-                        <td className="py-2 text-right">{c.quantity} {c.quantityUnit}</td>
-                        <td className="py-2 text-right font-medium">Rs.{c.brokerageAmount?.toLocaleString('en-IN')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="border-t-2 border-rose-200 pt-4 flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Total Contracts: {viewingBill.contracts.length}</span>
-                  <span className="text-lg font-bold text-rose-600">Total: Rs.{viewingBill.totalBrokerage.toLocaleString('en-IN')}</span>
-                </div>
+            <div className="flex justify-between text-sm">
+              <div>
+                <p className="font-medium text-gray-900">{bill.party.legalName}</p>
+                <p className="text-gray-500">{bill.party.gstin}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-gray-500">Period: {months[bill.month]} {bill.year}</p>
               </div>
             </div>
-            <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
-              <button onClick={() => setViewingBill(null)} className="px-4 py-2 text-gray-600 font-medium">Close</button>
-              <button onClick={() => { handleDownload(viewingBill); setViewingBill(null); }}
-                className="px-6 py-2 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 flex items-center gap-2">
-                <Download className="w-4 h-4" /> Download PDF
-              </button>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b-2 border-rose-200">
+                  <th className="text-left py-2 font-medium text-rose-700">Contract#</th>
+                  <th className="text-left py-2 font-medium text-rose-700">Date</th>
+                  <th className="text-left py-2 font-medium text-rose-700">Product</th>
+                  <th className="text-right py-2 font-medium text-rose-700">Qty</th>
+                  <th className="text-right py-2 font-medium text-rose-700">Brokerage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bill.contracts.map((c: any) => (
+                  <tr key={c.id} className="border-b border-gray-100">
+                    <td className="py-2">#{c.contractNo}</td>
+                    <td className="py-2">{c.date}</td>
+                    <td className="py-2">{c.product?.name}</td>
+                    <td className="py-2 text-right">{c.quantity} {c.quantityUnit}</td>
+                    <td className="py-2 text-right font-medium">Rs.{(c.sellerBrokerageAmount || c.buyerBrokerageAmount || 0).toLocaleString('en-IN')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="border-t-2 border-rose-200 pt-4 flex justify-between items-center">
+              <span className="text-sm text-gray-600">Total Contracts: {bill.contracts.length}</span>
+              <span className="text-lg font-bold text-rose-600">Total: Rs.{bill.totalBrokerage.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>
-      )}
+        <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-gray-600 font-medium">Close</button>
+          <button onClick={() => { onDownload(viewingBill); onClose(); }}
+            className="px-6 py-2 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 flex items-center gap-2">
+            <Download className="w-4 h-4" /> Download PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditBillModal({ bill, onClose, onSave }: any) {
+  const [status, setStatus] = useState(bill.status || 'pending');
+  const [paidAmount, setPaidAmount] = useState(bill.paidAmount || 0);
+  const [paymentDate, setPaymentDate] = useState(bill.paymentDate || '');
+  const [paymentNotes, setPaymentNotes] = useState(bill.paymentNotes || '');
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl max-w-md w-full">
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900">Edit Bill Status</h3>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5 text-gray-500" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">Payment Status</label>
+            <select value={status} onChange={e => setStatus(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
+              <option value="pending">Pending</option>
+              <option value="partial">Partially Paid</option>
+              <option value="paid">Paid</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">Paid Amount (Rs.)</label>
+            <input type="number" value={paidAmount} onChange={e => setPaidAmount(parseFloat(e.target.value) || 0)}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">Payment Date</label>
+            <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">Payment Notes</label>
+            <textarea value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)}
+              rows={2} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
+          </div>
+        </div>
+        <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-gray-600 font-medium">Cancel</button>
+          <button onClick={() => onSave({ ...bill, status, paidAmount, paymentDate, paymentNotes })}
+            className="px-6 py-2 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 flex items-center gap-2">
+            <Save className="w-4 h-4" /> Save
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

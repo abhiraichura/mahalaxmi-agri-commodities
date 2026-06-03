@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Share2, Printer, FileText, Trash2, Edit2, MessageCircle, Mail } from 'lucide-react';
+import { ArrowLeft, Download, Share2, Printer, FileText, Trash2, Edit2, MessageCircle } from 'lucide-react';
 import { useAppStore } from '../hooks/useAuthStore';
 import { generateContractPDF, downloadPDF } from '../utils/pdfGenerator';
 import toast from 'react-hot-toast';
@@ -109,7 +109,8 @@ export default function ContractView() {
             <TermRow label="Quantity" value={`${contract.quantity} ${contract.quantityUnit}`} />
             <TermRow label="Price" value={`Rs. ${contract.price.toLocaleString('en-IN')} per ${contract.priceUnit}`} />
             <TermRow label="Total Value" value={`Rs. ${totalValue.toLocaleString('en-IN')}`} highlight />
-            <TermRow label="Brokerage" value={`Rs. ${contract.brokerageAmount.toLocaleString('en-IN')}`} />
+            <TermRow label="Buyer Brokerage %" value={`${contract.buyerBrokeragePercent}%`} />
+            <TermRow label="Seller Brokerage %" value={`${contract.sellerBrokeragePercent}%`} />
             <TermRow label="Packing" value={contract.packing} />
             <TermRow label="Delivery" value={`${contract.deliveryLocation} - ${contract.deliveryAddress}`} />
             <TermRow label="Loading" value={contract.loadingCondition} />

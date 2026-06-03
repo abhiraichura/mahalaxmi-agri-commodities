@@ -2,10 +2,9 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Party, ProductSpec, Contract, CompanySettings } from '../types';
 import { 
-  addDoc, updateDocData, deleteDocData, getColData, subscribeCol,
+  addDoc, updateDocData, deleteDocData, getColData,
   COLLECTIONS, db, Timestamp, setDocData
 } from '../utils/firebase';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 
 const defaultSettings: CompanySettings = {
   name: 'MAHALAXMI AGRI COMMODITIES',
@@ -34,7 +33,8 @@ const defaultSettings: CompanySettings = {
   defaultPaymentTerms: '3 to 4 days payment with 1% discount after delivery',
   defaultLoadingCondition: 'Goods to be loaded within one week',
   defaultPacking: '40 KG Plain P.P. Nett Packing with Double Stitching',
-  financialYearStart: 2020
+  financialYearStart: 2020,
+  nextContractNumber: 1
 };
 
 interface AppState {
@@ -148,6 +148,9 @@ export const useAppStore = create<AppState>()(
       addContract: async (contract) => {
         await addDoc(COLLECTIONS.CONTRACTS, contract.id, contract);
         set({ contracts: [contract, ...get().contracts] });
+        // Increment next contract number
+        const nextNum = (get().settings.nextContractNumber || 1) + 1;
+        set({ settings: { ...get().settings, nextContractNumber: nextNum } });
       },
       updateContract: async (id, updates) => {
         await updateDocData(COLLECTIONS.CONTRACTS, id, updates);

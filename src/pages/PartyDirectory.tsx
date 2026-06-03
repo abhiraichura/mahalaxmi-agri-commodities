@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Phone, MapPin, Building2, UserCircle, ArrowRight, Trash2, Edit2 } from 'lucide-react';
+import { Search, Plus, Phone, MapPin, Building2, UserCircle, Trash2, Edit2, Eye, X, Banknote, Mail, MessageSquare } from 'lucide-react';
 import { useAppStore } from '../hooks/useAuthStore';
 import toast from 'react-hot-toast';
 
@@ -10,6 +10,7 @@ export default function PartyDirectory() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'buyer' | 'seller'>('all');
   const [loading, setLoading] = useState(true);
+  const [viewingParty, setViewingParty] = useState<any>(null);
 
   useEffect(() => { loadParties().then(() => setLoading(false)); }, []);
 
@@ -76,10 +77,13 @@ export default function PartyDirectory() {
                 </div>
               </div>
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => navigate(`/party/${party.id}/edit`)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600">
+                <button onClick={() => setViewingParty(party)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-rose-600" title="View Details">
+                  <Eye className="w-4 h-4" />
+                </button>
+                <button onClick={() => navigate(`/party/${party.id}/edit`)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600" title="Edit">
                   <Edit2 className="w-4 h-4" />
                 </button>
-                <button onClick={() => handleDelete(party.id)} className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600">
+                <button onClick={() => handleDelete(party.id)} className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600" title="Delete">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -104,6 +108,76 @@ export default function PartyDirectory() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* View Party Details Modal */}
+      {viewingParty && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-auto">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Party Details</h3>
+              <button onClick={() => setViewingParty(null)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5 text-gray-500" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                  viewingParty.type === 'buyer' ? 'bg-blue-50 text-blue-600' :
+                  viewingParty.type === 'seller' ? 'bg-green-50 text-green-600' : 'bg-purple-50 text-purple-600'
+                }`}>
+                  {viewingParty.type === 'buyer' ? <Building2 className="w-6 h-6" /> :
+                   viewingParty.type === 'seller' ? <UserCircle className="w-6 h-6" /> : <Building2 className="w-6 h-6" />}
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900">{viewingParty.legalName}</h4>
+                  <p className="text-sm text-gray-500">{viewingParty.gstin}</p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                <h5 className="text-xs font-bold text-gray-500 uppercase">Public Details</h5>
+                <DetailRow icon={<MapPin className="w-4 h-4" />} label="Address" value={`${viewingParty.address}, ${viewingParty.city}, ${viewingParty.state} - ${viewingParty.pincode}`} />
+                <DetailRow icon={<Phone className="w-4 h-4" />} label="Phone" value={viewingParty.phone || 'N/A'} />
+                <DetailRow icon={<Mail className="w-4 h-4" />} label="Email" value={viewingParty.email || 'N/A'} />
+                <DetailRow icon={<Banknote className="w-4 h-4" />} label="PAN" value={viewingParty.pan || 'N/A'} />
+              </div>
+
+              <div className="bg-amber-50 rounded-xl p-4 space-y-2 border border-amber-100">
+                <h5 className="text-xs font-bold text-amber-600 uppercase">Private Details (Not on Contract)</h5>
+                <DetailRow icon={<UserCircle className="w-4 h-4" />} label="Contact Person" value={viewingParty.contactPerson || 'N/A'} />
+                <DetailRow icon={<Phone className="w-4 h-4" />} label="Alt. Phone" value={viewingParty.altPhone || 'N/A'} />
+                <DetailRow icon={<Mail className="w-4 h-4" />} label="Alt. Email" value={viewingParty.altEmail || 'N/A'} />
+                <DetailRow icon={<MessageSquare className="w-4 h-4" />} label="Remarks" value={viewingParty.remarks || 'N/A'} />
+                <DetailRow icon={<MessageSquare className="w-4 h-4" />} label="Notes" value={viewingParty.notes || 'N/A'} />
+                <DetailRow icon={<Banknote className="w-4 h-4" />} label="Bank" value={`${viewingParty.bankName || ''} ${viewingParty.bankAccount ? 'A/c: ' + viewingParty.bankAccount : ''} ${viewingParty.bankIfsc ? 'IFSC: ' + viewingParty.bankIfsc : ''}`} />
+              </div>
+
+              <div className="bg-blue-50 rounded-xl p-4 space-y-2 border border-blue-100">
+                <h5 className="text-xs font-bold text-blue-600 uppercase">Brokerage Settings</h5>
+                <DetailRow icon={<Banknote className="w-4 h-4" />} label="Brokerage %" value={`${viewingParty.brokeragePercent}%`} />
+                <DetailRow icon={<Banknote className="w-4 h-4" />} label="Fixed Brokerage" value={viewingParty.brokerageFixed > 0 ? `Rs. ${viewingParty.brokerageFixed}` : 'N/A'} />
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
+              <button onClick={() => setViewingParty(null)} className="px-4 py-2 text-gray-600 font-medium">Close</button>
+              <button onClick={() => { setViewingParty(null); navigate(`/party/${viewingParty.id}/edit`); }}
+                className="px-6 py-2 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 flex items-center gap-2">
+                <Edit2 className="w-4 h-4" /> Edit Party
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailRow({ icon, label, value }: { icon: any; label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-2 text-sm">
+      <span className="text-gray-400 shrink-0 mt-0.5">{icon}</span>
+      <div>
+        <span className="text-gray-500">{label}:</span>{' '}
+        <span className="text-gray-900">{value}</span>
       </div>
     </div>
   );

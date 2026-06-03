@@ -1,10 +1,11 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, Users, Package, Receipt, Settings, Menu, LogOut, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Package, Receipt, Settings, Menu, LogOut, ChevronRight, List } from 'lucide-react';
 import { useAuthStore } from '../hooks/useAuthStore';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/contracts', label: 'All Contracts', icon: List },
   { path: '/contract/new', label: 'New Contract', icon: FileText },
   { path: '/parties', label: 'Parties', icon: Users },
   { path: '/products', label: 'Products', icon: Package },
@@ -38,7 +39,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
+            const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
             const Icon = item.icon;
             return (
               <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)}

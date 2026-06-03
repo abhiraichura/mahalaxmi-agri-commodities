@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Users, Package, Receipt, Plus, Trash2, Edit2, Eye, Calendar, IndianRupee } from 'lucide-react';
+import { FileText, Users, Package, Receipt, Plus, Trash2, Edit2, Eye, Calendar, IndianRupee, ArrowRight } from 'lucide-react';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Contract } from '../types';
 import toast from 'react-hot-toast';
@@ -29,14 +29,19 @@ export default function Dashboard() {
   };
 
   const stats = [
-    { label: 'Total Parties', value: parties.length, icon: Users },
-    { label: 'Products', value: products.length, icon: Package },
-    { label: 'Contracts', value: contracts.length, icon: FileText },
+    { label: 'Total Parties', value: parties.length, icon: Users, color: 'bg-blue-50 text-blue-600' },
+    { label: 'Products', value: products.length, icon: Package, color: 'bg-amber-50 text-amber-600' },
+    { label: 'Contracts', value: contracts.length, icon: FileText, color: 'bg-rose-50 text-rose-600' },
     { label: 'This Month', value: contracts.filter(c => {
       const d = new Date(c.date);
       return d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear();
-    }).length, icon: Receipt },
+    }).length, icon: Receipt, color: 'bg-green-50 text-green-600' },
   ];
+
+  // Recent contracts (last 5)
+  const recentContracts = [...contracts].sort((a, b) => 
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  ).slice(0, 5);
 
   if (isLoading) {
     return (
@@ -63,9 +68,14 @@ export default function Dashboard() {
         {stats.map((stat, i) => {
           const Icon = stat.icon;
           return (
-            <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5">
-              <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center mb-3">
-                <Icon className="w-5 h-5 text-rose-600" />
+            <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md transition-all cursor-pointer"
+              onClick={() => {
+                if (stat.label === 'Total Parties') navigate('/parties');
+                else if (stat.label === 'Products') navigate('/products');
+                else if (stat.label === 'Contracts' || stat.label === 'This Month') navigate('/contracts');
+              }}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${stat.color}`}>
+                <Icon className="w-5 h-5" />
               </div>
               <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
               <p className="text-sm text-gray-500">{stat.label}</p>
@@ -74,10 +84,17 @@ export default function Dashboard() {
         })}
       </div>
 
+      {/* Recent Contracts */}
       <div className="bg-white rounded-2xl border border-gray-200">
         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Contracts</h2>
-          <span className="text-sm text-gray-500">{contracts.length} total</span>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Recent Contracts</h2>
+            <p className="text-sm text-gray-500">{contracts.length} total</p>
+          </div>
+          <button onClick={() => navigate('/contracts')}
+            className="text-sm text-rose-600 font-medium hover:underline flex items-center gap-1">
+            View All <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
         {contracts.length === 0 ? (
           <div className="p-12 text-center">
@@ -90,7 +107,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {contracts.map((contract: Contract) => (
+            {recentContracts.map((contract: Contract) => (
               <div key={contract.id} className="p-4 hover:bg-gray-50 transition-colors">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -100,7 +117,7 @@ export default function Dashboard() {
                     <div>
                       <p className="font-medium text-gray-900">Contract #{contract.contractNo}</p>
                       <p className="text-sm text-gray-500">
-                        {contract.seller?.legalName || 'Unknown'} → {contract.buyer?.legalName || 'Unknown'}
+                        {contract.seller?.legalName || 'Unknown'} ↔ {contract.buyer?.legalName || 'Unknown'}
                       </p>
                       <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
                         <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {contract.date}</span>
@@ -108,7 +125,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <button onClick={() => navigate(`/contract/${contract.id}`)}
                       className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-rose-600" title="View">
                       <Eye className="w-4 h-4" />

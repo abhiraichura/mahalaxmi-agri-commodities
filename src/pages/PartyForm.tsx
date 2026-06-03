@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Save, Search, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Save, Search, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Party } from '../types';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,13 +12,17 @@ export default function PartyForm() {
   const { parties, addParty, updateParty, loadParties } = useAppStore();
   const [gstLoading, setGstLoading] = useState(false);
   const [gstVerified, setGstVerified] = useState(false);
+  const [showPrivate, setShowPrivate] = useState(false);
 
   const existing = id ? parties.find(p => p.id === id) : null;
 
   const [form, setForm] = useState({
     name: '', legalName: '', gstin: '', address: '', city: '', state: '', pincode: '',
     phone: '', email: '', pan: '', type: 'buyer' as 'buyer' | 'seller' | 'both',
-    brokeragePercent: 0.5, brokerageFixed: 0
+    brokeragePercent: 0.5, brokerageFixed: 0,
+    // Private fields
+    contactPerson: '', altPhone: '', altEmail: '', remarks: '', notes: '',
+    bankName: '', bankAccount: '', bankIfsc: ''
   });
 
   useEffect(() => { loadParties(); }, []);
@@ -29,7 +33,10 @@ export default function PartyForm() {
         name: existing.name || '', legalName: existing.legalName, gstin: existing.gstin,
         address: existing.address, city: existing.city, state: existing.state, pincode: existing.pincode,
         phone: existing.phone, email: existing.email, pan: existing.pan,
-        type: existing.type, brokeragePercent: existing.brokeragePercent, brokerageFixed: existing.brokerageFixed
+        type: existing.type, brokeragePercent: existing.brokeragePercent, brokerageFixed: existing.brokerageFixed,
+        contactPerson: existing.contactPerson || '', altPhone: existing.altPhone || '',
+        altEmail: existing.altEmail || '', remarks: existing.remarks || '', notes: existing.notes || '',
+        bankName: existing.bankName || '', bankAccount: existing.bankAccount || '', bankIfsc: existing.bankIfsc || ''
       });
     }
   }, [existing]);
@@ -73,6 +80,14 @@ export default function PartyForm() {
       type: form.type,
       brokeragePercent: form.brokeragePercent,
       brokerageFixed: form.brokerageFixed,
+      contactPerson: form.contactPerson,
+      altPhone: form.altPhone,
+      altEmail: form.altEmail,
+      remarks: form.remarks,
+      notes: form.notes,
+      bankName: form.bankName,
+      bankAccount: form.bankAccount,
+      bankIfsc: form.bankIfsc,
       createdAt: existing?.createdAt || new Date(),
       updatedAt: new Date()
     };
@@ -122,8 +137,45 @@ export default function PartyForm() {
             </select>
           </div>
           <div className="grid md:grid-cols-2 gap-4">
-            <input type="number" step="0.01" value={form.brokeragePercent} onChange={e => setForm({ ...form, brokeragePercent: parseFloat(e.target.value) })} placeholder="Brokerage %" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-            <input type="number" step="0.01" value={form.brokerageFixed} onChange={e => setForm({ ...form, brokerageFixed: parseFloat(e.target.value) })} placeholder="Fixed Brokerage (Rs.)" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            <input type="number" step="0.01" value={form.brokeragePercent} onChange={e => setForm({ ...form, brokeragePercent: parseFloat(e.target.value) })}
+              placeholder="Brokerage %" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            <input type="number" step="0.01" value={form.brokerageFixed} onChange={e => setForm({ ...form, brokerageFixed: parseFloat(e.target.value) })}
+              placeholder="Fixed Brokerage (Rs.)" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          </div>
+
+          {/* Private Details Toggle */}
+          <div className="border-t border-gray-100 pt-4">
+            <button onClick={() => setShowPrivate(!showPrivate)}
+              className="flex items-center gap-2 text-sm font-semibold text-amber-600 hover:text-amber-700">
+              {showPrivate ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showPrivate ? 'Hide Private Details' : 'Show Private Details (Not on Contract)'}
+            </button>
+
+            {showPrivate && (
+              <div className="mt-4 space-y-4 bg-amber-50 rounded-xl p-4 border border-amber-100">
+                <h4 className="text-sm font-semibold text-amber-700">Private Information</h4>
+                <input value={form.contactPerson} onChange={e => setForm({ ...form, contactPerson: e.target.value })}
+                  placeholder="Contact Person Name" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm" />
+                <div className="grid md:grid-cols-2 gap-4">
+                  <input value={form.altPhone} onChange={e => setForm({ ...form, altPhone: e.target.value })}
+                    placeholder="Alt. Phone" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm" />
+                  <input value={form.altEmail} onChange={e => setForm({ ...form, altEmail: e.target.value })}
+                    placeholder="Alt. Email" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm" />
+                </div>
+                <textarea value={form.remarks} onChange={e => setForm({ ...form, remarks: e.target.value })}
+                  placeholder="Remarks" rows={2} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm resize-none" />
+                <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
+                  placeholder="Notes" rows={2} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm resize-none" />
+                <div className="grid md:grid-cols-2 gap-4">
+                  <input value={form.bankName} onChange={e => setForm({ ...form, bankName: e.target.value })}
+                    placeholder="Bank Name" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm" />
+                  <input value={form.bankAccount} onChange={e => setForm({ ...form, bankAccount: e.target.value })}
+                    placeholder="Account Number" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm" />
+                </div>
+                <input value={form.bankIfsc} onChange={e => setForm({ ...form, bankIfsc: e.target.value })}
+                  placeholder="IFSC Code" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm" />
+              </div>
+            )}
           </div>
         </div>
         <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-100 mt-6">

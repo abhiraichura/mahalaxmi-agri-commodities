@@ -1,3 +1,11 @@
+export interface ProductSpec {
+  id: string;
+  name: string;
+  specs: { label: string; value: string; unit?: string }[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Party {
   id: string;
   name: string;
@@ -13,24 +21,17 @@ export interface Party {
   type: 'buyer' | 'seller' | 'both';
   brokeragePercent: number;
   brokerageFixed: number;
-  createdAt: any;
-  updatedAt: any;
-}
-
-export interface SpecField {
-  id: string;
-  label: string;
-  value: string;
-  unit: string;
-  order: number;
-}
-
-export interface ProductSpec {
-  id: string;
-  name: string;
-  specs: SpecField[];
-  defaultBrokerage: number;
-  createdAt: any;
+  // Private fields (not shown on contract)
+  contactPerson: string;
+  altPhone: string;
+  altEmail: string;
+  remarks: string;
+  notes: string;
+  bankName: string;
+  bankAccount: string;
+  bankIfsc: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Contract {
@@ -56,10 +57,17 @@ export interface Contract {
   gstPercent: number;
   otherTerms: string;
   notes: string;
-  status: 'draft' | 'confirmed' | 'cancelled' | 'completed';
-  brokerageAmount: number;
-  createdAt: any;
-  updatedAt: any;
+  status: 'confirmed' | 'cancelled';
+  // Separate brokerage for buyer and seller
+  buyerBrokeragePercent: number;
+  sellerBrokeragePercent: number;
+  buyerBrokerageFixed: number;
+  sellerBrokerageFixed: number;
+  buyerBrokerageAmount: number;
+  sellerBrokerageAmount: number;
+  totalBrokerageAmount: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface BrokerageBill {
@@ -71,8 +79,11 @@ export interface BrokerageBill {
   contracts: Contract[];
   totalBrokerage: number;
   totalQuantity: number;
-  generatedAt: any;
-  status: 'pending' | 'sent' | 'paid';
+  generatedAt: Date;
+  status: 'pending' | 'paid' | 'partial';
+  paidAmount: number;
+  paymentDate?: string;
+  paymentNotes?: string;
 }
 
 export interface CompanySettings {
@@ -97,11 +108,5 @@ export interface CompanySettings {
   defaultLoadingCondition: string;
   defaultPacking: string;
   financialYearStart: number;
-}
-
-export interface User {
-  uid: string;
-  email: string;
-  displayName: string;
-  role: 'admin' | 'user';
+  nextContractNumber: number;
 }
