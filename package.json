@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview",
-    "deploy": "npm run build && firebase deploy"
+    "preview": "vite preview"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -15,10 +14,8 @@
     "react-router-dom": "^6.23.1",
     "firebase": "^10.12.2",
     "jspdf": "^2.5.1",
-    "html2canvas": "^1.4.1",
     "jspdf-autotable": "^3.8.2",
     "lucide-react": "^0.378.0",
-    "react-hook-form": "^7.51.5",
     "zustand": "^4.5.2",
     "date-fns": "^3.6.0",
     "react-hot-toast": "^2.4.1",

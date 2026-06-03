@@ -1,275 +1,244 @@
-# Mahalaxmi Agri Contracts - Deployment Guide
+# Mahalaxmi Agri Contracts - Complete Deployment Guide
 
-## Complete Application Architecture
+## FREE TIER - No Paid Plans Needed
 
-### Tech Stack
-- **Frontend**: React 18 + TypeScript + Tailwind CSS
-- **State Management**: Zustand (with persistence)
-- **Backend/Database**: Firebase (Firestore + Auth + Storage)
-- **PDF Generation**: jsPDF + html2canvas (client-side, instant)
-- **PWA**: Vite PWA Plugin (works offline, installable on mobile)
-- **Hosting**: Firebase Hosting (free SSL + CDN + always online)
+Firebase Spark (Free) includes:
+- Authentication: 50,000 users/month
+- Firestore: 50,000 reads/day, 20,000 writes/day  
+- Hosting: 10GB/month bandwidth (we use Vercel instead)
+- All features: FREE
 
-### Why Firebase?
-1. **Always Online**: No server to manage, auto-scaling
-2. **Free Tier**: 50K reads/day, 1GB storage, 10GB hosting
-3. **Offline Support**: IndexedDB persistence works without internet
-4. **Security**: Built-in Auth + Firestore Security Rules
-5. **Mobile**: Works as installable PWA on Android/iOS
+---
 
-## Step-by-Step Deployment
+## Step 1: Create GitHub Repository
 
-### Step 1: Create Firebase Project
-1. Go to [Firebase Console](https://console.firebase.google.com)
-2. Click "Create Project" → Name: `mahalaxmi-contracts`
-3. Enable Google Analytics (optional)
-4. Go to Project Settings → General → Your apps → Web app
-5. Register app: `mahalaxmi-contracts-web`
-6. Copy the config object (you'll need apiKey, authDomain, etc.)
+1. Go to github.com and sign in
+2. Click "+" (top right) → "New repository"
+3. Name: `mahalaxmi-contracts`
+4. Select **Private**
+5. Check "Add a README file"
+6. Click "Create repository"
 
-### Step 2: Enable Services
-1. **Authentication**: 
-   - Go to Build → Authentication → Sign-in method
-   - Enable "Google" provider
-   - Enable "Email/Password" provider
+---
 
-2. **Firestore Database**:
-   - Go to Build → Firestore Database
-   - Create database → Start in production mode
-   - Choose location: `asia-south1` (Mumbai) for India
+## Step 2: Upload Code to GitHub
 
-3. **Storage**:
-   - Go to Build → Storage
-   - Get started → Start in production mode
+### Method A: Web Upload (Easiest)
 
-4. **Hosting**:
-   - Go to Build → Hosting
-   - Click "Get started"
+1. Extract the zip file on your computer
+2. In your GitHub repo → "Add file" → "Upload files"
+3. Drag ALL files from extracted folder (src/, public/, all config files)
+4. Commit message: `Initial commit`
+5. Click "Commit changes"
 
-### Step 3: Update Firebase Config
-Open `src/utils/firebase.ts` and replace:
-```typescript
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "mahalaxmi-contracts.firebaseapp.com",
-  projectId: "mahalaxmi-contracts",
-  storageBucket: "mahalaxmi-contracts.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "YOUR_APP_ID"
-};
-```
+### Method B: Git Command Line
 
-### Step 4: Install & Build
 ```bash
-# Install dependencies
-npm install
-
-# Build for production
-npm run build
+cd mahalaxmi-contract-app-v2
+git init
+git add .
+git commit -m "Initial commit"
+git remote add origin https://github.com/YOUR_USERNAME/mahalaxmi-contracts.git
+git branch -M main
+git push -u origin main
 ```
 
-### Step 5: Deploy to Firebase
-```bash
-# Install Firebase CLI
-npm install -g firebase-tools
+---
 
-# Login
-firebase login
+## Step 3: Set Up Firebase (Free Account)
 
-# Initialize (first time only)
-firebase init
-# Select: Hosting, Firestore, Storage
-# Use existing project: mahalaxmi-contracts
-# Public directory: dist
-# Configure as single-page app: Yes
+### 3.1 Create Firebase Project
 
-# Deploy
-firebase deploy
-```
+1. Go to console.firebase.google.com
+2. Sign in with your Gmail
+3. Click "Create a project" → Name: `mahalaxmi-contracts`
+4. Disable Google Analytics
+5. Click "Create project"
 
-Your app will be live at: `https://mahalaxmi-contracts.web.app`
+### 3.2 Register Web App
 
-### Step 6: Firestore Security Rules
-Go to Firestore Database → Rules → Edit and paste:
+1. In Firebase dashboard, click "</>" (Web icon)
+2. App nickname: `mahalaxmi-web`
+3. Click "Register app"
+4. Copy the config values (apiKey, authDomain, projectId, appId)
+
+### 3.3 Enable Authentication
+
+1. Left sidebar → Build → Authentication
+2. Click "Get started"
+3. Sign-in method tab → Click "Email/Password"
+4. Toggle to **Enable**
+5. Click "Save"
+
+### 3.4 Add Yourself as User
+
+1. Authentication → Users tab
+2. Click "Add user"
+3. Enter your email and password
+4. Click "Add user"
+
+### 3.5 Create Firestore Database
+
+1. Left sidebar → Build → Firestore Database
+2. Click "Create database"
+3. Start in **production mode**
+4. Location: asia-south1 (Mumbai)
+5. Click "Enable"
+
+### 3.6 Set Security Rules
+
+1. Firestore Database → Rules tab
+2. Replace with:
 
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can only read/write their own data
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Parties - authenticated users only
-    match /parties/{partyId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-        request.auth.token.role == 'admin';
-    }
-
-    // Contracts - authenticated users only
-    match /contracts/{contractId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-        request.auth.token.role == 'admin';
-    }
-
-    // Settings - admin only
-    match /settings/{docId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-        request.auth.token.role == 'admin';
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }
 ```
 
-### Step 7: Storage Security Rules
-Go to Storage → Rules → Edit:
-
-```
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /logos/{userId}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-        request.auth.uid == userId &&
-        request.resource.size < 2 * 1024 * 1024 &&
-        request.resource.contentType.matches('image/.*');
-    }
-  }
-}
-```
-
-## Security Features Implemented
-
-### 1. Authentication
-- Google Sign-In (secure OAuth 2.0)
-- Email/Password with Firebase Auth
-- Session management handled by Firebase
-- Automatic token refresh
-
-### 2. Data Security
-- **Firestore Security Rules**: Row-level security
-- **Offline Encryption**: Data encrypted in IndexedDB
-- **HTTPS Only**: All traffic encrypted via SSL
-- **No LocalStorage**: Uses secure IndexedDB via Firebase
-
-### 3. Input Validation
-- GSTIN format validation (15 chars)
-- PAN format validation (10 chars)
-- Email validation
-- Numeric validation for prices/quantities
-
-### 4. Access Control
-- Role-based access (admin/user)
-- Only authenticated users can read data
-- Only admins can write/modify
-- Users can only access their own data
-
-## Mobile App Installation (PWA)
-
-### Android (Chrome):
-1. Open the web app URL
-2. Tap menu (3 dots) → "Add to Home screen"
-3. Tap "Install"
-4. App appears as native app with icon
-
-### iOS (Safari):
-1. Open the web app URL
-2. Tap Share button (square with arrow)
-3. Scroll down → "Add to Home Screen"
-4. Tap "Add"
-
-### Desktop (Chrome/Edge):
-1. Open the web app URL
-2. Click install icon in address bar (or menu → Install)
-3. App opens as standalone window
-
-## Features Summary
-
-✅ **One-page A4 contract generation** - Professional PDF in seconds
-✅ **Master data management** - Save parties once, reuse forever
-✅ **GST verification** - Auto-fetch company details from GSTIN
-✅ **Three contract types** - Buyer copy, Seller copy, Broker copy
-✅ **Customizable specifications** - Per-product spec fields
-✅ **Auto brokerage calculation** - Hidden on contract, shown on bills
-✅ **Monthly brokerage bills** - Auto-generated, downloadable
-✅ **WhatsApp/Email sharing** - Direct from mobile/desktop
-✅ **Party directory** - Searchable, filterable contact list
-✅ **Responsive design** - Works on mobile, tablet, desktop
-✅ **Offline support** - Works without internet after first load
-✅ **Data persistence** - Firebase Firestore (permanent until deleted)
-✅ **Year management** - Change financial year easily
-✅ **Logo upload** - Custom branding in Settings
-✅ **Terms & conditions** - Customizable per company
-
-## ⚠️ IMPORTANT: Free Tier Fix
-
-**Firebase Storage requires paid plan**, but we fixed this:
-- **Logos now store in Firestore as base64** (completely free)
-- **No Firebase Storage needed**
-- **Everything works on Spark (free) plan**
-
-## Alternative Hosting (if not using Firebase)
-
-### Option 1: BigRock Hosting
-1. Build the app: `npm run build`
-2. Upload `dist/` folder contents to BigRock public_html
-3. Add `.htaccess` for SPA routing:
-```
-RewriteEngine On
-RewriteBase /
-RewriteRule ^index\.html$ - [L]
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . /index.html [L]
-```
-
-### Option 2: Netlify (Free)
-1. Connect GitHub repo to Netlify
-2. Build command: `npm run build`
-3. Publish directory: `dist`
-4. Add `_redirects` file in public folder:
-```
-/* /index.html 200
-```
-
-### Option 3: Vercel (Free)
-1. Connect GitHub repo to Vercel
-2. Framework preset: Vite
-3. Build command: `npm run build`
-4. Output directory: `dist`
-
-## Cost Analysis
-
-| Service | Free Tier | Your Usage | Cost |
-|---------|-----------|------------|------|
-| Firebase Auth | 50K users/month | < 10 users | FREE |
-| Firestore | 50K reads/day | ~100/day | FREE |
-| Firebase Storage | 1GB | < 100MB | FREE |
-| Firebase Hosting | 10GB/month | < 1GB | FREE |
-| **Total** | | | **FREE** |
-
-If you exceed free tier: ~$5-10/month for your scale.
-
-## Support & Maintenance
-
-- **Updates**: Just push to GitHub, CI/CD auto-deploys
-- **Backups**: Firebase auto-backs up daily
-- **Monitoring**: Firebase Console analytics
-- **Uptime**: 99.95% SLA on Firebase
-
-## GST API Note
-
-The app uses a free public GST verification API. For production reliability:
-1. Apply for official GST API access at [GST Developer Portal](https://developer.gst.gov.in/)
-2. Or use paid services like ClearTax/Karza for ₹0.50/verification
-3. Current implementation caches verified data in Firestore
+3. Click "Publish"
 
 ---
 
-**Built for Mahalaxmi Agri Commodities**
-**Contact**: mahalaxmiagricommodities@gmail.com
+## Step 4: Deploy to Vercel
+
+### 4.1 Connect GitHub to Vercel
+
+1. Go to vercel.com
+2. Click "Sign Up" → "Continue with GitHub"
+3. Authorize Vercel
+4. Click "Add New Project"
+5. Select `mahalaxmi-contracts` repository → "Import"
+
+### 4.2 Configure Build Settings
+
+| Setting | Value |
+|---------|-------|
+| Framework Preset | Vite |
+| Build Command | npm run build |
+| Output Directory | dist |
+| Install Command | npm install |
+
+### 4.3 Add Environment Variables
+
+Expand "Environment Variables" and add:
+
+| Name | Value (from Firebase config) |
+|------|------------------------------|
+| VITE_FIREBASE_API_KEY | Your apiKey |
+| VITE_FIREBASE_AUTH_DOMAIN | Your authDomain |
+| VITE_FIREBASE_PROJECT_ID | Your projectId |
+| VITE_FIREBASE_APP_ID | Your appId |
+
+Click "Deploy"
+
+Wait 2-3 minutes. Your app is live!
+
+---
+
+## Step 5: Add Vercel Domain to Firebase
+
+1. In Firebase Console → Authentication → Settings → Authorized domains
+2. Click "Add domain"
+3. Enter: your-vercel-url.vercel.app
+4. Click "Add"
+
+---
+
+## How to Use the App
+
+### First Time Setup
+
+1. Open your Vercel URL
+2. Log in with the email/password you created in Firebase
+3. Go to Settings
+4. Upload your company logo
+5. Upload your digital signature (scanned signature image)
+6. Fill company details
+7. Save
+
+### Daily Workflow
+
+1. **Add Parties** (one-time per party):
+   - Go to Parties → Add Party
+   - Enter GSTIN → Click Verify (auto-fills details)
+   - Save
+
+2. **Add Products** (one-time per product):
+   - Go to Products → Add Product
+   - Enter name and specifications
+   - Save
+
+3. **Create Contract**:
+   - Click "New Contract" or Dashboard shortcut
+   - Select Seller (search by name, auto-fills)
+   - Select Buyer (search by name, auto-fills)
+   - Select Product (specs auto-load)
+   - Enter quantity and price
+   - Click "Save Contract"
+   - You'll be taken to Contract View page
+
+4. **Download Contract Copies**:
+   - On Contract View page, click:
+     - "Download Broker Copy"
+     - "Download Buyer Copy" 
+     - "Download Seller Copy"
+   - Each PDF is properly formatted for A4
+
+5. **View Brokerage Bills**:
+   - Go to Brokerage
+   - Select month/year
+   - View bill breakdown per party
+   - Click "View" to preview
+   - Click "Download PDF" to download
+   - Click "Share" to send via WhatsApp
+
+6. **Delete Anything**:
+   - Contracts: Dashboard → click trash icon
+   - Parties: Parties page → hover card → click trash
+   - Products: Products page → click trash
+
+---
+
+## Features Summary
+
+✅ Save contract first, then download any copy
+✅ View contracts before downloading
+✅ Edit contracts anytime
+✅ Delete contracts, parties, products
+✅ View brokerage bills with breakdown
+✅ Download brokerage bills as PDF
+✅ Share via WhatsApp
+✅ Upload logo (shows on contract)
+✅ Upload digital signature (shows on contract footer)
+✅ GST verification (auto-fills party details)
+✅ All data stored in Firebase (permanent)
+✅ Works offline after first load
+✅ Install as mobile app (PWA)
+✅ Responsive on all devices
+
+---
+
+## Cost: FREE
+
+| Service | Free Tier | Your Usage | Cost |
+|---------|-----------|------------|------|
+| GitHub | Unlimited repos | 1 repo | FREE |
+| Vercel | 100GB bandwidth | < 1GB | FREE |
+| Firebase Auth | 50K users/month | 1 user | FREE |
+| Firestore | 50K reads/day | ~100/day | FREE |
+| **TOTAL** | | | **₹0** |
+
+---
+
+## Support
+
+For issues, check browser console (F12) for error messages.
+
+Mahalaxmi Agri Commodities
+Rajkot, Gujarat

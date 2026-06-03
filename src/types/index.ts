@@ -13,16 +13,8 @@ export interface Party {
   type: 'buyer' | 'seller' | 'both';
   brokeragePercent: number;
   brokerageFixed: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface ProductSpec {
-  id: string;
-  name: string;
-  specs: SpecField[];
-  defaultBrokerage: number;
-  createdAt: Date;
+  createdAt: any;
+  updatedAt: any;
 }
 
 export interface SpecField {
@@ -31,6 +23,14 @@ export interface SpecField {
   value: string;
   unit: string;
   order: number;
+}
+
+export interface ProductSpec {
+  id: string;
+  name: string;
+  specs: SpecField[];
+  defaultBrokerage: number;
+  createdAt: any;
 }
 
 export interface Contract {
@@ -57,10 +57,9 @@ export interface Contract {
   otherTerms: string;
   notes: string;
   status: 'draft' | 'confirmed' | 'cancelled' | 'completed';
-  type: 'buyer_copy' | 'seller_copy' | 'broker_copy';
   brokerageAmount: number;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: any;
+  updatedAt: any;
 }
 
 export interface BrokerageBill {
@@ -72,7 +71,7 @@ export interface BrokerageBill {
   contracts: Contract[];
   totalBrokerage: number;
   totalQuantity: number;
-  generatedAt: Date;
+  generatedAt: any;
   status: 'pending' | 'sent' | 'paid';
 }
 
@@ -87,6 +86,7 @@ export interface CompanySettings {
   phone: string;
   email: string;
   logo: string | null;
+  signature: string | null;
   pan: string;
   bankName: string;
   bankAccount: string;
@@ -104,20 +104,4 @@ export interface User {
   email: string;
   displayName: string;
   role: 'admin' | 'user';
-  createdAt: Date;
-}
-
-export interface GSTVerificationResponse {
-  valid: boolean;
-  gstin: string;
-  legalName: string;
-  tradeName: string;
-  address: string;
-  city: string;
-  state: string;
-  pincode: string;
-  status: string;
-  constitution: string;
-  registrationDate: string;
-  error?: string;
 }

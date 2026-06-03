@@ -3,10 +3,9 @@ import autoTable from 'jspdf-autotable';
 import { Contract, CompanySettings } from '../types';
 import { format } from 'date-fns';
 
-// Helper to create RGB color tuple
-type RGBColor = [number, number, number];
-
-const rgb = (r: number, g: number, b: number): RGBColor => [r, g, b];
+// Helper to create proper RGB tuple for jsPDF
+type RGB = [number, number, number];
+const c = (r: number, g: number, b: number): RGB => [r, g, b];
 
 export const generateContractPDF = (
   contract: Contract,
@@ -20,99 +19,63 @@ export const generateContractPDF = (
     compress: true
   });
 
-  const pageWidth = 210;
-  const pageHeight = 297;
-  const margin = 15;
-  const contentWidth = pageWidth - (margin * 2);
-
-  let y = margin;
+  const PW = 210; // page width
+  const PH = 297; // page height
+  const M = 12;   // margin
+  const W = PW - M * 2; // content width
 
   // Colors
-  const primaryColor = rgb(220, 20, 60); // Crimson red for Mahalaxmi branding
-  const darkColor = rgb(33, 37, 41);
-  const grayColor = rgb(108, 117, 125);
-  const lightGray = rgb(248, 249, 250);
-  const borderColor = rgb(222, 226, 230);
+  const BLACK = c(0, 0, 0);
+  const DARK = c(33, 37, 41);
+  const GRAY = c(100, 100, 100);
+  const RED = c(180, 30, 60);
+  const LIGHT = c(245, 245, 245);
+  const BORDER = c(200, 200, 200);
 
-  // Helper functions
-  const addText = (text: string, x: number, yPos: number, options: any = {}) => {
-    const {
-      fontSize = 10,
-      fontStyle = 'normal',
-      color = darkColor,
-      align = 'left',
-      maxWidth = contentWidth
-    } = options;
+  let y = M;
 
-    doc.setFontSize(fontSize);
-    doc.setFont('helvetica', fontStyle);
-    doc.setTextColor(color[0], color[1], color[2]);
+  // ===== HEADER: Broker Name =====
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...BLACK);
+  doc.text(settings.name.toUpperCase(), M, y);
+  y += 5;
 
-    if (align === 'center') {
-      doc.text(text, pageWidth / 2, yPos, { align: 'center' });
-    } else if (align === 'right') {
-      doc.text(text, pageWidth - margin, yPos, { align: 'right' });
-    } else {
-      doc.text(text, x, yPos, { maxWidth });
-    }
-  };
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...GRAY);
+  doc.text(settings.address, M, y);
+  y += 4;
+  doc.text(`${settings.city}, ${settings.state} - ${settings.pincode} | GSTIN: ${settings.gstin} | Phone: ${settings.phone}`, M, y);
+  y += 6;
 
-  const addLine = (x1: number, y1: number, x2: number, y2: number, color = borderColor, width = 0.3) => {
-    doc.setDrawColor(color[0], color[1], color[2]);
-    doc.setLineWidth(width);
-    doc.line(x1, y1, x2, y2);
-  };
-
-  const addBox = (x: number, yPos: number, w: number, h: number, fill = false) => {
-    doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
-    doc.setLineWidth(0.3);
-    if (fill) {
-      doc.setFillColor(lightGray[0], lightGray[1], lightGray[2]);
-      doc.rect(x, yPos, w, h, 'FD');
-    } else {
-      doc.rect(x, yPos, w, h, 'D');
-    }
-  };
-
-  // ===== HEADER SECTION =====
-  // Logo placeholder or text
-  if (settings.logo) {
-    try {
-      doc.addImage(settings.logo, 'PNG', margin, y, 25, 20);
-    } catch (e) {
-      // Fallback to text logo
-      addText(settings.name, margin, y + 8, { fontSize: 16, fontStyle: 'bold', color: primaryColor });
-    }
-  } else {
-    addText(settings.name, margin, y + 8, { fontSize: 16, fontStyle: 'bold', color: primaryColor });
-  }
-
-  // Company details on right
-  const rightX = pageWidth - margin - 80;
-  addText(settings.legalName, rightX, y, { fontSize: 9, fontStyle: 'bold' });
-  addText(settings.address, rightX, y + 4, { fontSize: 8, color: grayColor });
-  addText(`${settings.city}, ${settings.state} - ${settings.pincode}`, rightX, y + 8, { fontSize: 8, color: grayColor });
-  addText(`GSTIN: ${settings.gstin}`, rightX, y + 12, { fontSize: 8, color: grayColor });
-  addText(`Phone: ${settings.phone}`, rightX, y + 16, { fontSize: 8, color: grayColor });
-
-  y += 25;
-  addLine(margin, y, pageWidth - margin, y, primaryColor, 1);
+  // Separator line
+  doc.setDrawColor(...RED);
+  doc.setLineWidth(0.8);
+  doc.line(M, y, PW - M, y);
   y += 8;
 
   // ===== CONTRACT TITLE =====
-  addText('CONTRACT NOTE', pageWidth / 2, y, { fontSize: 14, fontStyle: 'bold', align: 'center', color: primaryColor });
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(...RED);
+  doc.text('CONTRACT NOTE', PW / 2, y, { align: 'center' });
   y += 6;
-  addText(`No. ${contract.contractNo} / ${contract.year}`, pageWidth / 2, y, { fontSize: 11, align: 'center' });
+  doc.setFontSize(10);
+  doc.setTextColor(...DARK);
+  doc.text(`No. ${contract.contractNo} / ${contract.year}`, PW / 2, y, { align: 'center' });
+  y += 5;
+  doc.text(`Date: ${format(new Date(contract.date), 'dd/MM/yyyy')}`, PW / 2, y, { align: 'center' });
   y += 8;
 
-  // Date and type
-  addText(`Date: ${format(new Date(contract.date), 'dd/MM/yyyy')}`, margin, y, { fontSize: 9 });
-  addText(`Copy: ${type.replace('_', ' ').toUpperCase()}`, pageWidth - margin, y, { fontSize: 9, align: 'right', color: primaryColor });
-  y += 10;
+  // ===== PARTIES BOX =====
+  const partyH = 32;
+  doc.setDrawColor(...BORDER);
+  doc.setLineWidth(0.3);
+  doc.setFillColor(...LIGHT);
+  doc.rect(M, y, W, partyH, 'FD');
 
-  // ===== PARTY DETAILS BOX =====
-  const boxHeight = 35;
-  addBox(margin, y, contentWidth, boxHeight, true);
+  const colW = W / 2 - 2;
 
   // Determine order based on copy type
   const firstParty = type === 'buyer_copy' ? contract.buyer : contract.seller;
@@ -120,119 +83,155 @@ export const generateContractPDF = (
   const firstLabel = type === 'buyer_copy' ? 'BUYER' : 'SELLER';
   const secondLabel = type === 'buyer_copy' ? 'SELLER' : 'BUYER';
 
-  // First party (left)
-  addText(`${firstLabel}:`, margin + 2, y + 5, { fontSize: 8, fontStyle: 'bold', color: primaryColor });
-  addText(firstParty.legalName, margin + 2, y + 10, { fontSize: 9, fontStyle: 'bold' });
-  addText(firstParty.address, margin + 2, y + 14, { fontSize: 8, color: grayColor, maxWidth: 80 });
-  addText(`${firstParty.city}, ${firstParty.state}`, margin + 2, y + 22, { fontSize: 8, color: grayColor });
-  addText(`GSTIN: ${firstParty.gstin}`, margin + 2, y + 26, { fontSize: 8, color: grayColor });
-  addText(`Phone: ${firstParty.phone}`, margin + 2, y + 30, { fontSize: 8, color: grayColor });
+  // First party (left column)
+  let py = y + 5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...RED);
+  doc.text(`${firstLabel}:`, M + 3, py);
+  py += 5;
+  doc.setTextColor(...BLACK);
+  doc.setFontSize(9);
+  doc.text(firstParty.legalName, M + 3, py);
+  py += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...GRAY);
+  const addr1 = firstParty.address.length > 50 ? firstParty.address.substring(0, 50) + '...' : firstParty.address;
+  doc.text(addr1, M + 3, py);
+  py += 3.5;
+  doc.text(`${firstParty.city}, ${firstParty.state} - ${firstParty.pincode}`, M + 3, py);
+  py += 3.5;
+  doc.text(`GSTIN: ${firstParty.gstin} | Phone: ${firstParty.phone || 'N/A'}`, M + 3, py);
 
-  // Second party (right)
-  const rightPartyX = pageWidth / 2 + 5;
-  addText(`${secondLabel}:`, rightPartyX, y + 5, { fontSize: 8, fontStyle: 'bold', color: primaryColor });
-  addText(secondParty.legalName, rightPartyX, y + 10, { fontSize: 9, fontStyle: 'bold' });
-  addText(secondParty.address, rightPartyX, y + 14, { fontSize: 8, color: grayColor, maxWidth: 80 });
-  addText(`${secondParty.city}, ${secondParty.state}`, rightPartyX, y + 22, { fontSize: 8, color: grayColor });
-  addText(`GSTIN: ${secondParty.gstin}`, rightPartyX, y + 26, { fontSize: 8, color: grayColor });
-  addText(`Phone: ${secondParty.phone}`, rightPartyX, y + 30, { fontSize: 8, color: grayColor });
+  // Second party (right column)
+  const rx = M + colW + 4;
+  py = y + 5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...RED);
+  doc.text(`${secondLabel}:`, rx, py);
+  py += 5;
+  doc.setTextColor(...BLACK);
+  doc.setFontSize(9);
+  doc.text(secondParty.legalName, rx, py);
+  py += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...GRAY);
+  const addr2 = secondParty.address.length > 50 ? secondParty.address.substring(0, 50) + '...' : secondParty.address;
+  doc.text(addr2, rx, py);
+  py += 3.5;
+  doc.text(`${secondParty.city}, ${secondParty.state} - ${secondParty.pincode}`, rx, py);
+  py += 3.5;
+  doc.text(`GSTIN: ${secondParty.gstin} | Phone: ${secondParty.phone || 'N/A'}`, rx, py);
 
-  y += boxHeight + 8;
+  y += partyH + 6;
 
   // ===== PRODUCT & SPECIFICATIONS =====
-  addText('PRODUCT SPECIFICATIONS', margin, y, { fontSize: 11, fontStyle: 'bold', color: primaryColor });
-  y += 6;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...RED);
+  doc.text('PRODUCT SPECIFICATIONS', M, y);
+  y += 5;
 
-  // Product name box
-  addBox(margin, y, contentWidth, 8, true);
-  addText(contract.product.name, margin + 2, y + 5, { fontSize: 10, fontStyle: 'bold' });
-  y += 10;
+  // Product name bar
+  doc.setFillColor(...LIGHT);
+  doc.rect(M, y, W, 7, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...BLACK);
+  doc.text(contract.product.name.toUpperCase(), M + 3, y + 5);
+  y += 9;
 
-  // Specifications table
+  // Specs table
   if (contract.product.specs && contract.product.specs.length > 0) {
-    const specRows = contract.product.specs.map(spec => [
-      spec.label,
-      `${spec.value} ${spec.unit}`
-    ]);
+    const specRows = contract.product.specs
+      .sort((a, b) => a.order - b.order)
+      .map(spec => [spec.label, `${spec.value} ${spec.unit}`]);
 
     autoTable(doc, {
       startY: y,
-      head: [['Specification', 'Standard']],
+      head: [['Specification', 'Standard / Value']],
       body: specRows,
-      theme: 'plain',
+      theme: 'grid',
       headStyles: {
         fillColor: [255, 255, 255],
-        textColor: primaryColor,
+        textColor: [180, 30, 60],
         fontStyle: 'bold',
-        fontSize: 9,
+        fontSize: 8,
         lineWidth: 0.3,
-        lineColor: borderColor
+        lineColor: [200, 200, 200]
       },
       bodyStyles: {
-        fontSize: 9,
+        fontSize: 8,
         lineWidth: 0.2,
-        lineColor: borderColor
+        lineColor: [200, 200, 200]
       },
       columnStyles: {
-        0: { cellWidth: 60, fontStyle: 'bold' },
+        0: { cellWidth: 55, fontStyle: 'bold' },
         1: { cellWidth: 'auto' }
       },
-      margin: { left: margin, right: margin },
-      tableWidth: contentWidth
+      margin: { left: M, right: M },
+      tableWidth: W
     });
 
     y = (doc as any).lastAutoTable.finalY + 5;
   }
 
   // ===== COMMERCIAL TERMS =====
-  addText('COMMERCIAL TERMS', margin, y, { fontSize: 11, fontStyle: 'bold', color: primaryColor });
-  y += 6;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...RED);
+  doc.text('COMMERCIAL TERMS', M, y);
+  y += 5;
 
-  const commercialData = [
+  const totalValue = contract.quantity * contract.price;
+
+  const commRows = [
     ['Quantity', `${contract.quantity} ${contract.quantityUnit}`],
-    ['Price', `Rs.${contract.price.toLocaleString('en-IN')} per ${contract.priceUnit}`],
-    ['Total Value', `Rs.${(contract.quantity * contract.price).toLocaleString('en-IN')}`],
+    ['Price', `Rs. ${contract.price.toLocaleString('en-IN')} per ${contract.priceUnit}`],
+    ['Total Value', `Rs. ${totalValue.toLocaleString('en-IN')}`],
     ['Packing', contract.packing],
     ['Delivery At', contract.deliveryLocation],
-    ['Delivery Address', contract.deliveryAddress || 'As provided by buyer'],
+    ['Delivery Address', contract.deliveryAddress || 'Will be provided by buyer at time of delivery'],
     ['Loading Condition', contract.loadingCondition],
     ['Payment Terms', contract.paymentTerms],
     ['GST', `${contract.gstPercent}% Extra as per Government Rules`]
   ];
 
-  autoTable(doc, {
-    startY: y,
-    body: commercialData,
-    theme: 'plain',
-    bodyStyles: {
-      fontSize: 9,
-      lineWidth: 0.2,
-      lineColor: borderColor
-    },
-    columnStyles: {
-      0: { cellWidth: 50, fontStyle: 'bold', fillColor: lightGray },
-      1: { cellWidth: 'auto' }
-    },
-    margin: { left: margin, right: margin },
-    tableWidth: contentWidth
-  });
-
-  y = (doc as any).lastAutoTable.finalY + 8;
-
-  // ===== OTHER TERMS =====
   if (contract.otherTerms) {
-    addText('OTHER TERMS & CONDITIONS', margin, y, { fontSize: 11, fontStyle: 'bold', color: primaryColor });
-    y += 5;
-    addText(contract.otherTerms, margin, y, { fontSize: 8, color: grayColor, maxWidth: contentWidth });
-    y += 15;
+    commRows.push(['Other Terms', contract.otherTerms]);
   }
 
+  autoTable(doc, {
+    startY: y,
+    body: commRows,
+    theme: 'grid',
+    bodyStyles: {
+      fontSize: 8,
+      lineWidth: 0.2,
+      lineColor: [200, 200, 200]
+    },
+    columnStyles: {
+      0: { cellWidth: 45, fontStyle: 'bold', fillColor: [248, 248, 248] },
+      1: { cellWidth: 'auto' }
+    },
+    margin: { left: M, right: M },
+    tableWidth: W
+  });
+
+  y = (doc as any).lastAutoTable.finalY + 6;
+
   // ===== TERMS & CONDITIONS =====
-  addText('TERMS & CONDITIONS', margin, y, { fontSize: 11, fontStyle: 'bold', color: primaryColor });
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...RED);
+  doc.text('TERMS & CONDITIONS', M, y);
   y += 5;
 
-  const terms = settings.termsAndConditions.length > 0 
-    ? settings.termsAndConditions 
+  const terms = settings.termsAndConditions.length > 0
+    ? settings.termsAndConditions
     : [
         'Goods to be loaded within stipulated time as per contract.',
         'After dispatching of goods, intimation must be given to us.',
@@ -241,26 +240,60 @@ export const generateContractPDF = (
         'We have full power to settle all claims amicably which will bind both buyer and seller equally.'
       ];
 
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...DARK);
+
   terms.forEach((term, index) => {
-    addText(`${index + 1}. ${term}`, margin, y, { fontSize: 8, color: grayColor, maxWidth: contentWidth });
-    y += 4;
+    const num = `${index + 1}. `;
+    const text = num + term;
+    const splitText = doc.splitTextToSize(text, W - 5);
+    doc.text(splitText, M + 2, y);
+    y += (splitText.length * 3.5) + 1;
   });
 
-  y += 8;
+  y += 4;
 
   // ===== FOOTER =====
-  addLine(margin, y, pageWidth - margin, y, primaryColor, 0.5);
+  // Check if we need a new page
+  if (y > PH - 35) {
+    doc.addPage();
+    y = M;
+  }
+
+  // Separator
+  doc.setDrawColor(...RED);
+  doc.setLineWidth(0.5);
+  doc.line(M, y, PW - M, y);
+  y += 6;
+
+  // Broker info left, signature right
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...BLACK);
+  doc.text(settings.legalName, M, y);
+
+  // Digital signature
+  if (settings.signature) {
+    try {
+      doc.addImage(settings.signature, 'PNG', PW - M - 40, y - 5, 35, 15);
+    } catch (e) {
+      // Signature image failed, skip
+    }
+  }
+
+  doc.text('Authorized Signature', PW - M, y, { align: 'right' });
   y += 5;
 
-  addText(settings.legalName, margin, y, { fontSize: 9, fontStyle: 'bold' });
-  addText('Authorized Signature', pageWidth - margin, y, { fontSize: 9, align: 'right', fontStyle: 'bold' });
-  y += 4;
-  addText('For, KRISHNA AGRI BROKERS', margin, y, { fontSize: 8, color: grayColor });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...GRAY);
+  doc.text(`For, ${settings.name}`, M, y);
 
   // Page border
-  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.setDrawColor(...BORDER);
   doc.setLineWidth(0.5);
-  doc.rect(margin - 2, margin - 2, pageWidth - (margin - 2) * 2, pageHeight - (margin - 2) * 2, 'D');
+  doc.rect(M - 2, M - 2, W + 4, PH - M * 2 + 4, 'D');
 
   return doc;
 };
@@ -269,56 +302,45 @@ export const generateBrokerageBillPDF = (
   bill: any,
   settings: CompanySettings
 ): jsPDF => {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4'
-  });
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const M = 12;
+  const W = 210 - M * 2;
+  let y = M;
 
-  const pageWidth = 210;
-  const margin = 15;
-  const contentWidth = pageWidth - (margin * 2);
-  let y = margin;
-  const pageHeight = 297;
-
-  const primaryColor = rgb(220, 20, 60);
-  const darkColor = rgb(33, 37, 41);
-  const grayColor = rgb(108, 117, 125);
+  const RED: RGB = [180, 30, 60];
+  const GRAY: RGB = [100, 100, 100];
 
   // Header
-  doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(settings.name, pageWidth / 2, y, { align: 'center' });
+  doc.setFontSize(16);
+  doc.setTextColor(...RED);
+  doc.text(settings.name, 105, y, { align: 'center' });
   y += 6;
-
   doc.setFontSize(10);
-  doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
-  doc.text('Brokerage Bill', pageWidth / 2, y, { align: 'center' });
+  doc.setTextColor(...GRAY);
+  doc.text('Brokerage Bill', 105, y, { align: 'center' });
   y += 10;
 
-  // Bill details
   doc.setFontSize(9);
-  doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
-  doc.text(`Bill Period: ${bill.month}/${bill.year}`, margin, y);
-  doc.text(`Generated: ${format(new Date(bill.generatedAt), 'dd/MM/yyyy')}`, pageWidth - margin, y, { align: 'right' });
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Period: ${bill.month}/${bill.year}`, M, y);
+  doc.text(`Generated: ${format(new Date(bill.generatedAt?.toDate ? bill.generatedAt.toDate() : bill.generatedAt), 'dd/MM/yyyy')}`, 198, y, { align: 'right' });
   y += 8;
 
-  // Party details
-  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Party: ${bill.party.legalName}`, margin, y);
+  doc.setFontSize(10);
+  doc.text(`Party: ${bill.party.legalName}`, M, y);
   y += 5;
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
-  doc.text(`GSTIN: ${bill.party.gstin}`, margin, y);
+  doc.setFontSize(8);
+  doc.setTextColor(...GRAY);
+  doc.text(`GSTIN: ${bill.party.gstin}`, M, y);
   y += 8;
 
-  // Contracts table
-  const tableData = bill.contracts.map((c: any) => [
+  const tableData = (bill.contracts || []).map((c: any) => [
     c.contractNo,
     format(new Date(c.date), 'dd/MM/yyyy'),
-    c.product.name,
+    c.product?.name || '',
     `${c.quantity} ${c.quantityUnit}`,
     `Rs.${c.price.toLocaleString('en-IN')}`,
     `Rs.${c.brokerageAmount.toLocaleString('en-IN')}`
@@ -328,32 +350,27 @@ export const generateBrokerageBillPDF = (
     startY: y,
     head: [['Contract No', 'Date', 'Product', 'Quantity', 'Price', 'Brokerage']],
     body: tableData,
-    theme: 'striped',
+    theme: 'grid',
     headStyles: {
-      fillColor: primaryColor,
+      fillColor: RED,
       textColor: 255,
       fontStyle: 'bold',
       fontSize: 9
     },
-    bodyStyles: {
-      fontSize: 8
-    },
-    margin: { left: margin, right: margin },
-    tableWidth: contentWidth
+    bodyStyles: { fontSize: 8 },
+    margin: { left: M, right: M },
+    tableWidth: W
   });
 
   const finalY = (doc as any).lastAutoTable.finalY + 10;
-
-  // Total
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(`Total Brokerage: Rs.${bill.totalBrokerage.toLocaleString('en-IN')}`, pageWidth - margin, finalY, { align: 'right' });
+  doc.setTextColor(...RED);
+  doc.text(`Total Brokerage: Rs.${bill.totalBrokerage.toLocaleString('en-IN')}`, 198, finalY, { align: 'right' });
 
-  // Footer
   doc.setFontSize(8);
-  doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
-  doc.text('This is a computer generated bill and does not require signature.', pageWidth / 2, pageHeight - 20, { align: 'center' });
+  doc.setTextColor(...GRAY);
+  doc.text('This is a computer generated bill.', 105, 285, { align: 'center' });
 
   return doc;
 };

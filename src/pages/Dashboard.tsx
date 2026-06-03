@@ -1,145 +1,132 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  FileText, 
-  Users, 
-  Package, 
-  Receipt, 
-  TrendingUp, 
-  Plus,
-  ArrowRight,
-  Calendar
-} from 'lucide-react';
+import { FileText, Users, Package, Receipt, Plus, Trash2, Edit2, Eye, Calendar, IndianRupee } from 'lucide-react';
 import { useAppStore } from '../hooks/useAuthStore';
-import { format } from 'date-fns';
+import { Contract } from '../types';
+import toast from 'react-hot-toast';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { parties, products, settings, currentYear } = useAppStore();
+  const { contracts, parties, products, loadContracts, deleteContract, settings } = useAppStore();
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock stats - in real app, calculate from actual data
+  useEffect(() => {
+    const init = async () => {
+      await loadContracts();
+      setIsLoading(false);
+    };
+    init();
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this contract?')) return;
+    try {
+      await deleteContract(id);
+      toast.success('Contract deleted');
+    } catch (e) {
+      toast.error('Failed to delete');
+    }
+  };
+
   const stats = [
-    { label: 'Total Parties', value: parties.length || 12, icon: Users, color: 'bg-blue-50 text-blue-600' },
-    { label: 'Products', value: products.length || 5, icon: Package, color: 'bg-green-50 text-green-600' },
-    { label: 'This Month', value: '8', icon: FileText, color: 'bg-rose-50 text-rose-600' },
-    { label: 'Brokerage', value: '₹45,200', icon: Receipt, color: 'bg-amber-50 text-amber-600' },
+    { label: 'Total Parties', value: parties.length, icon: Users },
+    { label: 'Products', value: products.length, icon: Package },
+    { label: 'Contracts', value: contracts.length, icon: FileText },
+    { label: 'This Month', value: contracts.filter(c => {
+      const d = new Date(c.date);
+      return d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear();
+    }).length, icon: Receipt },
   ];
 
-  const recentContracts = [
-    { id: '1', no: '4328', buyer: 'K.V. Agro Products', seller: 'Krishna Agribrokers', date: '29/07/2020', amount: '₹6,30,000' },
-    { id: '2', no: '4329', buyer: 'Patel Traders', seller: 'Mahalaxmi Agri', date: '15/08/2020', amount: '₹12,50,000' },
-    { id: '3', no: '4330', buyer: 'Shree Ram Enterprises', seller: 'Krishna Agribrokers', date: '22/08/2020', amount: '₹8,75,000' },
-  ];
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-4 border-rose-200 border-t-rose-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Welcome back! Here's your business overview.
-          </p>
+          <p className="text-sm text-gray-500 mt-1">Your business overview</p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">FY {currentYear}-{currentYear + 1}</span>
-          <button
-            onClick={() => navigate('/contract/new')}
-            className="px-4 py-2 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700 transition-colors flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            New Contract
-          </button>
-        </div>
+        <button onClick={() => navigate('/contract/new')}
+          className="px-4 py-2 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700 flex items-center gap-2">
+          <Plus className="w-4 h-4" /> New Contract
+        </button>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, index) => {
+        {stats.map((stat, i) => {
           const Icon = stat.icon;
           return (
-            <div key={index} className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.color}`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-                <TrendingUp className="w-4 h-4 text-gray-400" />
+            <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5">
+              <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center mb-3">
+                <Icon className="w-5 h-5 text-rose-600" />
               </div>
               <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-              <p className="text-sm text-gray-500 mt-1">{stat.label}</p>
+              <p className="text-sm text-gray-500">{stat.label}</p>
             </div>
           );
         })}
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid md:grid-cols-3 gap-4">
-        <button
-          onClick={() => navigate('/contract/new')}
-          className="bg-gradient-to-br from-rose-500 to-rose-600 rounded-2xl p-6 text-white text-left hover:shadow-lg transition-shadow group"
-        >
-          <FileText className="w-8 h-8 mb-3 opacity-80" />
-          <h3 className="font-semibold text-lg">Create Contract</h3>
-          <p className="text-rose-100 text-sm mt-1">Generate contract note in seconds</p>
-          <ArrowRight className="w-5 h-5 mt-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-        </button>
-
-        <button
-          onClick={() => navigate('/parties')}
-          className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white text-left hover:shadow-lg transition-shadow group"
-        >
-          <Users className="w-8 h-8 mb-3 opacity-80" />
-          <h3 className="font-semibold text-lg">Party Directory</h3>
-          <p className="text-blue-100 text-sm mt-1">Manage buyers and sellers</p>
-          <ArrowRight className="w-5 h-5 mt-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-        </button>
-
-        <button
-          onClick={() => navigate('/brokerage')}
-          className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-6 text-white text-left hover:shadow-lg transition-shadow group"
-        >
-          <Receipt className="w-8 h-8 mb-3 opacity-80" />
-          <h3 className="font-semibold text-lg">Brokerage Bills</h3>
-          <p className="text-amber-100 text-sm mt-1">View and download bills</p>
-          <ArrowRight className="w-5 h-5 mt-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-        </button>
-      </div>
-
-      {/* Recent Contracts */}
       <div className="bg-white rounded-2xl border border-gray-200">
         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Recent Contracts</h2>
-          <button className="text-sm text-rose-600 hover:text-rose-700 font-medium">
-            View All
-          </button>
+          <h2 className="text-lg font-semibold text-gray-900">Contracts</h2>
+          <span className="text-sm text-gray-500">{contracts.length} total</span>
         </div>
-        <div className="divide-y divide-gray-100">
-          {recentContracts.map((contract) => (
-            <div
-              key={contract.id}
-              onClick={() => navigate(`/contract/${contract.id}`)}
-              className="p-4 hover:bg-gray-50 transition-colors cursor-pointer flex items-center justify-between"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-rose-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Contract #{contract.no}</p>
-                  <p className="text-sm text-gray-500">
-                    {contract.buyer} ← {contract.seller}
-                  </p>
+        {contracts.length === 0 ? (
+          <div className="p-12 text-center">
+            <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500">No contracts yet</p>
+            <button onClick={() => navigate('/contract/new')}
+              className="mt-3 text-rose-600 text-sm font-medium hover:underline">
+              Create your first contract
+            </button>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {contracts.map((contract: Contract) => (
+              <div key={contract.id} className="p-4 hover:bg-gray-50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-rose-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Contract #{contract.contractNo}</p>
+                      <p className="text-sm text-gray-500">
+                        {contract.seller?.legalName || 'Unknown'} → {contract.buyer?.legalName || 'Unknown'}
+                      </p>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {contract.date}</span>
+                        <span className="flex items-center gap-1"><IndianRupee className="w-3 h-3" /> {(contract.quantity * contract.price).toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => navigate(`/contract/${contract.id}`)}
+                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-rose-600" title="View">
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => navigate(`/contract/${contract.id}/edit`)}
+                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-blue-600" title="Edit">
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDelete(contract.id)}
+                      className="p-2 hover:bg-red-50 rounded-lg text-gray-500 hover:text-red-600" title="Delete">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="font-semibold text-gray-900">{contract.amount}</p>
-                <div className="flex items-center gap-1 text-sm text-gray-500">
-                  <Calendar className="w-3 h-3" />
-                  {contract.date}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

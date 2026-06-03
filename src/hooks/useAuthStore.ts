@@ -1,46 +1,24 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, CompanySettings, Party, ProductSpec } from '../types';
+import { Party, ProductSpec, Contract, CompanySettings } from '../types';
 import { 
-  onAuthChange, 
-  signInWithEmailPassword, 
-  logoutUser 
+  addDoc, updateDocData, deleteDocData, getColData, subscribeCol,
+  COLLECTIONS, db, Timestamp, setDocData
 } from '../utils/firebase';
-
-interface AppState {
-  user: User | null;
-  setUser: (user: User | null) => void;
-
-  settings: CompanySettings;
-  updateSettings: (settings: Partial<CompanySettings>) => void;
-
-  parties: Party[];
-  setParties: (parties: Party[]) => void;
-  addParty: (party: Party) => void;
-  updateParty: (id: string, party: Partial<Party>) => void;
-  deleteParty: (id: string) => void;
-
-  products: ProductSpec[];
-  setProducts: (products: ProductSpec[]) => void;
-  addProduct: (product: ProductSpec) => void;
-  updateProduct: (id: string, product: Partial<ProductSpec>) => void;
-  deleteProduct: (id: string) => void;
-
-  currentYear: number;
-  setCurrentYear: (year: number) => void;
-}
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 
 const defaultSettings: CompanySettings = {
   name: 'MAHALAXMI AGRI COMMODITIES',
   legalName: 'Mahalaxmi Agri Commodities',
   gstin: '24ACEPR5988A1ZH',
-  address: 'Tower A - 118 New Marketing Yard, Rajkot Morbi Highway',
+  address: 'Tower A - 118 New Marketing Yard, Rajkot Morbi Highway, Bedi',
   city: 'Rajkot',
   state: 'Gujarat',
   pincode: '360001',
   phone: '90330 00032 / 98255 00032',
   email: 'mahalaxmiagricommodities@gmail.com',
   logo: null,
+  signature: null,
   pan: 'ACEPR5988A',
   bankName: '',
   bankAccount: '',
@@ -59,36 +37,132 @@ const defaultSettings: CompanySettings = {
   financialYearStart: 2020
 };
 
+interface AppState {
+  user: any;
+  setUser: (user: any) => void;
+
+  settings: CompanySettings;
+  updateSettings: (settings: Partial<CompanySettings>) => void;
+  saveSettingsToFirebase: () => Promise<void>;
+  loadSettingsFromFirebase: () => Promise<void>;
+
+  parties: Party[];
+  setParties: (parties: Party[]) => void;
+  addParty: (party: Party) => Promise<void>;
+  updateParty: (id: string, party: Partial<Party>) => Promise<void>;
+  deleteParty: (id: string) => Promise<void>;
+  loadParties: () => Promise<void>;
+
+  products: ProductSpec[];
+  setProducts: (products: ProductSpec[]) => void;
+  addProduct: (product: ProductSpec) => Promise<void>;
+  updateProduct: (id: string, product: Partial<ProductSpec>) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
+  loadProducts: () => Promise<void>;
+
+  contracts: Contract[];
+  setContracts: (contracts: Contract[]) => void;
+  addContract: (contract: Contract) => Promise<void>;
+  updateContract: (id: string, contract: Partial<Contract>) => Promise<void>;
+  deleteContract: (id: string) => Promise<void>;
+  loadContracts: () => Promise<void>;
+
+  currentYear: number;
+  setCurrentYear: (year: number) => void;
+
+  loading: boolean;
+  setLoading: (loading: boolean) => void;
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       user: null,
       setUser: (user) => set({ user }),
 
+      loading: true,
+      setLoading: (loading) => set({ loading }),
+
       settings: defaultSettings,
       updateSettings: (newSettings) => set({ 
         settings: { ...get().settings, ...newSettings } 
       }),
+      saveSettingsToFirebase: async () => {
+        try {
+          await setDocData(COLLECTIONS.SETTINGS, 'main', get().settings);
+        } catch (e) { console.error(e); }
+      },
+      loadSettingsFromFirebase: async () => {
+        try {
+          const data = await getColData(COLLECTIONS.SETTINGS);
+          if (data && data.length > 0) {
+            set({ settings: { ...defaultSettings, ...data[0] } });
+          }
+        } catch (e) { console.error(e); }
+      },
 
       parties: [],
       setParties: (parties) => set({ parties }),
-      addParty: (party) => set({ parties: [...get().parties, party] }),
-      updateParty: (id, updates) => set({
-        parties: get().parties.map(p => p.id === id ? { ...p, ...updates } : p)
-      }),
-      deleteParty: (id) => set({
-        parties: get().parties.filter(p => p.id !== id)
-      }),
+      addParty: async (party) => {
+        await addDoc(COLLECTIONS.PARTIES, party.id, party);
+        set({ parties: [...get().parties, party] });
+      },
+      updateParty: async (id, updates) => {
+        await updateDocData(COLLECTIONS.PARTIES, id, updates);
+        set({
+          parties: get().parties.map(p => p.id === id ? { ...p, ...updates, updatedAt: Timestamp.now() } : p)
+        });
+      },
+      deleteParty: async (id) => {
+        await deleteDocData(COLLECTIONS.PARTIES, id);
+        set({ parties: get().parties.filter(p => p.id !== id) });
+      },
+      loadParties: async () => {
+        const data = await getColData(COLLECTIONS.PARTIES);
+        set({ parties: data as Party[] });
+      },
 
       products: [],
       setProducts: (products) => set({ products }),
-      addProduct: (product) => set({ products: [...get().products, product] }),
-      updateProduct: (id, updates) => set({
-        products: get().products.map(p => p.id === id ? { ...p, ...updates } : p)
-      }),
-      deleteProduct: (id) => set({
-        products: get().products.filter(p => p.id !== id)
-      }),
+      addProduct: async (product) => {
+        await addDoc(COLLECTIONS.PRODUCTS, product.id, product);
+        set({ products: [...get().products, product] });
+      },
+      updateProduct: async (id, updates) => {
+        await updateDocData(COLLECTIONS.PRODUCTS, id, updates);
+        set({
+          products: get().products.map(p => p.id === id ? { ...p, ...updates } : p)
+        });
+      },
+      deleteProduct: async (id) => {
+        await deleteDocData(COLLECTIONS.PRODUCTS, id);
+        set({ products: get().products.filter(p => p.id !== id) });
+      },
+      loadProducts: async () => {
+        const data = await getColData(COLLECTIONS.PRODUCTS);
+        set({ products: data as ProductSpec[] });
+      },
+
+      contracts: [],
+      setContracts: (contracts) => set({ contracts }),
+      addContract: async (contract) => {
+        await addDoc(COLLECTIONS.CONTRACTS, contract.id, contract);
+        set({ contracts: [contract, ...get().contracts] });
+      },
+      updateContract: async (id, updates) => {
+        await updateDocData(COLLECTIONS.CONTRACTS, id, updates);
+        set({
+          contracts: get().contracts.map(c => c.id === id ? { ...c, ...updates } : c)
+        });
+      },
+      deleteContract: async (id) => {
+        await deleteDocData(COLLECTIONS.CONTRACTS, id);
+        set({ contracts: get().contracts.filter(c => c.id !== id) });
+      },
+      loadContracts: async () => {
+        const data = await getColData(COLLECTIONS.CONTRACTS);
+        set({ contracts: data as Contract[] });
+      },
 
       currentYear: new Date().getFullYear(),
       setCurrentYear: (year) => set({ currentYear: year })
@@ -103,29 +177,23 @@ export const useAppStore = create<AppState>()(
   )
 );
 
-// Auth store with Firebase Email/Password
+// Auth store
+import { loginUser, logoutUser, onAuthChange } from '../utils/firebase';
+
 interface AuthState {
-  user: User | null;
+  user: any;
   loading: boolean;
-  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   loading: true,
-  signInWithEmail: async (email: string, password: string) => {
-    const result = await signInWithEmailPassword(email, password);
+  signIn: async (email, password) => {
+    const result = await loginUser(email, password);
     if (result.user) {
-      set({
-        user: {
-          uid: result.user.uid,
-          email: result.user.email || '',
-          displayName: result.user.email?.split('@')[0] || 'User',
-          role: 'admin',
-          createdAt: new Date()
-        }
-      });
+      set({ user: { uid: result.user.uid, email: result.user.email }, loading: false });
     }
   },
   logout: async () => {
@@ -134,20 +202,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   }
 }));
 
-// Initialize auth listener
 onAuthChange((firebaseUser) => {
-  if (firebaseUser) {
-    useAuthStore.setState({
-      user: {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email || '',
-        displayName: firebaseUser.email?.split('@')[0] || 'User',
-        role: 'admin',
-        createdAt: new Date()
-      },
-      loading: false
-    });
-  } else {
-    useAuthStore.setState({ user: null, loading: false });
-  }
+  useAuthStore.setState({ 
+    user: firebaseUser ? { uid: firebaseUser.uid, email: firebaseUser.email } : null, 
+    loading: false 
+  });
 });
