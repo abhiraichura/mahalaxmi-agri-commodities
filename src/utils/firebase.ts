@@ -1,8 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
-  GoogleAuthProvider, 
-  signInWithPopup, 
+  signInWithEmailAndPassword,
   signOut, 
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -49,9 +48,10 @@ enableIndexedDbPersistence(db).catch((err: any) => {
   }
 });
 
-export const googleProvider = new GoogleAuthProvider();
+// Email/Password Auth
+export const signInWithEmailPassword = (email: string, password: string) => 
+  signInWithEmailAndPassword(auth, email, password);
 
-export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
 export const logoutUser = () => signOut(auth);
 export const onAuthChange = (callback: (user: any) => void) => onAuthStateChanged(auth, callback);
 

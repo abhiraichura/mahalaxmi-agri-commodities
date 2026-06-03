@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User, CompanySettings, Party, ProductSpec } from '../types';
+import { 
+  onAuthChange, 
+  signInWithEmailPassword, 
+  logoutUser 
+} from '../utils/firebase';
 
 interface AppState {
   user: User | null;
@@ -98,35 +103,29 @@ export const useAppStore = create<AppState>()(
   )
 );
 
-// Auth store with Firebase
-import { onAuthChange, signInWithGoogle, logoutUser } from '../utils/firebase';
-
+// Auth store with Firebase Email/Password
 interface AuthState {
   user: User | null;
   loading: boolean;
-  signIn: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   loading: true,
-  signIn: async () => {
-    try {
-      const result = await signInWithGoogle();
-      if (result.user) {
-        set({
-          user: {
-            uid: result.user.uid,
-            email: result.user.email || '',
-            displayName: result.user.displayName || '',
-            role: 'admin',
-            createdAt: new Date()
-          }
-        });
-      }
-    } catch (error) {
-      console.error('Sign in error:', error);
+  signInWithEmail: async (email: string, password: string) => {
+    const result = await signInWithEmailPassword(email, password);
+    if (result.user) {
+      set({
+        user: {
+          uid: result.user.uid,
+          email: result.user.email || '',
+          displayName: result.user.email?.split('@')[0] || 'User',
+          role: 'admin',
+          createdAt: new Date()
+        }
+      });
     }
   },
   logout: async () => {
@@ -142,7 +141,7 @@ onAuthChange((firebaseUser) => {
       user: {
         uid: firebaseUser.uid,
         email: firebaseUser.email || '',
-        displayName: firebaseUser.displayName || '',
+        displayName: firebaseUser.email?.split('@')[0] || 'User',
         role: 'admin',
         createdAt: new Date()
       },
