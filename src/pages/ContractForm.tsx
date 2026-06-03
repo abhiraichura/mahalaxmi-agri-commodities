@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { 
@@ -8,8 +8,8 @@ import {
   FileText, 
   Save, 
   X,
-  ChevronDown,
-  AlertCircle,
+  Users,
+  Package,
   CheckCircle2
 } from 'lucide-react';
 import { useAppStore } from '../hooks/useAuthStore';
@@ -37,6 +37,7 @@ interface ContractFormData {
   notes: string;
   brokeragePercent: number;
   brokerageFixed: number;
+  specs: SpecField[];
 }
 
 export default function ContractForm() {
@@ -68,7 +69,8 @@ export default function ContractForm() {
       quantity: 10,
       price: 63000,
       brokeragePercent: 0.5,
-      brokerageFixed: 0
+      brokerageFixed: 0,
+      specs: []
     }
   });
 
@@ -81,7 +83,6 @@ export default function ContractForm() {
   useEffect(() => {
     if (id) {
       // In real app, fetch from Firebase
-      // For now, we'll just set some defaults
     }
   }, [id]);
 
@@ -102,12 +103,11 @@ export default function ContractForm() {
   const verifyGST = async (gstin: string) => {
     if (!gstin || gstin.length !== 15) {
       toast.error('Please enter a valid 15-digit GSTIN');
-      return;
+      return null;
     }
 
     setGstLoading(true);
     try {
-      // Using a free GST verification API
       const response = await fetch(`https://sheet.gstincheck.co.in/check/${gstin}`);
       const data = await response.json();
 
@@ -221,7 +221,7 @@ export default function ContractForm() {
   };
 
   // Filter parties
-  const filteredParties = parties.filter(p => 
+  const filteredParties = parties.filter((p: Party) => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.gstin.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.city.toLowerCase().includes(searchQuery.toLowerCase())
@@ -300,7 +300,7 @@ export default function ContractForm() {
                       </div>
                     </div>
                     <div className="p-2">
-                      {filteredParties.filter(p => p.type === 'seller' || p.type === 'both').length === 0 ? (
+                      {filteredParties.filter((p: Party) => p.type === 'seller' || p.type === 'both').length === 0 ? (
                         <div className="p-4 text-center">
                           <p className="text-sm text-gray-500 mb-3">No sellers found</p>
                           <button
@@ -317,8 +317,8 @@ export default function ContractForm() {
                         </div>
                       ) : (
                         filteredParties
-                          .filter(p => p.type === 'seller' || p.type === 'both')
-                          .map(party => (
+                          .filter((p: Party) => p.type === 'seller' || p.type === 'both')
+                          .map((party: Party) => (
                             <button
                               key={party.id}
                               type="button"
@@ -326,7 +326,7 @@ export default function ContractForm() {
                               className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg transition-colors"
                             >
                               <p className="font-medium text-gray-900">{party.legalName}</p>
-                              <p className="text-xs text-gray-500">{party.gstin} • {party.city}</p>
+                              <p className="text-xs text-gray-500">{party.gstin} &bull; {party.city}</p>
                             </button>
                           ))
                       )}
@@ -376,7 +376,7 @@ export default function ContractForm() {
                       </div>
                     </div>
                     <div className="p-2">
-                      {filteredParties.filter(p => p.type === 'buyer' || p.type === 'both').length === 0 ? (
+                      {filteredParties.filter((p: Party) => p.type === 'buyer' || p.type === 'both').length === 0 ? (
                         <div className="p-4 text-center">
                           <p className="text-sm text-gray-500 mb-3">No buyers found</p>
                           <button
@@ -393,8 +393,8 @@ export default function ContractForm() {
                         </div>
                       ) : (
                         filteredParties
-                          .filter(p => p.type === 'buyer' || p.type === 'both')
-                          .map(party => (
+                          .filter((p: Party) => p.type === 'buyer' || p.type === 'both')
+                          .map((party: Party) => (
                             <button
                               key={party.id}
                               type="button"
@@ -402,7 +402,7 @@ export default function ContractForm() {
                               className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg transition-colors"
                             >
                               <p className="font-medium text-gray-900">{party.legalName}</p>
-                              <p className="text-xs text-gray-500">{party.gstin} • {party.city}</p>
+                              <p className="text-xs text-gray-500">{party.gstin} &bull; {party.city}</p>
                             </button>
                           ))
                       )}
@@ -428,13 +428,13 @@ export default function ContractForm() {
               <select
                 {...register('productId')}
                 onChange={(e) => {
-                  const product = products.find(p => p.id === e.target.value);
+                  const product = products.find((p: ProductSpec) => p.id === e.target.value);
                   setSelectedProduct(product || null);
                 }}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none"
               >
                 <option value="">Select Product...</option>
-                {products.map(product => (
+                {products.map((product: ProductSpec) => (
                   <option key={product.id} value={product.id}>{product.name}</option>
                 ))}
               </select>
@@ -585,7 +585,7 @@ export default function ContractForm() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">Fixed Brokerage (₹)</label>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Fixed Brokerage (Rs.)</label>
               <input
                 {...register('brokerageFixed', { valueAsNumber: true })}
                 type="number"
@@ -641,7 +641,7 @@ export default function ContractForm() {
         <NewPartyModal
           type={newPartyType}
           onClose={() => setShowNewPartyModal(false)}
-          onSave={(party) => {
+          onSave={(party: Party) => {
             addParty(party);
             if (newPartyType === 'seller') {
               setSelectedSeller(party);

@@ -22,13 +22,18 @@ import {
   enableIndexedDbPersistence 
 } from 'firebase/firestore';
 
+// Use environment variables with fallback for build
+const getEnvVar = (key: string): string => {
+  // @ts-ignore - Vite env vars
+  return import.meta.env?.[key] || '';
+};
+
 // Your Firebase config - REPLACE THESE VALUES from Firebase Console
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "mahalaxmi-contracts.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "mahalaxmi-contracts",
-  // No storageBucket needed - we store logos in Firestore as base64
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "YOUR_APP_ID"
+  apiKey: getEnvVar('VITE_FIREBASE_API_KEY') || "YOUR_API_KEY",
+  authDomain: getEnvVar('VITE_FIREBASE_AUTH_DOMAIN') || "mahalaxmi-contracts.firebaseapp.com",
+  projectId: getEnvVar('VITE_FIREBASE_PROJECT_ID') || "mahalaxmi-contracts",
+  appId: getEnvVar('VITE_FIREBASE_APP_ID') || "YOUR_APP_ID"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -36,7 +41,7 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 // Enable offline persistence (works on free tier)
-enableIndexedDbPersistence(db).catch((err) => {
+enableIndexedDbPersistence(db).catch((err: any) => {
   if (err.code === 'failed-precondition') {
     console.warn('Multiple tabs open, persistence enabled in first tab only');
   } else if (err.code === 'unimplemented') {
@@ -58,7 +63,7 @@ export const COLLECTIONS = {
   BROKERAGE_BILLS: 'brokerageBills',
   SETTINGS: 'settings',
   USERS: 'users',
-  LOGOS: 'logos'  // Store logos as base64 in Firestore
+  LOGOS: 'logos'
 };
 
 export const createDocument = async (collectionName: string, id: string, data: any) => {

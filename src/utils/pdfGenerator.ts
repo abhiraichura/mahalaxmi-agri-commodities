@@ -1,7 +1,12 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Contract, Party, ProductSpec, CompanySettings } from '../types';
+import { Contract, CompanySettings } from '../types';
 import { format } from 'date-fns';
+
+// Helper to create RGB color tuple
+type RGBColor = [number, number, number];
+
+const rgb = (r: number, g: number, b: number): RGBColor => [r, g, b];
 
 export const generateContractPDF = (
   contract: Contract,
@@ -23,11 +28,11 @@ export const generateContractPDF = (
   let y = margin;
 
   // Colors
-  const primaryColor = [220, 20, 60]; // Crimson red for Mahalaxmi branding
-  const darkColor = [33, 37, 41];
-  const grayColor = [108, 117, 125];
-  const lightGray = [248, 249, 250];
-  const borderColor = [222, 226, 230];
+  const primaryColor = rgb(220, 20, 60); // Crimson red for Mahalaxmi branding
+  const darkColor = rgb(33, 37, 41);
+  const grayColor = rgb(108, 117, 125);
+  const lightGray = rgb(248, 249, 250);
+  const borderColor = rgb(222, 226, 230);
 
   // Helper functions
   const addText = (text: string, x: number, yPos: number, options: any = {}) => {
@@ -41,7 +46,7 @@ export const generateContractPDF = (
 
     doc.setFontSize(fontSize);
     doc.setFont('helvetica', fontStyle);
-    doc.setTextColor(...color);
+    doc.setTextColor(color[0], color[1], color[2]);
 
     if (align === 'center') {
       doc.text(text, pageWidth / 2, yPos, { align: 'center' });
@@ -53,16 +58,16 @@ export const generateContractPDF = (
   };
 
   const addLine = (x1: number, y1: number, x2: number, y2: number, color = borderColor, width = 0.3) => {
-    doc.setDrawColor(...color);
+    doc.setDrawColor(color[0], color[1], color[2]);
     doc.setLineWidth(width);
     doc.line(x1, y1, x2, y2);
   };
 
   const addBox = (x: number, yPos: number, w: number, h: number, fill = false) => {
-    doc.setDrawColor(...borderColor);
+    doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
     doc.setLineWidth(0.3);
     if (fill) {
-      doc.setFillColor(...lightGray);
+      doc.setFillColor(lightGray[0], lightGray[1], lightGray[2]);
       doc.rect(x, yPos, w, h, 'FD');
     } else {
       doc.rect(x, yPos, w, h, 'D');
@@ -185,8 +190,8 @@ export const generateContractPDF = (
 
   const commercialData = [
     ['Quantity', `${contract.quantity} ${contract.quantityUnit}`],
-    ['Price', `₹${contract.price.toLocaleString('en-IN')} per ${contract.priceUnit}`],
-    ['Total Value', `₹${(contract.quantity * contract.price).toLocaleString('en-IN')}`],
+    ['Price', `Rs.${contract.price.toLocaleString('en-IN')} per ${contract.priceUnit}`],
+    ['Total Value', `Rs.${(contract.quantity * contract.price).toLocaleString('en-IN')}`],
     ['Packing', contract.packing],
     ['Delivery At', contract.deliveryLocation],
     ['Delivery Address', contract.deliveryAddress || 'As provided by buyer'],
@@ -253,7 +258,7 @@ export const generateContractPDF = (
   addText('For, KRISHNA AGRI BROKERS', margin, y, { fontSize: 8, color: grayColor });
 
   // Page border
-  doc.setDrawColor(...borderColor);
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
   doc.setLineWidth(0.5);
   doc.rect(margin - 2, margin - 2, pageWidth - (margin - 2) * 2, pageHeight - (margin - 2) * 2, 'D');
 
@@ -274,26 +279,27 @@ export const generateBrokerageBillPDF = (
   const margin = 15;
   const contentWidth = pageWidth - (margin * 2);
   let y = margin;
+  const pageHeight = 297;
 
-  const primaryColor = [220, 20, 60];
-  const darkColor = [33, 37, 41];
-  const grayColor = [108, 117, 125];
+  const primaryColor = rgb(220, 20, 60);
+  const darkColor = rgb(33, 37, 41);
+  const grayColor = rgb(108, 117, 125);
 
   // Header
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...primaryColor);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   doc.text(settings.name, pageWidth / 2, y, { align: 'center' });
   y += 6;
 
   doc.setFontSize(10);
-  doc.setTextColor(...grayColor);
+  doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
   doc.text('Brokerage Bill', pageWidth / 2, y, { align: 'center' });
   y += 10;
 
   // Bill details
   doc.setFontSize(9);
-  doc.setTextColor(...darkColor);
+  doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
   doc.text(`Bill Period: ${bill.month}/${bill.year}`, margin, y);
   doc.text(`Generated: ${format(new Date(bill.generatedAt), 'dd/MM/yyyy')}`, pageWidth - margin, y, { align: 'right' });
   y += 8;
@@ -304,18 +310,18 @@ export const generateBrokerageBillPDF = (
   doc.text(`Party: ${bill.party.legalName}`, margin, y);
   y += 5;
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...grayColor);
+  doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
   doc.text(`GSTIN: ${bill.party.gstin}`, margin, y);
   y += 8;
 
   // Contracts table
-  const tableData = bill.contracts.map((c: Contract) => [
+  const tableData = bill.contracts.map((c: any) => [
     c.contractNo,
     format(new Date(c.date), 'dd/MM/yyyy'),
     c.product.name,
     `${c.quantity} ${c.quantityUnit}`,
-    `₹${c.price.toLocaleString('en-IN')}`,
-    `₹${c.brokerageAmount.toLocaleString('en-IN')}`
+    `Rs.${c.price.toLocaleString('en-IN')}`,
+    `Rs.${c.brokerageAmount.toLocaleString('en-IN')}`
   ]);
 
   autoTable(doc, {
@@ -341,12 +347,12 @@ export const generateBrokerageBillPDF = (
   // Total
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...primaryColor);
-  doc.text(`Total Brokerage: ₹${bill.totalBrokerage.toLocaleString('en-IN')}`, pageWidth - margin, finalY, { align: 'right' });
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.text(`Total Brokerage: Rs.${bill.totalBrokerage.toLocaleString('en-IN')}`, pageWidth - margin, finalY, { align: 'right' });
 
   // Footer
   doc.setFontSize(8);
-  doc.setTextColor(...grayColor);
+  doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
   doc.text('This is a computer generated bill and does not require signature.', pageWidth / 2, pageHeight - 20, { align: 'center' });
 
   return doc;
