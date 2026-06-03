@@ -2,11 +2,12 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where, orderBy, Timestamp, onSnapshot, enableIndexedDbPersistence } from 'firebase/firestore';
 
+// Vite environment variables - must use direct property access
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "mahalaxmi-contracts.firebaseapp.com",
-  projectId: "mahalaxmi-contracts",
-  appId: "YOUR_APP_ID"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "mahalaxmi-contracts.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "mahalaxmi-contracts",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "YOUR_APP_ID"
 };
 
 const app = initializeApp(firebaseConfig);
