@@ -38,36 +38,39 @@ export function generateContractPDF(
   let y = 10;
 
   // ─── HEADER ───
-  const logoW = 20, logoH = 9;
+  const hasLogo = !!settings.logo;
+  const logoW = 22, logoH = 10;
   let headerX = margin;
 
-  if (settings.logo) {
+  if (hasLogo) {
     try {
       doc.addImage(settings.logo, 'PNG', headerX, y, logoW, logoH);
       headerX += logoW + 3;
-    } catch (e) { /* skip */ }
+    } catch (e) { /* skip broken logo */ }
   }
 
-  // Company name
-  doc.setFontSize(10.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
-  doc.text(settings.legalName || settings.name || 'MAHALAXMI AGRI COMMODITIES', headerX, y + 4);
+  // Only show company name if NO logo
+  if (!hasLogo) {
+    doc.setFontSize(10.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
+    doc.text(settings.legalName || settings.name || 'MAHALAXMI AGRI COMMODITIES', headerX, y + 4);
+  }
 
-  // Address
+  // Address / Contact (always shown, positioned after logo or at top-left)
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(hexToRgb(BRAND.gray).r, hexToRgb(BRAND.gray).g, hexToRgb(BRAND.gray).b);
   const addrLine = `${settings.address || ''}, ${settings.city || ''}${settings.state ? ', ' + settings.state : ''}`.replace(/^,\s*/, '').replace(/,\s*,/g, ',');
   if (addrLine.length > 3) {
-    doc.text(addrLine, headerX, y + 8);
+    doc.text(addrLine, headerX, y + (hasLogo ? 4 : 8));
   }
   const contactLine = `GSTIN: ${settings.gstin || ''} | Phone: ${settings.phone || ''}`.replace(/GSTIN:\s*\|/, '').replace(/\|\s*Phone:\s*$/, '');
   if (contactLine.length > 10) {
-    doc.text(contactLine, headerX, y + 11);
+    doc.text(contactLine, headerX, y + (hasLogo ? 7 : 11));
   }
 
-  // Top-right: Copy label (small, brand color)
+  // Top-right: Copy label + Contract No
   const copyLabel = type === 'buyer_copy' ? 'BUYER COPY' : type === 'seller_copy' ? 'SELLER COPY' : 'BROKER COPY';
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
@@ -83,20 +86,23 @@ export function generateContractPDF(
   doc.setDrawColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
   doc.setLineWidth(0.3);
   doc.line(margin, y, pageWidth - margin, y);
-  y += 5;
+  y += 6;
 
   // ─── PARTIES ───
+  // Buyer copy => buyer LEFT, seller RIGHT
+  // Seller copy => seller LEFT, buyer RIGHT
+  // Broker copy => seller LEFT, buyer RIGHT (default)
   const leftParty = type === 'buyer_copy' ? contract.buyer : contract.seller;
   const rightParty = type === 'buyer_copy' ? contract.seller : contract.buyer;
   const leftLabel = type === 'buyer_copy' ? 'BUYER' : 'SELLER';
   const rightLabel = type === 'buyer_copy' ? 'SELLER' : 'BUYER';
-  const colWidth = (contentWidth - 4) / 2;
+  const colWidth = (contentWidth - 5) / 2;
 
-  // Left party box - clean white with thin gray border
+  // Left party box
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(hexToRgb(BRAND.border).r, hexToRgb(BRAND.border).g, hexToRgb(BRAND.border).b);
   doc.setLineWidth(0.2);
-  doc.rect(margin, y, colWidth, 26, 'FD');
+  doc.rect(margin, y, colWidth, 28, 'FD');
 
   doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
@@ -121,7 +127,7 @@ export function generateContractPDF(
   ].filter(Boolean);
   let leftY = y + 11 + (splitLeftName.length - 1) * 2.8;
   leftAddrLines.forEach(line => {
-    if (leftY < y + 24) {
+    if (leftY < y + 25) {
       doc.text(line, margin + 2, leftY);
       leftY += 3.2;
     }
@@ -129,7 +135,7 @@ export function generateContractPDF(
 
   // Right party box
   doc.setFillColor(255, 255, 255);
-  doc.rect(margin + colWidth + 4, y, colWidth, 26, 'FD');
+  doc.rect(margin + colWidth + 5, y, colWidth, 28, 'FD');
 
   doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
@@ -154,20 +160,20 @@ export function generateContractPDF(
   ].filter(Boolean);
   let rightY = y + 11 + (splitRightName.length - 1) * 2.8;
   rightAddrLines.forEach(line => {
-    if (rightY < y + 24) {
+    if (rightY < y + 25) {
       doc.text(line, margin + colWidth + 6, rightY);
       rightY += 3.2;
     }
   });
 
-  y += 30;
+  y += 32;
 
   // ─── PRODUCT SPECIFICATIONS ───
   doc.setFontSize(9.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
   doc.text('PRODUCT SPECIFICATIONS', margin, y);
-  y += 3.5;
+  y += 4;
 
   const specRows = (contract.product?.specs || []).map((s: any) => [s.label || '', `${s.value || ''} ${s.unit || ''}`]);
   (doc as any).autoTable({
@@ -202,14 +208,14 @@ export function generateContractPDF(
     },
   });
 
-  y = (doc as any).lastAutoTable.finalY + 5;
+  y = (doc as any).lastAutoTable.finalY + 6;
 
   // ─── COMMERCIAL TERMS ───
   doc.setFontSize(9.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
   doc.text('COMMERCIAL TERMS', margin, y);
-  y += 3.5;
+  y += 4;
 
   const totalValue = contract.quantity * contract.price;
   const termsBody: any[] = [
@@ -287,7 +293,7 @@ export function generateContractPDF(
     },
   });
 
-  y = (doc as any).lastAutoTable.finalY + 5;
+  y = (doc as any).lastAutoTable.finalY + 6;
 
   // ─── TERMS & CONDITIONS ───
   const tnc = settings.termsAndConditions?.length > 0 ? settings.termsAndConditions : [
@@ -302,7 +308,7 @@ export function generateContractPDF(
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
   doc.text('TERMS & CONDITIONS', margin, y);
-  y += 3.5;
+  y += 4;
 
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
@@ -319,7 +325,7 @@ export function generateContractPDF(
     });
   });
 
-  y += 3;
+  y += 4;
 
   // ─── FOOTER ───
   const footerHeight = 20;
@@ -335,7 +341,7 @@ export function generateContractPDF(
   doc.setLineWidth(0.2);
   doc.line(margin, footerY, pageWidth - margin, footerY);
 
-  // Footer logo (small, right side) - only if space available
+  // Footer logo (small, right side)
   if (settings.logo) {
     try {
       doc.addImage(settings.logo, 'PNG', pageWidth - margin - 15, footerY + 2, 14, 6);
