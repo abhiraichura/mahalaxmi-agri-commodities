@@ -1,161 +1,154 @@
 import { useState, useMemo } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Plus, FileText } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { format } from 'date-fns';
+import { ArrowLeft, FileText, TrendingUp, TrendingDown } from 'lucide-react';
+import { Contract } from '../types';
 
 export default function PartyLedger() {
-  const { partyId } = useParams();
-  const navigate = useNavigate();
+  const { id } = useParams();
   const { parties, contracts, settings } = useAppStore();
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [filter, setFilter] = useState<'all' | 'buyer' | 'seller'>('all');
 
-  const party = parties.find(p => p.id === partyId);
-  if (!party) return (
-    <div className="p-8 text-center">
-      <p className="text-gray-500">Party not found</p>
-      <button onClick={() => navigate('/parties')} className="mt-4 text-rose-600 text-sm">Go back</button>
-    </div>
-  );
+  const party = parties.find((p: any) => p.id === id);
 
   const partyContracts = useMemo(() => {
-    return contracts
-      .filter(c => (c.sellerId === partyId || c.buyerId === partyId) && c.status !== 'cancelled')
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [contracts, partyId]);
-
-  const monthlyContracts = partyContracts.filter(c => {
-    const d = new Date(c.date);
-    return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
-  });
-
-  const entries = useMemo(() => {
-    let balance = 0;
-    return monthlyContracts.map(c => {
-      const isSeller = c.sellerId === partyId;
-      const brokerage = c.brokerageAmount || 0;
-      const debit = isSeller ? 0 : brokerage;
-      const credit = isSeller ? brokerage : 0;
-      balance += debit - credit;
-      return {
-        date: c.date,
-        description: `Contract #${c.contractNo} - ${c.product.name} (${isSeller ? 'Sold' : 'Bought'})`,
-        contractId: c.id,
-        debit,
-        credit,
-        balance,
-      };
+    return contracts.filter((c: Contract) => {
+      const sellerId = c.seller?.id || (c as any).sellerId;
+      const buyerId = c.buyer?.id || (c as any).buyerId;
+      const isSeller = sellerId === id;
+      const isBuyer = buyerId === id;
+      if (filter === 'seller') return isSeller;
+      if (filter === 'buyer') return isBuyer;
+      return isSeller || isBuyer;
     });
-  }, [monthlyContracts, partyId]);
+  }, [contracts, id, filter]);
 
-  const totalBrokerage = monthlyContracts.reduce((sum, c) => sum + (c.brokerageAmount || 0), 0);
-  const totalQuantity = monthlyContracts.reduce((sum, c) => sum + c.quantity, 0);
+  const stats = useMemo(() => {
+    const asSeller = partyContracts.filter((c: Contract) => {
+      const sellerId = c.seller?.id || (c as any).sellerId;
+      return sellerId === id;
+    });
+    const asBuyer = partyContracts.filter((c: Contract) => {
+      const buyerId = c.buyer?.id || (c as any).buyerId;
+      return buyerId === id;
+    });
+    const totalValue = partyContracts.reduce((sum: number, c: Contract) => sum + (c.quantity * c.price), 0);
+    return { asSeller: asSeller.length, asBuyer: asBuyer.length, totalValue };
+  }, [partyContracts, id]);
 
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-  const exportCSV = () => {
-    const headers = ['Date', 'Description', 'Debit (Rs.)', 'Credit (Rs.)', 'Balance (Rs.)'];
-    const rows = entries.map(e => [
-      format(new Date(e.date), 'dd/MM/yyyy'),
-      e.description,
-      e.debit || '',
-      e.credit || '',
-      e.balance
-    ]);
-    const csv = [headers.join(','), ...rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Ledger_${party.legalName}_${months[selectedMonth]}_${selectedYear}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('CSV exported');
-  };
+  if (!party) {
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-xl font-bold text-gray-900">Party not found</h2>
+        <Link to="/parties" className="text-red-600 hover:underline mt-2 inline-block">Back to parties</Link>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate('/parties')} className="p-2 hover:bg-gray-100 rounded-lg">
-          <ArrowLeft size={20} />
-        </button>
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Link to="/parties" className="p-2 hover:bg-gray-100 rounded-xl">
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Party Ledger</h1>
-          <p className="text-sm text-gray-500">{party.legalName}</p>
+          <h1 className="text-2xl font-bold text-gray-900">{party.legalName}</h1>
+          <p className="text-sm text-gray-500">{party.gstin}</p>
         </div>
       </div>
 
-      {/* Month selector */}
-      <div className="flex items-center gap-3 mb-6">
-        <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))}
-          className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm">
-          {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
-        </select>
-        <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))}
-          className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm">
-          {[2023, 2024, 2025, 2026, 2027, 2028].map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
-        <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-xl text-sm hover:bg-gray-50 ml-auto">
-          <Download size={16} /> Export CSV
-        </button>
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white border border-gray-200 rounded-2xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{stats.asSeller}</p>
+              <p className="text-sm text-gray-500">As Seller</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-2xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+              <TrendingDown className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{stats.asBuyer}</p>
+              <p className="text-sm text-gray-500">As Buyer</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-2xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">₹{stats.totalValue.toLocaleString('en-IN')}</p>
+              <p className="text-sm text-gray-500">Total Value</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs text-gray-500">Contracts</p>
-          <p className="text-xl font-bold text-gray-900">{monthlyContracts.length}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs text-gray-500">Total Quantity</p>
-          <p className="text-xl font-bold text-gray-900">{totalQuantity} MT</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs text-gray-500">Total Brokerage</p>
-          <p className="text-xl font-bold text-rose-600">Rs. {totalBrokerage.toLocaleString('en-IN')}</p>
-        </div>
+      {/* Filter */}
+      <div className="flex gap-2">
+        {(['all', 'seller', 'buyer'] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-4 py-2 text-sm font-medium rounded-xl ${
+              filter === f ? 'bg-red-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            {f === 'all' ? 'All Contracts' : f === 'seller' ? 'As Seller' : 'As Buyer'}
+          </button>
+        ))}
       </div>
 
-      {/* Statement Table */}
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900">Account Statement</h2>
-          <p className="text-xs text-gray-500">{months[selectedMonth]} {selectedYear}</p>
-        </div>
-        {entries.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-gray-500">No transactions this month</p>
+      {/* Contracts */}
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+        {partyContracts.length === 0 ? (
+          <div className="p-12 text-center">
+            <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900">No contracts found</h3>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500">Date</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500">Description</th>
-                <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500">Debit</th>
-                <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500">Credit</th>
-                <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500">Balance</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {entries.map((e, i) => (
-                <tr key={i} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/contracts/${e.contractId}`)}>
-                  <td className="px-6 py-3 text-gray-600">{format(new Date(e.date), 'dd MMM yyyy')}</td>
-                  <td className="px-6 py-3">
-                    <div className="flex items-center gap-2">
-                      <FileText size={14} className="text-gray-400" />
-                      <span className="text-gray-900">{e.description}</span>
+          <div className="divide-y divide-gray-100">
+            {partyContracts.map((c: Contract) => {
+              const isSeller = (c.seller?.id || (c as any).sellerId) === id;
+              return (
+                <Link
+                  key={c.id}
+                  to={`/contracts/${c.id}`}
+                  className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      isSeller ? 'bg-blue-50' : 'bg-green-50'
+                    }`}>
+                      {isSeller ? <TrendingUp className="w-5 h-5 text-blue-600" /> : <TrendingDown className="w-5 h-5 text-green-600" />}
                     </div>
-                  </td>
-                  <td className="px-6 py-3 text-right text-gray-900">{e.debit ? `Rs. ${e.debit.toLocaleString('en-IN')}` : '-'}</td>
-                  <td className="px-6 py-3 text-right text-gray-900">{e.credit ? `Rs. ${e.credit.toLocaleString('en-IN')}` : '-'}</td>
-                  <td className="px-6 py-3 text-right font-semibold text-gray-900">Rs. {e.balance.toLocaleString('en-IN')}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <div>
+                      <div className="font-medium text-gray-900">Contract #{c.contractNo}</div>
+                      <div className="text-sm text-gray-500">
+                        {isSeller ? 'Sold to' : 'Bought from'} {isSeller ? c.buyer?.legalName : c.seller?.legalName}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-gray-900">
+                      ₹{(c.quantity * c.price).toLocaleString('en-IN')}
+                    </div>
+                    <div className="text-xs text-gray-500">{c.date}</div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

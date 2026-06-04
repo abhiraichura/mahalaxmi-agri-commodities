@@ -1,50 +1,79 @@
 export interface Party {
   id: string;
+  name: string;
   legalName: string;
-  name?: string;
-  gstin?: string;
+  gstin: string;
   address: string;
   city: string;
   state: string;
-  pincode?: string;
+  pincode: string;
   phone?: string;
   email?: string;
+  type?: 'seller' | 'buyer' | 'both';
+  pan?: string;
+  altPhone?: string;
+  altEmail?: string;
+  contactPerson?: string;
+  bankName?: string;
+  bankAccount?: string;
+  bankIfsc?: string;
+  remarks?: string;
+  notes?: string;
+  brokeragePercent?: number;
+  brokerageFixed?: number;
+  productIds?: string[];
   products?: string[];
   createdAt?: any;
   updatedAt?: any;
 }
 
+export interface SpecField {
+  label: string;
+  value: string;
+  unit?: string;
+  order?: number;
+  id?: string;
+}
+
 export interface ProductSpec {
   id: string;
   name: string;
-  specs?: { label: string; value: string; unit?: string }[];
+  specs: SpecField[];
+  defaultBrokerage?: number;
+  buyerBrokerageType?: 'percent' | 'fixed';
+  sellerBrokerageType?: 'percent' | 'fixed';
+  buyerBrokeragePercent?: number;
+  sellerBrokeragePercent?: number;
+  buyerBrokerageFixed?: number;
+  sellerBrokerageFixed?: number;
   createdAt?: any;
+  updatedAt?: any;
 }
 
 export interface Contract {
   id: string;
   contractNo: string;
+  year: number;
   date: string;
-  financialYear: string;
-  status: 'active' | 'completed' | 'cancelled';
   seller: Party;
   buyer: Party;
+  sellerId?: string;
+  buyerId?: string;
   product: ProductSpec;
+  productId?: string;
   quantity: number;
   quantityUnit: string;
   price: number;
   priceUnit: string;
   deliveryLocation: string;
-  deliveryAddress: string;
+  deliveryAddress?: string;
   packing: string;
   loadingCondition: string;
-  loadingDeadline?: string;
   paymentTerms: string;
   gstPercent: number;
   otherTerms?: string;
-  brokerageAmount?: number;
-  brokeragePercent?: number;
-  totalValue?: number;
+  notes?: string;
+  status: 'active' | 'completed' | 'cancelled';
   createdAt?: any;
   updatedAt?: any;
 }
@@ -71,40 +100,13 @@ export interface CompanySettings {
   defaultLoadingCondition: string;
   defaultPacking: string;
   financialYearStart: number;
-  financialYears: string[];
 }
 
-export interface Note {
+export interface BusinessNote {
   id: string;
   title: string;
   content: string;
-  tags: string[];
-  createdAt: any;
-  updatedAt: any;
-}
-
-export interface BrokerageBill {
-  id: string;
-  month: number;
-  year: number;
-  party: Party;
-  contracts: Contract[];
-  totalQuantity: number;
-  totalBrokerage: number;
-  status: 'pending' | 'paid';
+  tags?: string[];
   createdAt?: any;
-}
-
-export interface LedgerEntry {
-  id: string;
-  partyId: string;
-  date: string;
-  type: 'contract' | 'payment' | 'adjustment';
-  description: string;
-  contractId?: string;
-  debit: number;
-  credit: number;
-  balance: number;
-  financialYear: string;
-  createdAt?: any;
+  updatedAt?: any;
 }
