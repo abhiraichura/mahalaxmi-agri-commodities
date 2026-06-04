@@ -38,13 +38,14 @@ export function generateContractPDF(
   let y = 10;
 
   // ─── HEADER ───
-  const hasLogo = !!settings.logo;
+  const logoData = settings.logo;
+  const hasLogo = !!logoData && typeof logoData === 'string' && logoData.length > 0;
   const logoW = 22, logoH = 10;
   let headerX = margin;
 
-  if (hasLogo) {
+  if (hasLogo && logoData) {
     try {
-      doc.addImage(settings.logo, 'PNG', headerX, y, logoW, logoH);
+      doc.addImage(logoData, 'PNG', headerX, y, logoW, logoH);
       headerX += logoW + 3;
     } catch (e) { /* skip broken logo */ }
   }
