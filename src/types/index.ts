@@ -10,7 +10,13 @@ export interface ProductSpec {
   id: string;
   name: string;
   specs: SpecField[];
-  defaultBrokerage?: number;
+  // Product-specific brokerage (moved from party)
+  buyerBrokerageType: 'percent' | 'flat';
+  sellerBrokerageType: 'percent' | 'flat';
+  buyerBrokeragePercent: number;
+  sellerBrokeragePercent: number;
+  buyerBrokerageFixed: number;
+  sellerBrokerageFixed: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,8 +34,6 @@ export interface Party {
   email: string;
   pan: string;
   type: 'buyer' | 'seller' | 'both';
-  brokeragePercent: number;
-  brokerageFixed: number;
   // Private fields (not shown on contract)
   contactPerson: string;
   altPhone: string;
@@ -67,7 +71,7 @@ export interface Contract {
   otherTerms: string;
   notes: string;
   status: 'confirmed' | 'cancelled';
-  // Separate brokerage for buyer and seller
+  // Separate brokerage for buyer and seller (copied from product)
   buyerBrokeragePercent: number;
   sellerBrokeragePercent: number;
   buyerBrokerageFixed: number;

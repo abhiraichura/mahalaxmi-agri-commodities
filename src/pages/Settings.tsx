@@ -75,14 +75,14 @@ export default function Settings() {
       {/* GST API Key */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Key className="w-5 h-5 text-amber-600" /> GST Verification API Key
+          <Key className="w-5 h-5 text-rose-600" /> GST Verification API Key
         </h2>
         <div className="space-y-3">
           <input type="text" value={gstApiKey} onChange={e => setGstApiKey(e.target.value)}
             placeholder="Enter your GST API key from gstincheck.co.in"
             className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
           <p className="text-xs text-gray-500">
-            Get free API key at <a href="https://gstincheck.co.in" target="_blank" rel="noopener noreferrer" className="text-amber-600 hover:underline font-medium">gstincheck.co.in</a>
+            Get free API key at <a href="https://gstincheck.co.in" target="_blank" rel="noopener noreferrer" className="text-rose-600 hover:underline font-medium">gstincheck.co.in</a>
             . Enter your email and they will send you a key (20 free verifications).
           </p>
         </div>

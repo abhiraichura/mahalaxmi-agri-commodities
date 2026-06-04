@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Receipt, Download, Calendar, Eye, IndianRupee, FileText, MessageCircle, Edit3, Save, X } from 'lucide-react';
+import { Receipt, Download, Calendar, Eye, IndianRupee, FileText, MessageCircle, Edit3, Save, X, CheckCircle } from 'lucide-react';
 import { generateBrokerageBillPDF, downloadPDF } from '../utils/pdfGenerator';
 import toast from 'react-hot-toast';
+
+interface BillStatus {
+  status: 'pending' | 'partial' | 'paid';
+  paidAmount: number;
+  paymentDate: string;
+  paymentNotes: string;
+}
 
 export default function BrokerageBills() {
   const { contracts, parties, settings } = useAppStore();
@@ -11,6 +18,18 @@ export default function BrokerageBills() {
   const [viewingBill, setViewingBill] = useState<any>(null);
   const [editingBill, setEditingBill] = useState<any>(null);
 
+  // Persist bill statuses to localStorage
+  const [billStatuses, setBillStatuses] = useState<Record<string, BillStatus>>(() => {
+    try {
+      const saved = localStorage.getItem('mahalaxmi_bill_statuses');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('mahalaxmi_bill_statuses', JSON.stringify(billStatuses));
+  }, [billStatuses]);
+
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
   const monthContracts = contracts.filter(c => {
@@ -18,7 +37,7 @@ export default function BrokerageBills() {
     return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear && c.status !== 'cancelled';
   });
 
-  // Build bills per party
+  // Build bills per party (seller bills)
   const bills: any[] = [];
   const partyIds = [...new Set(monthContracts.map(c => c.sellerId))];
   partyIds.forEach(pid => {
@@ -27,8 +46,10 @@ export default function BrokerageBills() {
     if (party && pContracts.length > 0) {
       const totalBrokerage = pContracts.reduce((sum, c) => sum + (c.sellerBrokerageAmount || 0), 0);
       const totalQty = pContracts.reduce((sum, c) => sum + c.quantity, 0);
+      const billId = `seller-${pid}-${selectedMonth}-${selectedYear}`;
+      const status = billStatuses[billId];
       bills.push({
-        id: `${pid}-${selectedMonth}-${selectedYear}`,
+        id: billId,
         month: selectedMonth,
         year: selectedYear,
         party,
@@ -36,10 +57,11 @@ export default function BrokerageBills() {
         totalBrokerage,
         totalQuantity: totalQty,
         generatedAt: new Date(),
-        status: 'pending',
-        paidAmount: 0,
-        paymentDate: '',
-        paymentNotes: ''
+        status: status?.status || 'pending',
+        paidAmount: status?.paidAmount || 0,
+        paymentDate: status?.paymentDate || '',
+        paymentNotes: status?.paymentNotes || '',
+        billType: 'seller'
       });
     }
   });
@@ -52,8 +74,10 @@ export default function BrokerageBills() {
     if (party && pContracts.length > 0) {
       const totalBrokerage = pContracts.reduce((sum, c) => sum + (c.buyerBrokerageAmount || 0), 0);
       const totalQty = pContracts.reduce((sum, c) => sum + c.quantity, 0);
+      const billId = `buyer-${pid}-${selectedMonth}-${selectedYear}`;
+      const status = billStatuses[billId];
       bills.push({
-        id: `${pid}-buyer-${selectedMonth}-${selectedYear}`,
+        id: billId,
         month: selectedMonth,
         year: selectedYear,
         party,
@@ -61,10 +85,11 @@ export default function BrokerageBills() {
         totalBrokerage,
         totalQuantity: totalQty,
         generatedAt: new Date(),
-        status: 'pending',
-        paidAmount: 0,
-        paymentDate: '',
-        paymentNotes: ''
+        status: status?.status || 'pending',
+        paidAmount: status?.paidAmount || 0,
+        paymentDate: status?.paymentDate || '',
+        paymentNotes: status?.paymentNotes || '',
+        billType: 'buyer'
       });
     }
   });
@@ -84,11 +109,17 @@ export default function BrokerageBills() {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
+  const handleSaveStatus = (billId: string, status: BillStatus) => {
+    setBillStatuses(prev => ({ ...prev, [billId]: status }));
+    toast.success('Bill status saved!');
+    setEditingBill(null);
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'paid': return 'bg-green-50 text-green-700';
-      case 'partial': return 'bg-amber-50 text-amber-700';
-      default: return 'bg-red-50 text-red-700';
+      case 'paid': return 'bg-rose-50 text-rose-700';
+      case 'partial': return 'bg-gray-100 text-gray-700';
+      default: return 'bg-gray-100 text-gray-700';
     }
   };
 
@@ -136,8 +167,8 @@ export default function BrokerageBills() {
             <div key={bill.id} className="bg-white rounded-2xl border border-gray-200 p-6">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center">
-                    <Receipt className="w-6 h-6 text-amber-600" />
+                  <div className="w-12 h-12 bg-rose-50 rounded-xl flex items-center justify-center">
+                    <Receipt className="w-6 h-6 text-rose-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">{bill.party.legalName}</h3>
@@ -145,12 +176,15 @@ export default function BrokerageBills() {
                     <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
                       <span className="flex items-center gap-1"><FileText className="w-4 h-4" /> {bill.contracts.length} Contracts</span>
                       <span className="flex items-center gap-1"><IndianRupee className="w-4 h-4" /> {bill.totalBrokerage.toLocaleString('en-IN')}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(bill.status)}`}>
+                        {getStatusLabel(bill.status)}
+                      </span>
                     </div>
                   </div>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(bill.status)}`}>
-                  {getStatusLabel(bill.status)}
-                </span>
+                <div className="text-right">
+                  <span className="text-xs text-gray-400 uppercase font-medium">{bill.billType} Bill</span>
+                </div>
               </div>
 
               <div className="mt-4 pt-4 border-t border-gray-100">
@@ -159,7 +193,7 @@ export default function BrokerageBills() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-200">
-                        <th className="text-left px-4 py-2 font-medium text-gray-600">Contract#</th>
+                        <th className="text-left px-4 py-2 font-medium text-gray-600">Contract</th>
                         <th className="text-left px-4 py-2 font-medium text-gray-600">Date</th>
                         <th className="text-left px-4 py-2 font-medium text-gray-600">Product</th>
                         <th className="text-right px-4 py-2 font-medium text-gray-600">Qty</th>
@@ -189,7 +223,10 @@ export default function BrokerageBills() {
                   <span className="mx-3">|</span>
                   Total Brokerage: <span className="font-bold text-rose-600">Rs.{bill.totalBrokerage.toLocaleString('en-IN')}</span>
                   {bill.paidAmount > 0 && (
-                    <span className="ml-3 text-green-600">Paid: Rs.{bill.paidAmount.toLocaleString('en-IN')}</span>
+                    <span className="ml-3 text-rose-600">Paid: Rs.{bill.paidAmount.toLocaleString('en-IN')}</span>
+                  )}
+                  {bill.paymentDate && (
+                    <span className="ml-3 text-gray-500">on {bill.paymentDate}</span>
                   )}
                 </div>
                 <div className="flex gap-2">
@@ -198,7 +235,7 @@ export default function BrokerageBills() {
                     <Eye className="w-4 h-4" /> View
                   </button>
                   <button onClick={() => setEditingBill(bill)}
-                    className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 flex items-center gap-2">
+                    className="px-4 py-2 bg-rose-50 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-100 flex items-center gap-2">
                     <Edit3 className="w-4 h-4" /> Edit Status
                   </button>
                   <button onClick={() => handleDownload(bill)}
@@ -206,7 +243,7 @@ export default function BrokerageBills() {
                     <Download className="w-4 h-4" /> Download PDF
                   </button>
                   <button onClick={() => handleShare(bill)}
-                    className="px-4 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100 flex items-center gap-2">
+                    className="px-4 py-2 bg-rose-50 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-100 flex items-center gap-2">
                     <MessageCircle className="w-4 h-4" /> Share
                   </button>
                 </div>
@@ -229,10 +266,11 @@ export default function BrokerageBills() {
 
       {/* Edit Status Modal */}
       {editingBill && (
-        <EditBillModal bill={editingBill} onClose={() => setEditingBill(null)} onSave={(updated: any) => {
-          toast.success('Bill status updated!');
-          setEditingBill(null);
-        }} />
+        <EditBillModal 
+          bill={editingBill} 
+          onClose={() => setEditingBill(null)} 
+          onSave={handleSaveStatus} 
+        />
       )}
     </div>
   );
@@ -244,7 +282,7 @@ function BillPreviewModal({ bill, settings, months, onClose, onDownload }: any) 
       <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-auto">
         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">Brokerage Bill Preview</h3>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500">✕</button>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500">&#10005;</button>
         </div>
         <div className="p-6">
           <div className="bg-gray-50 rounded-xl p-6 space-y-4">
@@ -259,12 +297,14 @@ function BillPreviewModal({ bill, settings, months, onClose, onDownload }: any) 
               </div>
               <div className="text-right">
                 <p className="text-gray-500">Period: {months[bill.month]} {bill.year}</p>
+                <p className="text-gray-500">Status: {bill.status}</p>
+                {bill.paidAmount > 0 && <p className="text-rose-600 font-medium">Paid: Rs.{bill.paidAmount.toLocaleString('en-IN')}</p>}
               </div>
             </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b-2 border-rose-200">
-                  <th className="text-left py-2 font-medium text-rose-700">Contract#</th>
+                  <th className="text-left py-2 font-medium text-rose-700">Contract</th>
                   <th className="text-left py-2 font-medium text-rose-700">Date</th>
                   <th className="text-left py-2 font-medium text-rose-700">Product</th>
                   <th className="text-right py-2 font-medium text-rose-700">Qty</th>
@@ -302,10 +342,14 @@ function BillPreviewModal({ bill, settings, months, onClose, onDownload }: any) 
 }
 
 function EditBillModal({ bill, onClose, onSave }: any) {
-  const [status, setStatus] = useState(bill.status || 'pending');
+  const [status, setStatus] = useState<BillStatus['status']>(bill.status || 'pending');
   const [paidAmount, setPaidAmount] = useState(bill.paidAmount || 0);
   const [paymentDate, setPaymentDate] = useState(bill.paymentDate || '');
   const [paymentNotes, setPaymentNotes] = useState(bill.paymentNotes || '');
+
+  const handleSubmit = () => {
+    onSave(bill.id, { status, paidAmount, paymentDate, paymentNotes });
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -317,7 +361,7 @@ function EditBillModal({ bill, onClose, onSave }: any) {
         <div className="p-6 space-y-4">
           <div>
             <label className="text-sm font-medium text-gray-700 mb-2 block">Payment Status</label>
-            <select value={status} onChange={e => setStatus(e.target.value)}
+            <select value={status} onChange={e => setStatus(e.target.value as BillStatus['status'])}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
               <option value="pending">Pending</option>
               <option value="partial">Partially Paid</option>
@@ -339,12 +383,19 @@ function EditBillModal({ bill, onClose, onSave }: any) {
             <textarea value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)}
               rows={2} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
           </div>
+
+          {status === 'paid' && (
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-center gap-2 text-sm text-rose-700">
+              <CheckCircle className="w-4 h-4" />
+              This bill will be marked as fully paid.
+            </div>
+          )}
         </div>
         <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 text-gray-600 font-medium">Cancel</button>
-          <button onClick={() => onSave({ ...bill, status, paidAmount, paymentDate, paymentNotes })}
+          <button onClick={handleSubmit}
             className="px-6 py-2 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 flex items-center gap-2">
-            <Save className="w-4 h-4" /> Save
+            <Save className="w-4 h-4" /> Save Status
           </button>
         </div>
       </div>

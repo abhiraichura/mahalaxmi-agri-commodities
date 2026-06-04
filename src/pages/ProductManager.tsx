@@ -13,7 +13,17 @@ export default function ProductManager() {
   const [editing, setEditing] = useState<ProductSpec | null>(null);
   const [name, setName] = useState('');
   const [specs, setSpecs] = useState<SpecField[]>([{ id: '1', label: '', value: '', unit: '', order: 1 }]);
-  const [brokerage, setBrokerage] = useState(0.5);
+
+  // Buyer brokerage
+  const [buyerBrokerageType, setBuyerBrokerageType] = useState<'percent' | 'flat'>('percent');
+  const [buyerBrokeragePercent, setBuyerBrokeragePercent] = useState(0.25);
+  const [buyerBrokerageFixed, setBuyerBrokerageFixed] = useState(0);
+
+  // Seller brokerage
+  const [sellerBrokerageType, setSellerBrokerageType] = useState<'percent' | 'flat'>('percent');
+  const [sellerBrokeragePercent, setSellerBrokeragePercent] = useState(0.5);
+  const [sellerBrokerageFixed, setSellerBrokerageFixed] = useState(0);
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadProducts().then(() => setLoading(false)); }, []);
@@ -30,7 +40,12 @@ export default function ProductManager() {
       id: editing?.id || uuidv4(),
       name,
       specs: specs.filter(s => s.label.trim()),
-      defaultBrokerage: brokerage,
+      buyerBrokerageType,
+      sellerBrokerageType,
+      buyerBrokeragePercent,
+      sellerBrokeragePercent,
+      buyerBrokerageFixed,
+      sellerBrokerageFixed,
       createdAt: editing?.createdAt || new Date(),
       updatedAt: new Date()
     };
@@ -41,9 +56,23 @@ export default function ProductManager() {
     } catch (e) { toast.error('Failed'); }
   };
 
-  const reset = () => { setShowForm(false); setEditing(null); setName(''); setSpecs([{ id: uuidv4(), label: '', value: '', unit: '', order: 1 }]); setBrokerage(0.5); };
+  const reset = () => { 
+    setShowForm(false); setEditing(null); setName(''); 
+    setSpecs([{ id: uuidv4(), label: '', value: '', unit: '', order: 1 }]);
+    setBuyerBrokerageType('percent'); setBuyerBrokeragePercent(0.25); setBuyerBrokerageFixed(0);
+    setSellerBrokerageType('percent'); setSellerBrokeragePercent(0.5); setSellerBrokerageFixed(0);
+  };
 
-  const handleEdit = (p: ProductSpec) => { setEditing(p); setName(p.name); setSpecs(p.specs); setBrokerage(p.defaultBrokerage || 0.5); setShowForm(true); };
+  const handleEdit = (p: ProductSpec) => { 
+    setEditing(p); setName(p.name); setSpecs(p.specs);
+    setBuyerBrokerageType(p.buyerBrokerageType || 'percent');
+    setSellerBrokerageType(p.sellerBrokerageType || 'percent');
+    setBuyerBrokeragePercent(p.buyerBrokeragePercent || 0.25);
+    setSellerBrokeragePercent(p.sellerBrokeragePercent || 0.5);
+    setBuyerBrokerageFixed(p.buyerBrokerageFixed || 0);
+    setSellerBrokerageFixed(p.sellerBrokerageFixed || 0);
+    setShowForm(true); 
+  };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this product?')) return;
@@ -72,7 +101,7 @@ export default function ProductManager() {
                 <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center"><Package className="w-5 h-5 text-rose-600" /></div>
                 <div>
                   <h3 className="font-semibold text-gray-900">{p.name}</h3>
-                  <p className="text-sm text-gray-500">Brokerage: {p.defaultBrokerage}%</p>
+                  <p className="text-sm text-gray-500">Buyer: {p.buyerBrokerageType === 'percent' ? p.buyerBrokeragePercent + '%' : 'Rs. ' + p.buyerBrokerageFixed} | Seller: {p.sellerBrokerageType === 'percent' ? p.sellerBrokeragePercent + '%' : 'Rs. ' + p.sellerBrokerageFixed}</p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -106,10 +135,47 @@ export default function ProductManager() {
                 <label className="text-sm font-medium text-gray-700 mb-2 block">Product Name *</label>
                 <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Coriander Seeds" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Default Brokerage (%)</label>
-                <input type="number" step="0.01" value={brokerage} onChange={e => setBrokerage(parseFloat(e.target.value))} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+
+              {/* Buyer Brokerage */}
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Buyer Brokerage</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">Type</label>
+                    <select value={buyerBrokerageType} onChange={e => setBuyerBrokerageType(e.target.value as 'percent' | 'flat')} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm">
+                      <option value="percent">Percentage (%)</option>
+                      <option value="flat">Fixed Amount (Rs.)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">{buyerBrokerageType === 'percent' ? 'Percentage (%)' : 'Fixed Amount (Rs.)'}</label>
+                    <input type="number" step="0.01" value={buyerBrokerageType === 'percent' ? buyerBrokeragePercent : buyerBrokerageFixed} 
+                      onChange={e => buyerBrokerageType === 'percent' ? setBuyerBrokeragePercent(parseFloat(e.target.value) || 0) : setBuyerBrokerageFixed(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm" />
+                  </div>
+                </div>
               </div>
+
+              {/* Seller Brokerage */}
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Seller Brokerage</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">Type</label>
+                    <select value={sellerBrokerageType} onChange={e => setSellerBrokerageType(e.target.value as 'percent' | 'flat')} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm">
+                      <option value="percent">Percentage (%)</option>
+                      <option value="flat">Fixed Amount (Rs.)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">{sellerBrokerageType === 'percent' ? 'Percentage (%)' : 'Fixed Amount (Rs.)'}</label>
+                    <input type="number" step="0.01" value={sellerBrokerageType === 'percent' ? sellerBrokeragePercent : sellerBrokerageFixed} 
+                      onChange={e => sellerBrokerageType === 'percent' ? setSellerBrokeragePercent(parseFloat(e.target.value) || 0) : setSellerBrokerageFixed(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm" />
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-sm font-medium text-gray-700">Specifications</label>

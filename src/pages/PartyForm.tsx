@@ -13,13 +13,13 @@ export default function PartyForm() {
   const [gstLoading, setGstLoading] = useState(false);
   const [gstVerified, setGstVerified] = useState(false);
   const [showPrivate, setShowPrivate] = useState(false);
+  const [pincodeLoading, setPincodeLoading] = useState(false);
 
   const existing = id ? parties.find(p => p.id === id) : null;
 
   const [form, setForm] = useState({
     name: '', legalName: '', gstin: '', address: '', city: '', state: '', pincode: '',
     phone: '', email: '', pan: '', type: 'buyer' as 'buyer' | 'seller' | 'both',
-    brokeragePercent: 0.5, brokerageFixed: 0,
     // Private fields
     contactPerson: '', altPhone: '', altEmail: '', remarks: '', notes: '',
     bankName: '', bankAccount: '', bankIfsc: ''
@@ -33,13 +33,32 @@ export default function PartyForm() {
         name: existing.name || '', legalName: existing.legalName, gstin: existing.gstin,
         address: existing.address, city: existing.city, state: existing.state, pincode: existing.pincode,
         phone: existing.phone, email: existing.email, pan: existing.pan,
-        type: existing.type, brokeragePercent: existing.brokeragePercent, brokerageFixed: existing.brokerageFixed,
+        type: existing.type,
         contactPerson: existing.contactPerson || '', altPhone: existing.altPhone || '',
         altEmail: existing.altEmail || '', remarks: existing.remarks || '', notes: existing.notes || '',
         bankName: existing.bankName || '', bankAccount: existing.bankAccount || '', bankIfsc: existing.bankIfsc || ''
       });
     }
   }, [existing]);
+
+  // Pincode auto-fetch
+  const fetchPincode = async (pincode: string) => {
+    if (pincode.length !== 6) return;
+    setPincodeLoading(true);
+    try {
+      const res = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+      const data = await res.json();
+      if (data && data[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
+        const po = data[0].PostOffice[0];
+        setForm(prev => ({
+          ...prev,
+          city: po.District || po.Name || prev.city,
+          state: po.State || prev.state,
+        }));
+      }
+    } catch (e) { console.error('Pincode fetch failed', e); }
+    setPincodeLoading(false);
+  };
 
   const verifyGST = async () => {
     if (form.gstin.length !== 15) { toast.error('Enter valid 15-digit GSTIN'); return; }
@@ -78,8 +97,6 @@ export default function PartyForm() {
       email: form.email,
       pan: form.pan,
       type: form.type,
-      brokeragePercent: form.brokeragePercent,
-      brokerageFixed: form.brokerageFixed,
       contactPerson: form.contactPerson,
       altPhone: form.altPhone,
       altEmail: form.altEmail,
@@ -114,14 +131,17 @@ export default function PartyForm() {
               <Search className="w-4 h-4" /> {gstLoading ? '...' : 'Verify'}
             </button>
           </div>
-          {gstVerified && <div className="flex items-center gap-2 text-sm text-green-600"><CheckCircle2 className="w-4 h-4" /> GST Verified</div>}
+          {gstVerified && <div className="flex items-center gap-2 text-sm text-rose-600"><CheckCircle2 className="w-4 h-4" /> GST Verified</div>}
           <input value={form.legalName} onChange={e => setForm({ ...form, legalName: e.target.value })} placeholder="Legal Name *" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
           <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Display Name" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
           <textarea value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Address" rows={2} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
           <div className="grid md:grid-cols-3 gap-4">
             <input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} placeholder="City" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
             <input value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} placeholder="State" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-            <input value={form.pincode} onChange={e => setForm({ ...form, pincode: e.target.value })} placeholder="Pincode" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            <div className="relative">
+              <input value={form.pincode} onChange={e => { setForm({ ...form, pincode: e.target.value }); if (e.target.value.length === 6) fetchPincode(e.target.value); }} placeholder="Pincode" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              {pincodeLoading && <div className="absolute right-3 top-3 w-4 h-4 border-2 border-gray-300 border-t-rose-600 rounded-full animate-spin" />}
+            </div>
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="Phone" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
@@ -136,24 +156,17 @@ export default function PartyForm() {
               <option value="both">Both</option>
             </select>
           </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            <input type="number" step="0.01" value={form.brokeragePercent} onChange={e => setForm({ ...form, brokeragePercent: parseFloat(e.target.value) })}
-              placeholder="Brokerage %" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-            <input type="number" step="0.01" value={form.brokerageFixed} onChange={e => setForm({ ...form, brokerageFixed: parseFloat(e.target.value) })}
-              placeholder="Fixed Brokerage (Rs.)" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-          </div>
 
           {/* Private Details Toggle */}
           <div className="border-t border-gray-100 pt-4">
             <button onClick={() => setShowPrivate(!showPrivate)}
-              className="flex items-center gap-2 text-sm font-semibold text-amber-600 hover:text-amber-700">
+              className="flex items-center gap-2 text-sm font-semibold text-rose-600 hover:text-rose-700">
               {showPrivate ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               {showPrivate ? 'Hide Private Details' : 'Show Private Details (Not on Contract)'}
             </button>
-
             {showPrivate && (
-              <div className="mt-4 space-y-4 bg-amber-50 rounded-xl p-4 border border-amber-100">
-                <h4 className="text-sm font-semibold text-amber-700">Private Information</h4>
+              <div className="mt-4 space-y-4 bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-700">Private Information</h4>
                 <input value={form.contactPerson} onChange={e => setForm({ ...form, contactPerson: e.target.value })}
                   placeholder="Contact Person Name" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm" />
                 <div className="grid md:grid-cols-2 gap-4">

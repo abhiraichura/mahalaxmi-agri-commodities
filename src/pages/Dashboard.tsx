@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { contracts, parties, products, loadContracts, deleteContract, settings } = useAppStore();
+  const { contracts, parties, products, loadContracts, deleteContract } = useAppStore();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -29,17 +29,16 @@ export default function Dashboard() {
   };
 
   const stats = [
-    { label: 'Total Parties', value: parties.length, icon: Users, color: 'bg-blue-50 text-blue-600' },
-    { label: 'Products', value: products.length, icon: Package, color: 'bg-amber-50 text-amber-600' },
+    { label: 'Total Parties', value: parties.length, icon: Users, color: 'bg-gray-100 text-gray-600' },
+    { label: 'Products', value: products.length, icon: Package, color: 'bg-gray-100 text-gray-600' },
     { label: 'Contracts', value: contracts.length, icon: FileText, color: 'bg-rose-50 text-rose-600' },
     { label: 'This Month', value: contracts.filter(c => {
       const d = new Date(c.date);
       return d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear();
-    }).length, icon: Receipt, color: 'bg-green-50 text-green-600' },
+    }).length, icon: Receipt, color: 'bg-gray-100 text-gray-600' },
   ];
 
-  // Recent contracts (last 5)
-  const recentContracts = [...contracts].sort((a, b) => 
+  const recentContracts = [...contracts].sort((a, b) =>
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   ).slice(0, 5);
 
@@ -127,15 +126,15 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center gap-1">
                     <button onClick={() => navigate(`/contract/${contract.id}`)}
-                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-rose-600" title="View">
+                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-rose-600" title="View">
                       <Eye className="w-4 h-4" />
                     </button>
                     <button onClick={() => navigate(`/contract/${contract.id}/edit`)}
-                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-blue-600" title="Edit">
+                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-rose-600" title="Edit">
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button onClick={() => handleDelete(contract.id)}
-                      className="p-2 hover:bg-red-50 rounded-lg text-gray-500 hover:text-red-600" title="Delete">
+                      className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600" title="Delete">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>

@@ -33,7 +33,13 @@ export default function ContractView() {
   };
 
   const handleShareWhatsApp = (type: string) => {
-    const text = `Contract Note #${contract.contractNo}\n${type.toUpperCase()}\nSeller: ${contract.seller.legalName}\nBuyer: ${contract.buyer.legalName}\nProduct: ${contract.product.name}\nQty: ${contract.quantity} ${contract.quantityUnit}\nPrice: Rs.${contract.price.toLocaleString('en-IN')}/${contract.priceUnit}`;
+    const text = `Contract Note #${contract.contractNo}
+${type.toUpperCase()}
+Seller: ${contract.seller.legalName}
+Buyer: ${contract.buyer.legalName}
+Product: ${contract.product.name}
+Qty: ${contract.quantity} ${contract.quantityUnit}
+Price: Rs.${contract.price.toLocaleString('en-IN')}/${contract.priceUnit}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -63,11 +69,11 @@ export default function ContractView() {
             <p className="text-sm text-gray-500 mt-1">{new Date(contract.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium">{contract.status}</span>
+            <span className="px-3 py-1 bg-rose-50 text-rose-700 rounded-full text-xs font-medium">{contract.status}</span>
           </div>
         </div>
 
-        {/* Parties */}
+        {/* Parties - Seller always first in this view (broker copy default) */}
         <div className="grid md:grid-cols-2 gap-4 mb-8">
           <div className="bg-gray-50 rounded-xl p-4">
             <h3 className="text-xs font-bold text-rose-600 uppercase mb-2">Seller</h3>
@@ -129,11 +135,11 @@ export default function ContractView() {
               <Download className="w-4 h-4" /> Broker Copy
             </button>
             <button onClick={() => handleDownload('buyer_copy')}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors">
               <Download className="w-4 h-4" /> Buyer Copy
             </button>
             <button onClick={() => handleDownload('seller_copy')}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition-colors">
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors">
               <Download className="w-4 h-4" /> Seller Copy
             </button>
           </div>
@@ -141,11 +147,11 @@ export default function ContractView() {
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Share via</h3>
           <div className="flex gap-3 mb-6">
             <button onClick={() => handleShareWhatsApp('buyer')}
-              className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100">
+              className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-100">
               <MessageCircle className="w-4 h-4" /> WhatsApp Buyer
             </button>
             <button onClick={() => handleShareWhatsApp('seller')}
-              className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100">
+              className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-100">
               <MessageCircle className="w-4 h-4" /> WhatsApp Seller
             </button>
             <button onClick={() => window.print()}

@@ -1,74 +1,151 @@
-# Mahalaxmi Agri Commodities - Major Update Summary
+# Mahalaxmi Agri Commodities - Update Summary
 
-## Files Changed (10 files)
+## Files Updated (15 files)
 
-### 1. src/types/index.ts
-- Added separate buyer/seller brokerage fields (percent + fixed + amount)
-- Added private Party fields: contactPerson, altPhone, altEmail, remarks, notes, bankName, bankAccount, bankIfsc
-- Added BrokerageBill type with status, paidAmount, paymentDate, paymentNotes
-- Added nextContractNumber to CompanySettings
+### 1. index.html
+- Added Google Fonts link for **Barlow** (weights: 400, 500, 600, 700)
+- Font is now loaded from: `https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&display=swap`
 
-### 2. src/hooks/useAuthStore.ts
-- Added nextContractNumber to default settings
-- Auto-increments contract number on addContract
+### 2. src/index.css
+- Updated `body` font-family to use `'Barlow', -apple-system, BlinkMacSystemFont, ...`
+- All UI text now uses Barlow font
 
-### 3. src/components/Layout.tsx
-- Added "All Contracts" to sidebar navigation
+### 3. src/types/index.ts
+- **Removed** `brokeragePercent` and `brokerageFixed` from `Party` type
+- **Added** to `ProductSpec`:
+  - `buyerBrokerageType: 'percent' | 'flat'`
+  - `sellerBrokerageType: 'percent' | 'flat'`
+  - `buyerBrokeragePercent: number`
+  - `sellerBrokeragePercent: number`
+  - `buyerBrokerageFixed: number`
+  - `sellerBrokerageFixed: number`
+- **Added** to `Contract`:
+  - `buyerBrokerageFixed`, `sellerBrokerageFixed`
+  - `buyerBrokerageAmount`, `sellerBrokerageAmount`, `totalBrokerageAmount`
 
-### 4. src/pages/ContractForm.tsx
-- Separate buyer & seller brokerage sections
-- Auto-generated contract number (editable)
-- Contract number field added at top
-- Fixed brokerage calculation for both parties
-- New party modal includes private fields
+### 4. src/pages/ProductManager.tsx
+- **Added** Buyer Brokerage section with:
+  - Dropdown: Percentage (%) or Fixed Amount (Rs.)
+  - Input field that changes label based on selection
+- **Added** Seller Brokerage section with same dropdown
+- Product cards now display brokerage info
+- Brokerage is now product-specific (e.g., Sesame: 0.5% seller, 0.25% buyer; Coriander: different rates)
 
-### 5. src/pages/ContractView.tsx
-- Shows brokerage % only (not amount)
-- Separate buyer/seller brokerage display
-- Cleaner layout
+### 5. src/pages/ContractForm.tsx
+- **Removed** brokerage fields from party selection
+- **Added** auto-population of brokerage when product is selected
+- Product section now shows read-only brokerage display
+- Contract saves both percentage and fixed brokerage values from product
+- **Added** pincode auto-fetch in New Party modal:
+  - Uses `https://api.postalpincode.in/pincode/{pincode}`
+  - Auto-fills City and State when 6-digit pincode is entered
+  - Fields remain editable after auto-fill
 
-### 6. src/pages/BrokerageBills.tsx
-- Separate bills for buyers AND sellers
-- Editable payment status (pending/partial/paid)
-- Payment date and notes tracking
-- Correct brokerage calculation
-- Status color coding
+### 6. src/pages/ContractView.tsx
+- **Removed** green/blue colors, now uses brand colors only
+- Brokerage display updated to match new product-based model
 
-### 7. src/utils/pdfGenerator.ts
-- Professional header with logo support
-- Company details centered, within borders
-- Decorative rose-colored lines
-- Color-coded seller (green) / buyer (blue) boxes
-- Brokerage % shown on contract (amount hidden)
-- Proper footer with signature area
-- Brokerage bill PDF with payment details
+### 7. src/pages/PartyForm.tsx
+- **Removed** brokerage fields (percent and fixed) from party form
+- **Added** pincode auto-fetch:
+  - When 6 digits entered, fetches city/state from postal API
+  - Shows loading spinner while fetching
+  - City and State fields remain editable
+- Updated colors to brand only (rose-600, gray)
 
 ### 8. src/pages/PartyDirectory.tsx
-- Added Eye icon for "View Details" on each party card
-- Modal shows public + private details separately
-- Private details marked as "Not on Contract"
+- **Removed** all green/blue/amber colors
+- Now uses only: rose-600, gray-100, gray-600, gray-900
+- Status badges updated to brand colors
 
-### 9. src/pages/PartyForm.tsx
-- Toggle to show/hide private details section
-- All private fields: contactPerson, altPhone, altEmail, remarks, notes, bank details
-- Clean amber-colored private section
+### 9. src/pages/AllContracts.tsx
+- **Removed** all green/blue colors from status badges and UI
+- Status "confirmed" now uses `bg-rose-50 text-rose-700`
+- Action buttons use rose-600 instead of blue/green
 
-### 10. src/pages/AllContracts.tsx (NEW)
-- Full contracts table with search
-- Filters: status, month, year
-- Quick actions: view, edit, delete
+### 10. src/pages/BrokerageBills.tsx
+- **Removed** all green/blue colors
+- All buttons, badges, and highlights now use rose-600/rose-50
+- Table headers use rose-600 background
+- Total amounts highlighted in rose-600
 
-### 11. src/App.tsx
-- Added /contracts route for AllContracts page
-- AppInitializer loads all data on mount
+### 11. src/pages/Dashboard.tsx
+- **Removed** all green/blue/amber stat card colors
+- Stats now use: gray-100 for neutral, rose-50 for primary
+- Recent contract actions use rose-600 instead of blue/green
+- Loading spinner uses rose colors
 
-### 12. src/pages/Dashboard.tsx
-- Stats cards are clickable (navigate to respective pages)
-- Shows only recent 5 contracts
-- "View All" link to All Contracts page
+### 12. src/pages/Settings.tsx
+- **Removed** blue/amber colors
+- GST API key icon now uses rose-600
+- All buttons and highlights use rose-600
 
-## How to Apply
-1. Copy each file from this output folder to your repo
-2. Run `npm install` if any new dependencies needed
-3. Run `npm run dev` to test
-4. Clear browser localStorage if old data conflicts with new types
+### 13. src/components/Layout.tsx
+- Sidebar active state uses rose-50/rose-700
+- Logo area uses rose-600 background
+- All navigation uses brand colors only
+
+### 14. src/App.tsx
+- Updated imports to match new file locations
+- Routes preserved exactly as before
+
+### 15. src/utils/pdfGenerator.ts (COMPLETE REWRITE)
+- **Font**: Uses Helvetica (closest to Barlow in jsPDF built-in fonts)
+- **Brand Colors Only**:
+  - Primary: `#ed1879` (rose)
+  - Primary Light: `#fce4ef` (light pink background)
+  - Primary Mid: `#f8bbd0` (border color)
+  - Black, Dark Gray, Gray, Light Gray, White
+  - **NO green, NO blue anywhere**
+- **Logo Fix**:
+  - Top logo now appears in header (top-left) if uploaded in Settings
+  - Footer logo positioned at bottom-right with proper spacing
+  - Footer text ("For, Mahalaxmi...") positioned at bottom-left
+  - Added `Math.min(y, pageHeight - 28)` to prevent overlap
+- **Party Layout Swap**:
+  - `buyer_copy`: Buyer on LEFT, Seller on RIGHT
+  - `seller_copy`: Seller on LEFT, Buyer on RIGHT
+  - `broker_copy`: Seller on LEFT, Buyer on RIGHT (default)
+- **Brokerage Display**:
+  - `buyer_copy`: Shows only "Brokerage" (not "Buyer Brokerage")
+  - `seller_copy`: Shows only "Brokerage" (not "Seller Brokerage")
+  - `broker_copy`: Shows both "Buyer Brokerage" and "Seller Brokerage"
+  - Supports both percentage and flat amount display
+- **Table Styling**:
+  - Headers: rose-600 background, white text
+  - Alternate rows: light pink background
+  - Borders: rose mid-tone
+  - Total Value row: bold, rose-600 color
+
+## How to Apply These Updates
+
+1. Download the ZIP file: `mahalaxmi-updates.zip`
+2. Extract the files
+3. Replace the corresponding files in your project:
+   - `index.html` → root folder
+   - `src/index.css` → src folder
+   - `src/types/index.ts` → src/types folder
+   - `src/utils/pdfGenerator.ts` → src/utils folder
+   - `src/components/Layout.tsx` → src/components folder
+   - All files in `src/pages/` → src/pages folder
+   - `src/App.tsx` → src folder
+4. Run `npm install` if needed (no new dependencies added)
+5. Run `npm run dev` or `npm run build`
+
+## Important Notes
+
+- **Data Migration**: Since `brokeragePercent` and `brokerageFixed` were removed from `Party`, existing party data in Firebase/localStorage will still work (fields will be ignored). However, you should:
+  1. Go to Products page
+  2. Edit each product to set buyer/seller brokerage with type (percent/flat)
+  3. New contracts will use product-based brokerage
+
+- **Pincode API**: Uses free Indian Postal API (`api.postalpincode.in`). No API key needed.
+
+- **Font**: Barlow is loaded from Google Fonts CDN. Ensure internet connectivity for the font to load.
+
+- **Logo in PDF**: The logo must be uploaded in Settings page. The PDF generator uses the base64 image string stored in settings. If logo doesn't appear, re-upload it in Settings.
+
+- **Brokerage Calculation**: 
+  - If type is "percent": brokerage = (totalValue × percent) / 100
+  - If type is "flat" and fixed > 0: brokerage = fixed amount
+  - Otherwise falls back to percentage

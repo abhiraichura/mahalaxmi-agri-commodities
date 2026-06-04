@@ -122,7 +122,7 @@ export default function AllContracts() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Contract#</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Contract</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Seller</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Buyer</th>
@@ -147,7 +147,7 @@ export default function AllContracts() {
                       <td className="px-4 py-3 text-right font-medium text-gray-900">Rs.{totalValue.toLocaleString('en-IN')}</td>
                       <td className="px-4 py-3 text-center">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          contract.status === 'confirmed' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                          contract.status === 'confirmed' ? 'bg-rose-50 text-rose-700' : 'bg-gray-100 text-gray-700'
                         }`}>
                           {contract.status}
                         </span>
@@ -159,7 +159,7 @@ export default function AllContracts() {
                             <Eye className="w-4 h-4" />
                           </button>
                           <button onClick={() => navigate(`/contract/${contract.id}/edit`)}
-                            className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600" title="Edit">
+                            className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-rose-600" title="Edit">
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button onClick={() => handleDelete(contract.id)}

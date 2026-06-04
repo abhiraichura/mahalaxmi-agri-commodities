@@ -65,8 +65,8 @@ export default function PartyDirectory() {
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  party.type === 'buyer' ? 'bg-blue-50 text-blue-600' :
-                  party.type === 'seller' ? 'bg-green-50 text-green-600' : 'bg-purple-50 text-purple-600'
+                  party.type === 'buyer' ? 'bg-rose-50 text-rose-600' :
+                  party.type === 'seller' ? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-600'
                 }`}>
                   {party.type === 'buyer' ? <Building2 className="w-5 h-5" /> :
                    party.type === 'seller' ? <UserCircle className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
@@ -80,7 +80,7 @@ export default function PartyDirectory() {
                 <button onClick={() => setViewingParty(party)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-rose-600" title="View Details">
                   <Eye className="w-4 h-4" />
                 </button>
-                <button onClick={() => navigate(`/party/${party.id}/edit`)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600" title="Edit">
+                <button onClick={() => navigate(`/party/${party.id}/edit`)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-rose-600" title="Edit">
                   <Edit2 className="w-4 h-4" />
                 </button>
                 <button onClick={() => handleDelete(party.id)} className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600" title="Delete">
@@ -100,8 +100,8 @@ export default function PartyDirectory() {
             </div>
             <div className="mt-3 pt-3 border-t border-gray-100">
               <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                party.type === 'buyer' ? 'bg-blue-50 text-blue-700' :
-                party.type === 'seller' ? 'bg-green-50 text-green-700' : 'bg-purple-50 text-purple-700'
+                party.type === 'both' ? 'bg-gray-100 text-gray-700' :
+                party.type === 'buyer' ? 'bg-rose-50 text-rose-700' : 'bg-gray-100 text-gray-700'
               }`}>
                 {party.type === 'both' ? 'Buyer & Seller' : party.type === 'buyer' ? 'Buyer' : 'Seller'}
               </span>
@@ -121,8 +121,8 @@ export default function PartyDirectory() {
             <div className="p-6 space-y-4">
               <div className="flex items-center gap-3">
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                  viewingParty.type === 'buyer' ? 'bg-blue-50 text-blue-600' :
-                  viewingParty.type === 'seller' ? 'bg-green-50 text-green-600' : 'bg-purple-50 text-purple-600'
+                  viewingParty.type === 'buyer' ? 'bg-rose-50 text-rose-600' :
+                  viewingParty.type === 'seller' ? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-600'
                 }`}>
                   {viewingParty.type === 'buyer' ? <Building2 className="w-6 h-6" /> :
                    viewingParty.type === 'seller' ? <UserCircle className="w-6 h-6" /> : <Building2 className="w-6 h-6" />}
@@ -141,20 +141,14 @@ export default function PartyDirectory() {
                 <DetailRow icon={<Banknote className="w-4 h-4" />} label="PAN" value={viewingParty.pan || 'N/A'} />
               </div>
 
-              <div className="bg-amber-50 rounded-xl p-4 space-y-2 border border-amber-100">
-                <h5 className="text-xs font-bold text-amber-600 uppercase">Private Details (Not on Contract)</h5>
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2 border border-gray-200">
+                <h5 className="text-xs font-bold text-gray-500 uppercase">Private Details (Not on Contract)</h5>
                 <DetailRow icon={<UserCircle className="w-4 h-4" />} label="Contact Person" value={viewingParty.contactPerson || 'N/A'} />
                 <DetailRow icon={<Phone className="w-4 h-4" />} label="Alt. Phone" value={viewingParty.altPhone || 'N/A'} />
                 <DetailRow icon={<Mail className="w-4 h-4" />} label="Alt. Email" value={viewingParty.altEmail || 'N/A'} />
                 <DetailRow icon={<MessageSquare className="w-4 h-4" />} label="Remarks" value={viewingParty.remarks || 'N/A'} />
                 <DetailRow icon={<MessageSquare className="w-4 h-4" />} label="Notes" value={viewingParty.notes || 'N/A'} />
                 <DetailRow icon={<Banknote className="w-4 h-4" />} label="Bank" value={`${viewingParty.bankName || ''} ${viewingParty.bankAccount ? 'A/c: ' + viewingParty.bankAccount : ''} ${viewingParty.bankIfsc ? 'IFSC: ' + viewingParty.bankIfsc : ''}`} />
-              </div>
-
-              <div className="bg-blue-50 rounded-xl p-4 space-y-2 border border-blue-100">
-                <h5 className="text-xs font-bold text-blue-600 uppercase">Brokerage Settings</h5>
-                <DetailRow icon={<Banknote className="w-4 h-4" />} label="Brokerage %" value={`${viewingParty.brokeragePercent}%`} />
-                <DetailRow icon={<Banknote className="w-4 h-4" />} label="Fixed Brokerage" value={viewingParty.brokerageFixed > 0 ? `Rs. ${viewingParty.brokerageFixed}` : 'N/A'} />
               </div>
             </div>
             <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
