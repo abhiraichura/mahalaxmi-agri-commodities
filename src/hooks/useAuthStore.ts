@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Party, ProductSpec, Contract, CompanySettings, Note, LedgerEntry } from '../types';
 import {
-  addDoc, updateDocData, deleteDocData, getColData, COLLECTIONS, Timestamp, setDocData, getColDataWhere
+  addDoc, updateDocData, deleteDocData, getColData, COLLECTIONS, Timestamp, setDocData, 
 } from '../utils/firebase';
 
 const defaultSettings: CompanySettings = {

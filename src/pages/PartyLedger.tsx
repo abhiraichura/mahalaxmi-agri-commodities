@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Search, ChevronDown, Download, ArrowLeft, Receipt } from 'lucide-react';
+import { Search, ChevronDown, Download, ArrowLeft,  } from 'lucide-react';
 import { startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
 
 export default function PartyLedger() {

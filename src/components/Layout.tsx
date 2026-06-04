@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
 import {
-  LayoutDashboard, FileText, Users, Package, Receipt, Settings, LogOut, Menu, X, BookOpen, Bell, BarChart3
+  LayoutDashboard, FileText, Users, Package, Receipt, Settings, LogOut, Menu, X, BookOpen, Bell, 
 } from 'lucide-react';
 
 const navItems = [

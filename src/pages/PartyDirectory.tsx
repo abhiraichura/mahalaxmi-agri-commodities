@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Search, Plus, Phone, MapPin, Edit2, Trash2, Eye, Download, Upload, Package } from 'lucide-react';
+import { Search, Plus, Phone, MapPin, Edit2, Trash2, Download, Upload, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function PartyDirectory() {
@@ -9,7 +9,6 @@ export default function PartyDirectory() {
   const { parties, products, deleteParty } = useAppStore();
   const [search, setSearch] = useState('');
   const [selectedParty, setSelectedParty] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const filtered = parties.filter(p => {
     const q = search.toLowerCase();

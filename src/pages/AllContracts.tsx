@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Search, Plus, Filter, ArrowUpDown } from 'lucide-react';
+import { Search, Plus, ArrowUpDown } from 'lucide-react';
 
 export default function AllContracts() {
   const navigate = useNavigate();
   const { contracts, currentYear } = useAppStore();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statussetStatusFilter] = useState<string>('all');
 
   const yearContracts = contracts.filter(c => c.financialYear === currentYear);
 
