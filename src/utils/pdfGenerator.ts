@@ -342,7 +342,7 @@ export function generateContractPDF(
   doc.line(margin, footerY, pageWidth - margin, footerY);
 
   // Footer logo (small, right side)
-  if (settings.logo) {
+  if (settings.logo && typeof settings.logo === 'string' && settings.logo.length > 0) {
     try {
       doc.addImage(settings.logo, 'PNG', pageWidth - margin - 15, footerY + 2, 14, 6);
     } catch (e) { /* skip */ }
