@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { generateContractPDF, downloadPDF } from '../utils/pdfGenerator';
-import { format, isPast, isTomorrow, parseISO } from 'date-fns';
+import { format, isPast, parseISO, isTomorrow } from 'date-fns';
 
 export default function ContractView() {
   const { id } = useParams();
@@ -114,6 +114,19 @@ export default function ContractView() {
       </div>
     );
   };
+
+  // Get brokerage info for display
+  const getBrokerageInfo = () => {
+    const b = contract.product?.brokerage;
+    if (!b) return null;
+    return {
+      buyer: b.buyer?.type === 'fixed' ? `${b.buyer.value} Rs.` : `${b.buyer?.value || b.buyerPercent || 0}%`,
+      seller: b.seller?.type === 'fixed' ? `${b.seller.value} Rs.` : `${b.seller?.value || b.sellerPercent || 0}%`,
+      total: contract.brokerageAmount || 0
+    };
+  };
+
+  const brokerageInfo = getBrokerageInfo();
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -250,6 +263,13 @@ export default function ContractView() {
               ))}
             </div>
           )}
+          {brokerageInfo && (
+            <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-600">
+              <span className="px-2 py-1 bg-amber-50 rounded-md">Buyer Brokerage: {brokerageInfo.buyer}</span>
+              <span className="px-2 py-1 bg-amber-50 rounded-md">Seller Brokerage: {brokerageInfo.seller}</span>
+              <span className="px-2 py-1 bg-rose-50 text-rose-700 rounded-md font-medium">Total: Rs. {brokerageInfo.total.toLocaleString('en-IN')}</span>
+            </div>
+          )}
         </div>
 
         <div className="border-t border-gray-100 p-6">
@@ -258,7 +278,6 @@ export default function ContractView() {
             <div className="space-y-2">
               <p><span className="text-gray-500">Quantity:</span> {contract.quantity} {contract.quantityUnit}</p>
               <p><span className="text-gray-500">Price:</span> Rs. {contract.price.toLocaleString('en-IN')} per {contract.priceUnit}</p>
-              {/* Total value only shown for broker/internal view */}
               <p><span className="text-gray-500">Total Value:</span> <span className="text-gray-400 text-xs">(Internal only)</span></p>
               <p><span className="text-gray-500">Packing:</span> {contract.packing}</p>
               <p><span className="text-gray-500">Delivery:</span> {contract.deliveryLocation}</p>

@@ -13,10 +13,15 @@ const RED = c(160, 30, 50);
 const LIGHT = c(250, 250, 250);
 const BORDER = c(220, 220, 220);
 
-// Helper: wrap text for jsPDF
 function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
   return doc.splitTextToSize(text, maxWidth);
 }
+
+// Convert quantity to KG for calculations
+const toKg = (quantity: number, unit: string): number => {
+  if (unit === 'MT') return quantity * 1000;
+  return quantity;
+};
 
 export const generateContractPDF = (
   contract: Contract,
@@ -36,13 +41,9 @@ export const generateContractPDF = (
   const M = 15;
   const W = PW - M * 2;
 
-  let y = M;
+  let y = 50; // Letterhead spacer
 
-  // ===== LETTERHEAD SPACER (blank area for physical letterhead) =====
-  // Leave top 45mm blank for user's pre-printed letterhead
-  y = 50;
-
-  // ===== CONTRACT TITLE =====
+  // CONTRACT TITLE
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(...RED);
@@ -56,7 +57,7 @@ export const generateContractPDF = (
   doc.text(`Date: ${format(new Date(contract.date), 'dd/MM/yyyy')}`, PW / 2, y, { align: 'center' });
   y += 10;
 
-  // ===== PARTIES BOX =====
+  // PARTIES BOX
   const partyH = 36;
   doc.setDrawColor(...BORDER);
   doc.setLineWidth(0.25);
@@ -131,7 +132,7 @@ export const generateContractPDF = (
 
   y += partyH + 8;
 
-  // ===== PRODUCT =====
+  // PRODUCT
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(...RED);
@@ -181,18 +182,19 @@ export const generateContractPDF = (
     y = (doc as any).lastAutoTable.finalY + 6;
   }
 
-  // ===== COMMERCIAL TERMS =====
+  // COMMERCIAL TERMS
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(...RED);
   doc.text('COMMERCIAL TERMS', M, y);
   y += 5;
 
-  const totalValue = contract.quantity * contract.price;
+  const quantityKg = toKg(contract.quantity, contract.quantityUnit);
+  const totalValue = quantityKg * contract.price;
   const showTotal = options.showTotalValue || type === 'broker_copy';
 
   const commRows: any[] = [
-    ['Quantity', `${contract.quantity} ${contract.quantityUnit}`],
+    ['Quantity', `${contract.quantity} ${contract.quantityUnit}${contract.quantityUnit === 'MT' ? ` (${quantityKg} KG)` : ''}`],
     ['Price', `Rs. ${contract.price.toLocaleString('en-IN')} per ${contract.priceUnit}`],
     ['Packing', contract.packing],
     ['Delivery At', contract.deliveryLocation],
@@ -229,7 +231,7 @@ export const generateContractPDF = (
 
   y = (doc as any).lastAutoTable.finalY + 6;
 
-  // ===== TERMS & CONDITIONS =====
+  // TERMS & CONDITIONS
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(...RED);
@@ -260,11 +262,11 @@ export const generateContractPDF = (
 
   y += 4;
 
-  // ===== FOOTER =====
+  // FOOTER
   if (y > PH - 40) {
     doc.addPage();
     y = M;
-    y = 50; // letterhead spacer on new page too
+    y = 50;
   }
 
   // Separator
@@ -279,7 +281,6 @@ export const generateContractPDF = (
   doc.setTextColor(...BLACK);
   doc.text(settings.legalName, M, y);
 
-  // Digital signature
   if (settings.signature) {
     try {
       doc.addImage(settings.signature, 'PNG', PW - M - 40, y - 5, 35, 15);

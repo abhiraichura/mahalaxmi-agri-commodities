@@ -5,6 +5,11 @@ import { ArrowLeft, Save, ChevronDown, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 
+const QUANTITY_UNITS = [
+  { value: 'MT', label: 'Metric Ton (MT)', factor: 1000 }, // 1 MT = 1000 KG
+  { value: 'KG', label: 'Kilogram (KG)', factor: 1 },
+];
+
 export default function ContractForm() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -17,7 +22,7 @@ export default function ContractForm() {
     buyerId: '',
     productId: '',
     quantity: 0,
-    quantityUnit: 'MT',
+    quantityUnit: 'MT' as 'MT' | 'KG',
     price: 0,
     priceUnit: 'KG',
     deliveryLocation: '',
@@ -48,7 +53,7 @@ export default function ContractForm() {
         buyerId: existing.buyerId || '',
         productId: existing.productId || '',
         quantity: existing.quantity || 0,
-        quantityUnit: existing.quantityUnit || 'MT',
+        quantityUnit: (existing.quantityUnit as 'MT' | 'KG') || 'MT',
         price: existing.price || 0,
         priceUnit: existing.priceUnit || 'KG',
         deliveryLocation: existing.deliveryLocation || '',
@@ -64,7 +69,6 @@ export default function ContractForm() {
         financialYear: existing.financialYear || currentFinancialYear
       });
     } else {
-      // Auto-generate contract number for new contracts
       const fyContracts = contracts.filter(c => c.financialYear === currentFinancialYear);
       const maxNo = fyContracts.reduce((max, c) => {
         const num = parseInt(c.contractNo);
@@ -78,9 +82,34 @@ export default function ContractForm() {
   const selectedBuyer = parties.find(p => p.id === form.buyerId);
   const selectedProduct = products.find(p => p.id === form.productId);
 
-  const brokerageAmount = selectedProduct
-    ? (form.quantity * form.price * (selectedProduct.defaultBrokerage || 0)) / 100
-    : 0;
+  // Calculate brokerage based on product settings and party type
+  const calculateBrokerage = (): number => {
+    if (!selectedProduct || form.quantity <= 0 || form.price <= 0) return 0;
+
+    const b = selectedProduct.brokerage || {
+      buyer: { type: 'percent', value: selectedProduct.defaultBrokerage || 0 },
+      seller: { type: 'percent', value: selectedProduct.defaultBrokerage || 0 }
+    };
+
+    // Convert quantity to KG for calculation if needed
+    const unitFactor = QUANTITY_UNITS.find(u => u.value === form.quantityUnit)?.factor || 1;
+    const quantityInKg = form.quantity * unitFactor;
+    const totalValue = quantityInKg * form.price;
+
+    // Use buyer brokerage if buyer is selected, seller brokerage if seller is selected
+    // For the contract, we calculate total brokerage (buyer + seller)
+    const buyerBrokerage = b.buyer?.type === 'fixed' 
+      ? (b.buyer?.value || 0) 
+      : (totalValue * (b.buyer?.value || b.buyerPercent || 0)) / 100;
+
+    const sellerBrokerage = b.seller?.type === 'fixed'
+      ? (b.seller?.value || 0)
+      : (totalValue * (b.seller?.value || b.sellerPercent || 0)) / 100;
+
+    return buyerBrokerage + sellerBrokerage;
+  };
+
+  const brokerageAmount = calculateBrokerage();
 
   const handleAddFinancialYear = () => {
     if (!newFyInput.match(/^\d{4}-\d{4}$/)) {
@@ -287,9 +316,15 @@ export default function ContractForm() {
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
+          {selectedProduct && (
+            <div className="mt-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600">
+              <p>Buyer Brokerage: {selectedProduct.brokerage?.buyer?.value || selectedProduct.brokerage?.buyerPercent || selectedProduct.defaultBrokerage || 0}{selectedProduct.brokerage?.buyer?.type === 'fixed' || selectedProduct.brokerage?.buyerFixed ? ' Rs.' : '%'}</p>
+              <p>Seller Brokerage: {selectedProduct.brokerage?.seller?.value || selectedProduct.brokerage?.sellerPercent || selectedProduct.defaultBrokerage || 0}{selectedProduct.brokerage?.seller?.type === 'fixed' || selectedProduct.brokerage?.sellerFixed ? ' Rs.' : '%'}</p>
+            </div>
+          )}
         </div>
 
-        {/* Commercial Terms */}
+        {/* Quantity & Price with proper units */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
@@ -301,13 +336,19 @@ export default function ContractForm() {
                 onChange={e => setForm({ ...form, quantity: parseFloat(e.target.value) || 0 })}
                 className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
               />
-              <input
+              <select
                 value={form.quantityUnit}
-                onChange={e => setForm({ ...form, quantityUnit: e.target.value })}
-                className="w-32 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-                placeholder="Unit"
-              />
+                onChange={e => setForm({ ...form, quantityUnit: e.target.value as 'MT' | 'KG' })}
+                className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              >
+                {QUANTITY_UNITS.map(u => (
+                  <option key={u.value} value={u.value}>{u.label}</option>
+                ))}
+              </select>
             </div>
+            {form.quantity > 0 && form.quantityUnit === 'MT' && (
+              <p className="text-xs text-gray-500 mt-1">= {form.quantity * 1000} KG</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
@@ -322,8 +363,8 @@ export default function ContractForm() {
               <input
                 value={form.priceUnit}
                 onChange={e => setForm({ ...form, priceUnit: e.target.value })}
-                className="w-40 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
                 placeholder="Per unit"
+                className="w-40 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
               />
             </div>
           </div>
@@ -369,7 +410,7 @@ export default function ContractForm() {
           </div>
         </div>
 
-        {/* NEW: Loading Deadline */}
+        {/* Loading Deadline */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Loading Deadline</label>
@@ -441,7 +482,14 @@ export default function ContractForm() {
         {selectedProduct && form.quantity > 0 && form.price > 0 && (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
             <p className="text-sm text-amber-800">
-              Brokerage: Rs. {brokerageAmount.toLocaleString('en-IN')} ({selectedProduct.defaultBrokerage}%)
+              <strong>Brokerage Preview:</strong> Rs. {brokerageAmount.toLocaleString('en-IN')}
+            </p>
+            <p className="text-xs text-amber-700 mt-1">
+              Based on: {form.quantity} {form.quantityUnit} × Rs.{form.price}/{form.priceUnit} 
+              {' | '}
+              Buyer: {selectedProduct.brokerage?.buyer?.value || selectedProduct.brokerage?.buyerPercent || 0}{selectedProduct.brokerage?.buyer?.type === 'fixed' || selectedProduct.brokerage?.buyerFixed ? ' Rs.' : '%'}
+              {' | '}
+              Seller: {selectedProduct.brokerage?.seller?.value || selectedProduct.brokerage?.sellerPercent || 0}{selectedProduct.brokerage?.seller?.type === 'fixed' || selectedProduct.brokerage?.sellerFixed ? ' Rs.' : '%'}
             </p>
           </div>
         )}

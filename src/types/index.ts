@@ -26,11 +26,19 @@ export interface SpecField {
   order: number;
 }
 
+export interface ProductBrokerage {
+  buyerPercent: number;
+  buyerFixed: number;
+  sellerPercent: number;
+  sellerFixed: number;
+}
+
 export interface ProductSpec {
   id: string;
   name: string;
   specs: SpecField[];
-  defaultBrokerage: number;
+  defaultBrokerage: number; // kept for backward compatibility
+  brokerage: ProductBrokerage;
   createdAt: any;
 }
 

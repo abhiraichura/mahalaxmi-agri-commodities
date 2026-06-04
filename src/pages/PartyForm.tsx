@@ -1,9 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { ArrowLeft, Save, Check, X, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Save, Check, X, ChevronDown, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
+
+interface PincodeData {
+  Name: string;
+  District: string;
+  State: string;
+  Country: string;
+}
 
 export default function PartyForm() {
   const { id } = useParams();
@@ -30,6 +37,7 @@ export default function PartyForm() {
   const [gstVerified, setGstVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
+  const [pincodeLoading, setPincodeLoading] = useState(false);
 
   const existing = id ? parties.find(p => p.id === id) : null;
 
@@ -54,6 +62,32 @@ export default function PartyForm() {
       if (existing.gstin && existing.gstin.length === 15) setGstVerified(true);
     }
   }, [existing]);
+
+  // Auto-detect city/state from pincode
+  const fetchPincodeDetails = async (pincode: string) => {
+    if (pincode.length !== 6) return;
+    setPincodeLoading(true);
+    try {
+      const res = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+      const data = await res.json();
+      if (data && data[0] && data[0].Status === 'Success' && data[0].PostOffice && data[0].PostOffice.length > 0) {
+        const office = data[0].PostOffice[0];
+        setForm(prev => ({
+          ...prev,
+          city: office.District || office.Name || prev.city,
+          state: office.State || prev.state,
+          // Don't overwrite address if already filled
+          address: prev.address || `${office.Name}, ${office.District}`
+        }));
+        toast.success(`Location found: ${office.District}, ${office.State}`);
+      } else {
+        toast.error('Pincode not found');
+      }
+    } catch (err) {
+      toast.error('Could not fetch pincode details');
+    }
+    setPincodeLoading(false);
+  };
 
   const verifyGST = async () => {
     if (form.gstin.length !== 15) return;
@@ -121,7 +155,7 @@ export default function PartyForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* GSTIN - now optional */}
+        {/* GSTIN - optional */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">GSTIN</label>
           <div className="flex gap-2">
@@ -186,31 +220,59 @@ export default function PartyForm() {
           />
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <input
-            value={form.city}
-            onChange={e => setForm({ ...form, city: e.target.value })}
-            placeholder="City"
-            className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-          />
-          <input
-            value={form.state}
-            onChange={e => setForm({ ...form, state: e.target.value })}
-            placeholder="State"
-            className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-          />
-          <input
-            value={form.pincode}
-            onChange={e => setForm({ ...form, pincode: e.target.value })}
-            placeholder="Pincode"
-            className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-          />
-          <input
-            value={form.phone}
-            onChange={e => setForm({ ...form, phone: e.target.value })}
-            placeholder="Phone (e.g. 99999 99999 / 77777 77777)"
-            className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-          />
+        {/* Pincode with auto-detect */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="md:col-span-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
+            <div className="relative">
+              <input
+                value={form.pincode}
+                onChange={e => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setForm({ ...form, pincode: val });
+                  if (val.length === 6) {
+                    fetchPincodeDetails(val);
+                  }
+                }}
+                placeholder="6 digits"
+                maxLength={6}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              />
+              {pincodeLoading && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="w-4 h-4 border-2 border-gray-300 border-t-rose-600 rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Enter 6 digits to auto-fill city & state</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+            <input
+              value={form.city}
+              onChange={e => setForm({ ...form, city: e.target.value })}
+              placeholder="City"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+            <input
+              value={form.state}
+              onChange={e => setForm({ ...form, state: e.target.value })}
+              placeholder="State"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <input
+              value={form.phone}
+              onChange={e => setForm({ ...form, phone: e.target.value })}
+              placeholder="e.g. 99999 99999 / 77777 77777"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -254,7 +316,7 @@ export default function PartyForm() {
           </div>
         </div>
 
-        {/* NEW: Product Multi-Select */}
+        {/* Product Multi-Select */}
         <div className="relative">
           <label className="block text-sm font-medium text-gray-700 mb-1">Products</label>
           <button

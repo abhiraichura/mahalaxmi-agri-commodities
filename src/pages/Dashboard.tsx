@@ -47,10 +47,10 @@ export default function Dashboard() {
   });
 
   const stats = [
-    { label: 'Contracts', value: fyContracts.length, icon: FileText, color: 'bg-blue-50 text-blue-600' },
-    { label: 'Parties', value: parties.length, icon: Users, color: 'bg-purple-50 text-purple-600' },
-    { label: 'Products', value: products.length, icon: Package, color: 'bg-amber-50 text-amber-600' },
-    { label: 'This Month Brokerage', value: `Rs. ${monthBrokerage.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'bg-rose-50 text-rose-600' },
+    { label: 'Contracts', value: fyContracts.length, icon: FileText, color: 'bg-blue-50 text-blue-600', path: '/contracts' },
+    { label: 'Parties', value: parties.length, icon: Users, color: 'bg-purple-50 text-purple-600', path: '/parties' },
+    { label: 'Products', value: products.length, icon: Package, color: 'bg-amber-50 text-amber-600', path: '/products' },
+    { label: 'This Month Brokerage', value: `Rs. ${monthBrokerage.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'bg-rose-50 text-rose-600', path: '/bills' },
   ];
 
   return (
@@ -114,12 +114,16 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Stats Grid */}
+      {/* Stats Grid - CLICKABLE */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {stats.map((stat, i) => {
           const Icon = stat.icon;
           return (
-            <div key={i} className="bg-white border border-gray-200 rounded-2xl p-5">
+            <div
+              key={i}
+              onClick={() => navigate(stat.path)}
+              className="bg-white border border-gray-200 rounded-2xl p-5 cursor-pointer hover:shadow-md hover:border-rose-200 transition-all"
+            >
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${stat.color}`}>
                 <Icon className="w-5 h-5" />
               </div>
