@@ -8,31 +8,23 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Mahalaxmi Agri Contracts',
+        name: 'Mahalaxmi Agri Commodities',
         short_name: 'Mahalaxmi',
-        description: 'Professional Contract Management for Agri Commodities',
+        description: 'Professional contract management system for agri-commodity brokers',
         theme_color: '#e11d48',
-        background_color: '#ffffff',
+        background_color: '#f9fafb',
         display: 'standalone',
-        scope: '/',
         start_url: '/',
-        orientation: 'portrait',
         icons: [
-          { src: '/icon-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
-        ]
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        runtimeCaching: [
           {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] }
-            }
+            src: '/icon-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: '/icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png'
           }
         ]
       }
@@ -40,17 +32,6 @@ export default defineConfig({
   ],
   build: {
     outDir: 'dist',
-    sourcemap: true,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
-          'vendor-pdf': ['jspdf', 'jspdf-autotable'],
-          'vendor-utils': ['date-fns', 'zustand', 'lucide-react']
-        }
-      }
-    }
-  },
-  server: { port: 3000, host: true }
+    sourcemap: true
+  }
 });

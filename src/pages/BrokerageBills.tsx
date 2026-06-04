@@ -1,250 +1,219 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Receipt, Download, Calendar, Eye, IndianRupee, FileText, MessageCircle, Edit3, Save, X, CheckCircle } from 'lucide-react';
-import { generateBrokerageBillPDF, downloadPDF } from '../utils/pdfGenerator';
+import { ChevronDown, Download, Eye, ArrowLeft, TrendingUp } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 import toast from 'react-hot-toast';
-
-interface BillStatus {
-  status: 'pending' | 'partial' | 'paid';
-  paidAmount: number;
-  paymentDate: string;
-  paymentNotes: string;
-}
+import { format, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
 
 export default function BrokerageBills() {
+  const navigate = useNavigate();
   const { contracts, parties, settings } = useAppStore();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [viewingBill, setViewingBill] = useState<any>(null);
-  const [editingBill, setEditingBill] = useState<any>(null);
 
-  // Persist bill statuses to localStorage
-  const [billStatuses, setBillStatuses] = useState<Record<string, BillStatus>>(() => {
-    try {
-      const saved = localStorage.getItem('mahalaxmi_bill_statuses');
-      return saved ? JSON.parse(saved) : {};
-    } catch { return {}; }
-  });
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
 
-  useEffect(() => {
-    localStorage.setItem('mahalaxmi_bill_statuses', JSON.stringify(billStatuses));
-  }, [billStatuses]);
-
-  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const monthStart = startOfMonth(new Date(selectedYear, selectedMonth));
+  const monthEnd = endOfMonth(new Date(selectedYear, selectedMonth));
 
   const monthContracts = contracts.filter(c => {
-    const d = new Date(c.date);
-    return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear && c.status !== 'cancelled';
+    const d = parseISO(c.date);
+    return isWithinInterval(d, { start: monthStart, end: monthEnd }) && c.status !== 'cancelled';
   });
 
-  // Build bills per party (seller bills)
-  const bills: any[] = [];
-  const partyIds = [...new Set(monthContracts.map(c => c.sellerId))];
-  partyIds.forEach(pid => {
-    const pContracts = monthContracts.filter(c => c.sellerId === pid);
-    const party = parties.find(p => p.id === pid);
-    if (party && pContracts.length > 0) {
-      const totalBrokerage = pContracts.reduce((sum, c) => sum + (c.sellerBrokerageAmount || 0), 0);
-      const totalQty = pContracts.reduce((sum, c) => sum + c.quantity, 0);
-      const billId = `seller-${pid}-${selectedMonth}-${selectedYear}`;
-      const status = billStatuses[billId];
-      bills.push({
-        id: billId,
-        month: selectedMonth,
-        year: selectedYear,
-        party,
-        contracts: pContracts,
-        totalBrokerage,
-        totalQuantity: totalQty,
-        generatedAt: new Date(),
-        status: status?.status || 'pending',
-        paidAmount: status?.paidAmount || 0,
-        paymentDate: status?.paymentDate || '',
-        paymentNotes: status?.paymentNotes || '',
-        billType: 'seller'
-      });
-    }
-  });
+  // Group by party
+  const bills = useMemo(() => {
+    const grouped: any = {};
+    monthContracts.forEach(c => {
+      const partyId = c.seller.id;
+      if (!grouped[partyId]) {
+        grouped[partyId] = {
+          party: c.seller,
+          contracts: [],
+          totalQuantity: 0,
+          totalBrokerage: 0
+        };
+      }
+      grouped[partyId].contracts.push(c);
+      grouped[partyId].totalQuantity += c.quantity;
+      grouped[partyId].totalBrokerage += (c.brokerageAmount || 0);
+    });
+    return Object.values(grouped);
+  }, [monthContracts]);
 
-  // Also create buyer bills
-  const buyerIds = [...new Set(monthContracts.map(c => c.buyerId))];
-  buyerIds.forEach(pid => {
-    const pContracts = monthContracts.filter(c => c.buyerId === pid);
-    const party = parties.find(p => p.id === pid);
-    if (party && pContracts.length > 0) {
-      const totalBrokerage = pContracts.reduce((sum, c) => sum + (c.buyerBrokerageAmount || 0), 0);
-      const totalQty = pContracts.reduce((sum, c) => sum + c.quantity, 0);
-      const billId = `buyer-${pid}-${selectedMonth}-${selectedYear}`;
-      const status = billStatuses[billId];
-      bills.push({
-        id: billId,
-        month: selectedMonth,
-        year: selectedYear,
-        party,
-        contracts: pContracts,
-        totalBrokerage,
-        totalQuantity: totalQty,
-        generatedAt: new Date(),
-        status: status?.status || 'pending',
-        paidAmount: status?.paidAmount || 0,
-        paymentDate: status?.paymentDate || '',
-        paymentNotes: status?.paymentNotes || '',
-        billType: 'buyer'
-      });
-    }
-  });
+  const totalMonthBrokerage = bills.reduce((sum: number, b: any) => sum + b.totalBrokerage, 0);
 
-  const handleDownload = (bill: any) => {
-    try {
-      const doc = generateBrokerageBillPDF(bill, settings);
-      downloadPDF(doc, `Brokerage_Bill_${bill.party.legalName}_${months[selectedMonth]}_${selectedYear}.pdf`);
-      toast.success('Bill downloaded!');
-    } catch (e) {
-      toast.error('Failed to generate bill');
-    }
-  };
+  const generateBillPDF = (bill: any) => {
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 20;
 
-  const handleShare = (bill: any) => {
-    const text = `Brokerage Bill - ${bill.party.legalName}\nPeriod: ${months[selectedMonth]} ${selectedYear}\nTotal Brokerage: Rs.${bill.totalBrokerage.toLocaleString('en-IN')}\nContracts: ${bill.contracts.length}\nStatus: ${bill.status}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-  };
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(settings.name, pageWidth / 2, y, { align: 'center' });
+    y += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Brokerage Bill', pageWidth / 2, y, { align: 'center' });
+    y += 12;
 
-  const handleSaveStatus = (billId: string, status: BillStatus) => {
-    setBillStatuses(prev => ({ ...prev, [billId]: status }));
-    toast.success('Bill status saved!');
-    setEditingBill(null);
-  };
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(bill.party.legalName, 15, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    if (bill.party.gstin) doc.text(`GSTIN: ${bill.party.gstin}`, 15, y);
+    y += 5;
+    doc.text(`Period: ${months[selectedMonth]} ${selectedYear}`, 15, y);
+    y += 10;
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'paid': return 'bg-rose-50 text-rose-700';
-      case 'partial': return 'bg-gray-100 text-gray-700';
-      default: return 'bg-gray-100 text-gray-700';
-    }
-  };
+    const tableData = bill.contracts.map((c: any) => [
+      `#${c.contractNo}`,
+      new Date(c.date).toLocaleDateString('en-IN'),
+      c.product?.name || 'N/A',
+      `${c.quantity} ${c.quantityUnit}`,
+      `Rs.${(c.brokerageAmount || 0).toLocaleString('en-IN')}`
+    ]);
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'paid': return 'Paid';
-      case 'partial': return 'Partial';
-      default: return 'Pending';
-    }
+    (doc as any).autoTable({
+      startY: y,
+      head: [['Contract#', 'Date', 'Product', 'Qty', 'Brokerage']],
+      body: tableData,
+      theme: 'striped',
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [225, 29, 72] }
+    });
+
+    y = (doc as any).lastAutoTable.finalY + 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Total Contracts: ${bill.contracts.length}`, 15, y);
+    doc.text(`Total Brokerage: Rs.${bill.totalBrokerage.toLocaleString('en-IN')}`, pageWidth - 15, y, { align: 'right' });
+
+    doc.save(`Brokerage_Bill_${bill.party.legalName}_${months[selectedMonth]}_${selectedYear}.pdf`);
+    toast.success('Bill downloaded');
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Brokerage Bills</h1>
           <p className="text-sm text-gray-500 mt-1">Auto-generated monthly statements</p>
         </div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <select
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(parseInt(e.target.value))}
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:ring-2 focus:ring-rose-500 outline-none appearance-none pr-10"
+            >
+              {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          </div>
+          <div className="relative">
+            <select
+              value={selectedYear}
+              onChange={e => setSelectedYear(parseInt(e.target.value))}
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:ring-2 focus:ring-rose-500 outline-none appearance-none pr-10"
+            >
+              {[2023, 2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          </div>
+        </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200 p-4">
-        <div className="flex flex-wrap gap-4 items-center">
-          <Calendar className="w-5 h-5 text-gray-400" />
-          <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))}
-            className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm">
-            {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
-          </select>
-          <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))}
-            className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm">
-            {[2024,2025,2026,2027,2028].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <span className="text-sm text-gray-500 ml-auto">{monthContracts.length} contracts this month</span>
+      {/* Monthly Summary Widget */}
+      <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-xl p-5 text-white shadow-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-emerald-100 text-sm font-medium">{months[selectedMonth]} {selectedYear}</p>
+            <p className="text-3xl font-bold mt-1">Rs. {totalMonthBrokerage.toLocaleString('en-IN')}</p>
+            <p className="text-emerald-200 text-sm mt-1">brokerage earned from {monthContracts.length} contracts</p>
+          </div>
+          <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+            <TrendingUp className="w-6 h-6 text-white" />
+          </div>
         </div>
       </div>
 
       {bills.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
-          <Receipt className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+        <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
           <p className="text-gray-500">No brokerage bills for {months[selectedMonth]} {selectedYear}</p>
           <p className="text-sm text-gray-400 mt-1">Create contracts to generate bills</p>
         </div>
       ) : (
         <div className="space-y-4">
-          {bills.map(bill => (
-            <div key={bill.id} className="bg-white rounded-2xl border border-gray-200 p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-rose-50 rounded-xl flex items-center justify-center">
-                    <Receipt className="w-6 h-6 text-rose-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{bill.party.legalName}</h3>
-                    <p className="text-sm text-gray-500">{bill.party.gstin}</p>
-                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                      <span className="flex items-center gap-1"><FileText className="w-4 h-4" /> {bill.contracts.length} Contracts</span>
-                      <span className="flex items-center gap-1"><IndianRupee className="w-4 h-4" /> {bill.totalBrokerage.toLocaleString('en-IN')}</span>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(bill.status)}`}>
-                        {getStatusLabel(bill.status)}
-                      </span>
-                    </div>
-                  </div>
+          {bills.map((bill: any) => (
+            <div key={bill.party.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="font-semibold text-gray-900">{bill.party.legalName}</h3>
+                  {bill.party.gstin && <p className="text-sm text-gray-500">{bill.party.gstin}</p>}
                 </div>
                 <div className="text-right">
-                  <span className="text-xs text-gray-400 uppercase font-medium">{bill.billType} Bill</span>
+                  <p className="text-lg font-bold text-gray-900">Rs. {bill.totalBrokerage.toLocaleString('en-IN')}</p>
+                  <p className="text-xs text-gray-500">{bill.contracts.length} Contracts</p>
                 </div>
               </div>
 
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <h4 className="text-sm font-medium text-gray-700 mb-3">Contract Breakdown</h4>
-                <div className="bg-gray-50 rounded-xl overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-left px-4 py-2 font-medium text-gray-600">Contract</th>
-                        <th className="text-left px-4 py-2 font-medium text-gray-600">Date</th>
-                        <th className="text-left px-4 py-2 font-medium text-gray-600">Product</th>
-                        <th className="text-right px-4 py-2 font-medium text-gray-600">Qty</th>
-                        <th className="text-right px-4 py-2 font-medium text-gray-600">Brokerage</th>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-semibold text-gray-700">Contract#</th>
+                      <th className="px-3 py-2 text-left font-semibold text-gray-700">Date</th>
+                      <th className="px-3 py-2 text-left font-semibold text-gray-700">Product</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Qty</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Brokerage</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {bill.contracts.map((c: any) => (
+                      <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-3 py-2">
+                          <button
+                            onClick={() => navigate(`/contracts/${c.id}`)}
+                            className="text-rose-600 hover:underline font-medium"
+                          >
+                            #{c.contractNo}
+                          </button>
+                        </td>
+                        <td className="px-3 py-2 text-gray-600">{new Date(c.date).toLocaleDateString('en-IN')}</td>
+                        <td className="px-3 py-2 text-gray-900">{c.product?.name || 'N/A'}</td>
+                        <td className="px-3 py-2 text-right text-gray-600">{c.quantity} {c.quantityUnit}</td>
+                        <td className="px-3 py-2 text-right font-medium text-gray-900">Rs. {(c.brokerageAmount || 0).toLocaleString('en-IN')}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {bill.contracts.map((c: any) => (
-                        <tr key={c.id} className="border-b border-gray-100 last:border-0">
-                          <td className="px-4 py-2 text-gray-900">#{c.contractNo}</td>
-                          <td className="px-4 py-2 text-gray-600">{c.date}</td>
-                          <td className="px-4 py-2 text-gray-600">{c.product?.name || 'N/A'}</td>
-                          <td className="px-4 py-2 text-right text-gray-900">{c.quantity} {c.quantityUnit}</td>
-                          <td className="px-4 py-2 text-right font-medium text-rose-600">
-                            Rs.{(c.sellerBrokerageAmount || c.buyerBrokerageAmount || 0).toLocaleString('en-IN')}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
-              <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  Total Quantity: <span className="font-medium">{bill.totalQuantity} MT</span>
-                  <span className="mx-3">|</span>
-                  Total Brokerage: <span className="font-bold text-rose-600">Rs.{bill.totalBrokerage.toLocaleString('en-IN')}</span>
-                  {bill.paidAmount > 0 && (
-                    <span className="ml-3 text-rose-600">Paid: Rs.{bill.paidAmount.toLocaleString('en-IN')}</span>
-                  )}
-                  {bill.paymentDate && (
-                    <span className="ml-3 text-gray-500">on {bill.paymentDate}</span>
-                  )}
-                </div>
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                <p className="text-sm text-gray-500">Total Quantity: {bill.totalQuantity} MT</p>
                 <div className="flex gap-2">
-                  <button onClick={() => setViewingBill(bill)}
-                    className="px-4 py-2 bg-gray-50 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 flex items-center gap-2">
-                    <Eye className="w-4 h-4" /> View
+                  <button
+                    onClick={() => setViewingBill(bill)}
+                    className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                  >
+                    <Eye className="w-4 h-4" />
+                    View
                   </button>
-                  <button onClick={() => setEditingBill(bill)}
-                    className="px-4 py-2 bg-rose-50 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-100 flex items-center gap-2">
-                    <Edit3 className="w-4 h-4" /> Edit Status
-                  </button>
-                  <button onClick={() => handleDownload(bill)}
-                    className="px-4 py-2 bg-rose-50 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-100 flex items-center gap-2">
-                    <Download className="w-4 h-4" /> Download PDF
-                  </button>
-                  <button onClick={() => handleShare(bill)}
-                    className="px-4 py-2 bg-rose-50 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-100 flex items-center gap-2">
-                    <MessageCircle className="w-4 h-4" /> Share
+                  <button
+                    onClick={() => generateBillPDF(bill)}
+                    className="flex items-center gap-2 px-3 py-2 bg-rose-600 text-white rounded-lg text-sm font-medium hover:bg-rose-700 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
                   </button>
                 </div>
               </div>
@@ -253,152 +222,65 @@ export default function BrokerageBills() {
         </div>
       )}
 
-      {/* View Modal */}
+      {/* Bill View Modal */}
       {viewingBill && (
-        <BillPreviewModal 
-          bill={viewingBill} 
-          settings={settings} 
-          months={months} 
-          onClose={() => setViewingBill(null)} 
-          onDownload={() => { handleDownload(viewingBill); setViewingBill(null); }} 
-        />
-      )}
-
-      {/* Edit Status Modal */}
-      {editingBill && (
-        <EditBillModal 
-          bill={editingBill} 
-          onClose={() => setEditingBill(null)} 
-          onSave={handleSaveStatus} 
-        />
-      )}
-    </div>
-  );
-}
-
-function BillPreviewModal({ bill, settings, months, onClose, onDownload }: any) {
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-auto">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">Brokerage Bill Preview</h3>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500">&#10005;</button>
-        </div>
-        <div className="p-6">
-          <div className="bg-gray-50 rounded-xl p-6 space-y-4">
-            <div className="text-center border-b border-gray-200 pb-4">
-              <h2 className="text-xl font-bold text-rose-600">{settings.name}</h2>
-              <p className="text-sm text-gray-500">Brokerage Bill</p>
-            </div>
-            <div className="flex justify-between text-sm">
-              <div>
-                <p className="font-medium text-gray-900">{bill.party.legalName}</p>
-                <p className="text-gray-500">{bill.party.gstin}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setViewingBill(null)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="text-center mb-6">
+                <h2 className="text-lg font-bold text-gray-900">{settings.name}</h2>
+                <p className="text-sm text-gray-500">Brokerage Bill</p>
               </div>
-              <div className="text-right">
-                <p className="text-gray-500">Period: {months[bill.month]} {bill.year}</p>
-                <p className="text-gray-500">Status: {bill.status}</p>
-                {bill.paidAmount > 0 && <p className="text-rose-600 font-medium">Paid: Rs.{bill.paidAmount.toLocaleString('en-IN')}</p>}
+              <div className="mb-4">
+                <p className="font-semibold text-gray-900">{viewingBill.party.legalName}</p>
+                {viewingBill.party.gstin && <p className="text-sm text-gray-500">{viewingBill.party.gstin}</p>}
+                <p className="text-sm text-gray-500">Period: {months[selectedMonth]} {selectedYear}</p>
               </div>
-            </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b-2 border-rose-200">
-                  <th className="text-left py-2 font-medium text-rose-700">Contract</th>
-                  <th className="text-left py-2 font-medium text-rose-700">Date</th>
-                  <th className="text-left py-2 font-medium text-rose-700">Product</th>
-                  <th className="text-right py-2 font-medium text-rose-700">Qty</th>
-                  <th className="text-right py-2 font-medium text-rose-700">Brokerage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bill.contracts.map((c: any) => (
-                  <tr key={c.id} className="border-b border-gray-100">
-                    <td className="py-2">#{c.contractNo}</td>
-                    <td className="py-2">{c.date}</td>
-                    <td className="py-2">{c.product?.name}</td>
-                    <td className="py-2 text-right">{c.quantity} {c.quantityUnit}</td>
-                    <td className="py-2 text-right font-medium">Rs.{(c.sellerBrokerageAmount || c.buyerBrokerageAmount || 0).toLocaleString('en-IN')}</td>
+              <table className="w-full text-sm mb-4">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-700">Contract#</th>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-700">Date</th>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-700">Product</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-700">Qty</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-700">Brokerage</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="border-t-2 border-rose-200 pt-4 flex justify-between items-center">
-              <span className="text-sm text-gray-600">Total Contracts: {bill.contracts.length}</span>
-              <span className="text-lg font-bold text-rose-600">Total: Rs.{bill.totalBrokerage.toLocaleString('en-IN')}</span>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {viewingBill.contracts.map((c: any) => (
+                    <tr key={c.id}>
+                      <td className="px-3 py-2 text-rose-600 font-medium">#{c.contractNo}</td>
+                      <td className="px-3 py-2 text-gray-600">{new Date(c.date).toLocaleDateString('en-IN')}</td>
+                      <td className="px-3 py-2 text-gray-900">{c.product?.name}</td>
+                      <td className="px-3 py-2 text-right text-gray-600">{c.quantity} {c.quantityUnit}</td>
+                      <td className="px-3 py-2 text-right font-medium text-gray-900">Rs. {(c.brokerageAmount || 0).toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="flex justify-between pt-4 border-t border-gray-100">
+                <p className="text-sm text-gray-600">Total Contracts: {viewingBill.contracts.length}</p>
+                <p className="text-lg font-bold text-gray-900">Total: Rs. {viewingBill.totalBrokerage.toLocaleString('en-IN')}</p>
+              </div>
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={() => generateBillPDF(viewingBill)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-600 text-white rounded-lg text-sm font-medium hover:bg-rose-700 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Download PDF
+                </button>
+                <button
+                  onClick={() => setViewingBill(null)}
+                  className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
-        <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-gray-600 font-medium">Close</button>
-          <button onClick={onDownload}
-            className="px-6 py-2 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 flex items-center gap-2">
-            <Download className="w-4 h-4" /> Download PDF
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function EditBillModal({ bill, onClose, onSave }: any) {
-  const [status, setStatus] = useState<BillStatus['status']>(bill.status || 'pending');
-  const [paidAmount, setPaidAmount] = useState(bill.paidAmount || 0);
-  const [paymentDate, setPaymentDate] = useState(bill.paymentDate || '');
-  const [paymentNotes, setPaymentNotes] = useState(bill.paymentNotes || '');
-
-  const handleSubmit = () => {
-    onSave(bill.id, { status, paidAmount, paymentDate, paymentNotes });
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">Edit Bill Status</h3>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5 text-gray-500" /></button>
-        </div>
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">Payment Status</label>
-            <select value={status} onChange={e => setStatus(e.target.value as BillStatus['status'])}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
-              <option value="pending">Pending</option>
-              <option value="partial">Partially Paid</option>
-              <option value="paid">Paid</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">Paid Amount (Rs.)</label>
-            <input type="number" value={paidAmount} onChange={e => setPaidAmount(parseFloat(e.target.value) || 0)}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">Payment Date</label>
-            <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">Payment Notes</label>
-            <textarea value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)}
-              rows={2} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
-          </div>
-
-          {status === 'paid' && (
-            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-center gap-2 text-sm text-rose-700">
-              <CheckCircle className="w-4 h-4" />
-              This bill will be marked as fully paid.
-            </div>
-          )}
-        </div>
-        <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-gray-600 font-medium">Cancel</button>
-          <button onClick={handleSubmit}
-            className="px-6 py-2 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 flex items-center gap-2">
-            <Save className="w-4 h-4" /> Save Status
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

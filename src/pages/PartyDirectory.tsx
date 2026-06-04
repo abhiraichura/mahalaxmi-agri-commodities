@@ -1,164 +1,311 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Phone, MapPin, Building2, UserCircle, Trash2, Edit2, Eye, X, Banknote, Mail, MessageSquare, User } from 'lucide-react';
 import { useAppStore } from '../hooks/useAuthStore';
+import { Search, Plus, Phone, MapPin, Edit2, Trash2, Eye, Download, Upload, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function PartyDirectory() {
   const navigate = useNavigate();
-  const { parties, loadParties, deleteParty } = useAppStore();
+  const { parties, products, deleteParty } = useAppStore();
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'buyer' | 'seller'>('all');
-  const [loading, setLoading] = useState(true);
-  const [viewingParty, setViewingParty] = useState<any>(null);
-
-  useEffect(() => { loadParties().then(() => setLoading(false)); }, []);
+  const [selectedParty, setSelectedParty] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const filtered = parties.filter(p => {
-    const matches = p.legalName.toLowerCase().includes(search.toLowerCase()) ||
-      p.gstin.toLowerCase().includes(search.toLowerCase()) ||
-      p.city.toLowerCase().includes(search.toLowerCase()) ||
-      (p.contactPerson || '').toLowerCase().includes(search.toLowerCase());
-    const typeMatch = filter === 'all' || p.type === filter || p.type === 'both';
-    return matches && typeMatch;
+    const q = search.toLowerCase();
+    return (
+      p.legalName?.toLowerCase().includes(q) ||
+      p.name?.toLowerCase().includes(q) ||
+      p.gstin?.toLowerCase().includes(q) ||
+      p.city?.toLowerCase().includes(q) ||
+      p.phone?.toLowerCase().includes(q)
+    );
   });
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this party?')) return;
-    try { await deleteParty(id); toast.success('Deleted'); } catch (e) { toast.error('Failed'); }
+    await deleteParty(id);
+    toast.success('Party deleted');
   };
 
-  if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin" /></div>;
+  const getProductNames = (productIds: string[] = []) => {
+    return productIds.map(id => products.find(p => p.id === id)?.name).filter(Boolean);
+  };
+
+  const parsePhoneNumbers = (phone: string = '') => {
+    return phone.split('/').map(n => n.trim()).filter(Boolean);
+  };
+
+  const exportCSV = () => {
+    const headers = ['Legal Name', 'Display Name', 'GSTIN', 'Address', 'City', 'State', 'Pincode', 'Phone', 'Email', 'Products'];
+    const rows = parties.map(p => [
+      p.legalName,
+      p.name || '',
+      p.gstin || '',
+      p.address,
+      p.city,
+      p.state,
+      p.pincode || '',
+      p.phone || '',
+      p.email || '',
+      getProductNames(p.products).join('; ')
+    ]);
+    const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `parties_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Exported to CSV');
+  };
+
+  const importCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split('\n').filter(l => l.trim());
+      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+      let imported = 0;
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+        if (values.length < 4) continue;
+        const party = {
+          id: crypto.randomUUID(),
+          legalName: values[0] || '',
+          name: values[1] || '',
+          gstin: values[2] || '',
+          address: values[3] || '',
+          city: values[4] || '',
+          state: values[5] || '',
+          pincode: values[6] || '',
+          phone: values[7] || '',
+          email: values[8] || '',
+          products: [] as string[],
+          createdAt: new Date().toISOString()
+        };
+        if (party.legalName) {
+          await useAppStore.getState().addParty(party);
+          imported++;
+        }
+      }
+      toast.success(`Imported ${imported} parties`);
+    };
+    reader.readAsText(file);
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Party Directory</h1>
-          <p className="text-sm text-gray-500 mt-1">{filtered.length} parties</p>
+          <p className="text-sm text-gray-500 mt-1">{parties.length} parties registered</p>
         </div>
-        <button onClick={() => navigate('/party/new')}
-          className="px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 flex items-center gap-2 transition-colors">
-          <Plus className="w-4 h-4" /> Add Party
-        </button>
+        <div className="flex items-center gap-2">
+          <input
+            type="file"
+            accept=".csv"
+            onChange={importCSV}
+            className="hidden"
+            id="csv-import"
+          />
+          <label
+            htmlFor="csv-import"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 cursor-pointer transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Import
+          </label>
+          <button
+            onClick={exportCSV}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+          <button
+            onClick={() => navigate('/parties/new')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-rose-600 text-white rounded-lg text-sm font-medium hover:bg-rose-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Party
+          </button>
+        </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-4">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name, GSTIN, city, contact person..."
-            className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-        </div>
-        <div className="flex gap-2">
-          {(['all', 'buyer', 'seller'] as const).map(t => (
-            <button key={t} onClick={() => setFilter(t)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === t ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'}`}>
-              {t === 'all' ? 'All' : t === 'buyer' ? 'Buyers' : 'Sellers'}
-            </button>
-          ))}
-        </div>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by name, GSTIN, city, phone..."
+          className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none"
+        />
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map(party => (
-          <div key={party.id} className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md transition-all group">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center text-gray-600">
-                  {party.type === 'buyer' ? <Building2 className="w-5 h-5" /> :
-                   party.type === 'seller' ? <UserCircle className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
+      {filtered.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+          <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500">No parties found</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map(party => {
+            const phones = parsePhoneNumbers(party.phone || '');
+            const productNames = getProductNames(party.products);
+            return (
+              <div
+                key={party.id}
+                onClick={() => setSelectedParty(party)}
+                className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-rose-200 transition-all cursor-pointer group"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-gray-900 truncate">{party.legalName}</h3>
+                    {party.name && party.name !== party.legalName && (
+                      <p className="text-xs text-gray-500">{party.name}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={e => { e.stopPropagation(); navigate(`/parties/edit/${party.id}`); }}
+                      className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleDelete(party.id); }}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">{party.legalName}</h3>
-                  <p className="text-xs text-gray-500">{party.gstin}</p>
+
+                <div className="space-y-2 text-sm">
+                  {party.gstin && (
+                    <p className="text-gray-600"><span className="text-gray-400">GST:</span> {party.gstin}</p>
+                  )}
+                  <div className="flex items-start gap-1.5 text-gray-600">
+                    <MapPin className="w-3.5 h-3.5 mt-0.5 text-gray-400 shrink-0" />
+                    <span className="line-clamp-2">{party.address}, {party.city}, {party.state}</span>
+                  </div>
+                  {phones.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      {phones.map((num, i) => (
+                        <span key={i}>
+                          <a
+                            href={`tel:+91${num.replace(/\s/g, '')}`}
+                            className="text-rose-600 hover:text-rose-700 hover:underline"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {num}
+                          </a>
+                          {i < phones.length - 1 && <span className="text-gray-400 mx-1">/</span>}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {productNames.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <Package className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      {productNames.slice(0, 3).map((name, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-600">{name}</span>
+                      ))}
+                      {productNames.length > 3 && (
+                        <span className="text-xs text-gray-400">+{productNames.length - 3} more</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => setViewingParty(party)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-900" title="View Details">
-                  <Eye className="w-4 h-4" />
+            );
+          })}
+        </div>
+      )}
+
+      {/* Party Detail Modal */}
+      {selectedParty && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setSelectedParty(null)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">{selectedParty.legalName}</h2>
+                  {selectedParty.name && selectedParty.name !== selectedParty.legalName && (
+                    <p className="text-sm text-gray-500">{selectedParty.name}</p>
+                  )}
+                </div>
+                <button onClick={() => setSelectedParty(null)} className="p-1 text-gray-400 hover:text-gray-600">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
-                <button onClick={() => navigate(`/party/${party.id}/edit`)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-900" title="Edit">
+              </div>
+
+              <div className="space-y-4 text-sm">
+                {selectedParty.gstin && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400 w-20 shrink-0">GSTIN</span>
+                    <span className="font-medium text-gray-900">{selectedParty.gstin}</span>
+                  </div>
+                )}
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-400 w-20 shrink-0">Address</span>
+                  <span className="text-gray-900">{selectedParty.address}, {selectedParty.city}, {selectedParty.state} {selectedParty.pincode || ''}</span>
+                </div>
+                {selectedParty.phone && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-400 w-20 shrink-0">Phone</span>
+                    <div className="flex flex-wrap gap-2">
+                      {parsePhoneNumbers(selectedParty.phone).map((num, i) => (
+                        <a
+                          key={i}
+                          href={`tel:+91${num.replace(/\s/g, '')}`}
+                          className="px-3 py-1.5 bg-rose-50 text-rose-700 rounded-lg font-medium hover:bg-rose-100 transition-colors"
+                        >
+                          <Phone className="w-3.5 h-3.5 inline mr-1" />
+                          {num}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {selectedParty.email && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400 w-20 shrink-0">Email</span>
+                    <a href={`mailto:${selectedParty.email}`} className="text-rose-600 hover:underline">{selectedParty.email}</a>
+                  </div>
+                )}
+                {getProductNames(selectedParty.products).length > 0 && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-400 w-20 shrink-0">Products</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {getProductNames(selectedParty.products).map((name, i) => (
+                        <span key={i} className="px-2.5 py-1 bg-gray-100 rounded-lg text-xs font-medium text-gray-700">{name}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => { setSelectedParty(null); navigate(`/parties/edit/${selectedParty.id}`); }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-600 text-white rounded-lg text-sm font-medium hover:bg-rose-700 transition-colors"
+                >
                   <Edit2 className="w-4 h-4" />
+                  Edit
                 </button>
-                <button onClick={() => handleDelete(party.id)} className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600" title="Delete">
-                  <Trash2 className="w-4 h-4" />
+                <button
+                  onClick={() => setSelectedParty(null)}
+                  className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                >
+                  Close
                 </button>
               </div>
-            </div>
-            <div className="space-y-1.5">
-              {/* Contact Person - NOW VISIBLE */}
-              {party.contactPerson && (
-                <div className="flex items-center gap-2 text-sm">
-                  <User className="w-4 h-4 text-gray-400 shrink-0" />
-                  <span className="text-gray-900 font-medium">{party.contactPerson}</span>
-                </div>
-              )}
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
-                <span className="truncate">{party.address}, {party.city}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Phone className="w-4 h-4 text-gray-400 shrink-0" />
-                <span>{party.phone || 'N/A'}</span>
-              </div>
-            </div>
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                party.type === 'both' ? 'bg-gray-100 text-gray-700' :
-                party.type === 'buyer' ? 'bg-gray-100 text-gray-700' : 'bg-gray-100 text-gray-700'
-              }`}>
-                {party.type === 'both' ? 'Buyer & Seller' : party.type === 'buyer' ? 'Buyer' : 'Seller'}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* View Party Details Modal */}
-      {viewingParty && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-auto">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Party Details</h3>
-              <button onClick={() => setViewingParty(null)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5 text-gray-500" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-gray-600">
-                  {viewingParty.type === 'buyer' ? <Building2 className="w-6 h-6" /> :
-                   viewingParty.type === 'seller' ? <UserCircle className="w-6 h-6" /> : <Building2 className="w-6 h-6" />}
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-900">{viewingParty.legalName}</h4>
-                  <p className="text-sm text-gray-500">{viewingParty.gstin}</p>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-                <h5 className="text-xs font-bold text-gray-500 uppercase">Public Details</h5>
-                <DetailRow icon={<User className="w-4 h-4" />} label="Contact Person" value={viewingParty.contactPerson || 'N/A'} />
-                <DetailRow icon={<MapPin className="w-4 h-4" />} label="Address" value={`${viewingParty.address}, ${viewingParty.city}, ${viewingParty.state} - ${viewingParty.pincode}`} />
-                <DetailRow icon={<Phone className="w-4 h-4" />} label="Phone" value={viewingParty.phone || 'N/A'} />
-                <DetailRow icon={<Mail className="w-4 h-4" />} label="Email" value={viewingParty.email || 'N/A'} />
-                <DetailRow icon={<Banknote className="w-4 h-4" />} label="PAN" value={viewingParty.pan || 'N/A'} />
-              </div>
-
-              <div className="bg-gray-50 rounded-xl p-4 space-y-2 border border-gray-100">
-                <h5 className="text-xs font-bold text-gray-500 uppercase">Private Details (Not on Contract)</h5>
-                <DetailRow icon={<Phone className="w-4 h-4" />} label="Alt. Phone" value={viewingParty.altPhone || 'N/A'} />
-                <DetailRow icon={<Mail className="w-4 h-4" />} label="Alt. Email" value={viewingParty.altEmail || 'N/A'} />
-                <DetailRow icon={<MessageSquare className="w-4 h-4" />} label="Remarks" value={viewingParty.remarks || 'N/A'} />
-                <DetailRow icon={<MessageSquare className="w-4 h-4" />} label="Notes" value={viewingParty.notes || 'N/A'} />
-                <DetailRow icon={<Banknote className="w-4 h-4" />} label="Bank" value={`${viewingParty.bankName || ''} ${viewingParty.bankAccount ? 'A/c: ' + viewingParty.bankAccount : ''} ${viewingParty.bankIfsc ? 'IFSC: ' + viewingParty.bankIfsc : ''}`} />
-              </div>
-            </div>
-            <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
-              <button onClick={() => setViewingParty(null)} className="px-4 py-2 text-gray-600 font-medium">Close</button>
-              <button onClick={() => { setViewingParty(null); navigate(`/party/${viewingParty.id}/edit`); }}
-                className="px-6 py-2 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 flex items-center gap-2 transition-colors">
-                <Edit2 className="w-4 h-4" /> Edit Party
-              </button>
             </div>
           </div>
         </div>
@@ -167,14 +314,8 @@ export default function PartyDirectory() {
   );
 }
 
-function DetailRow({ icon, label, value }: { icon: any; label: string; value: string }) {
+function Users(props: any) {
   return (
-    <div className="flex items-start gap-2 text-sm">
-      <span className="text-gray-400 shrink-0 mt-0.5">{icon}</span>
-      <div>
-        <span className="text-gray-500">{label}:</span>{' '}
-        <span className="text-gray-900">{value}</span>
-      </div>
-    </div>
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
   );
 }
