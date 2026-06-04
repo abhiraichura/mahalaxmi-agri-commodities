@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Search, Plus, Trash2, Edit2, X, Save, Tag } from 'lucide-react';
+import { Search, Plus, Trash2, Edit2, Save, Tag } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 

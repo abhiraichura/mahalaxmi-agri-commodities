@@ -1,12 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Search, ChevronDown, Download, ArrowLeft, FileText, Receipt } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
+import { Search, ChevronDown, Download, ArrowLeft, Receipt } from 'lucide-react';
+import { startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
 
 export default function PartyLedger() {
   const navigate = useNavigate();
-  const { parties, contracts, currentYear } = useAppStore();
+  const { parties, contracts } = useAppStore();
   const [selectedParty, setSelectedParty] = useState<string>('');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -42,7 +42,6 @@ export default function PartyLedger() {
     let balance = 0;
     return partyContracts.map(c => {
       const isSeller = c.seller.id === selectedParty;
-      const brokerage = c.brokerageAmount || 0;
       // If party is seller, they receive payment (credit to them, debit from broker)
       // If party is buyer, they pay (debit to them, credit to broker)
       const debit = isSeller ? 0 : (c.totalValue || 0);
@@ -214,7 +213,7 @@ export default function PartyLedger() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {runningBalance.map((entry, i) => (
+                  {runningBalance.map((entry) => (
                     <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 text-gray-600">{new Date(entry.date).toLocaleDateString('en-IN')}</td>
                       <td className="px-4 py-3">

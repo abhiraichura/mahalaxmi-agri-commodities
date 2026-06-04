@@ -1,15 +1,15 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { ChevronDown, Download, Eye, ArrowLeft, TrendingUp } from 'lucide-react';
+import { ChevronDown, Download, Eye, TrendingUp } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import toast from 'react-hot-toast';
-import { format, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
+import { startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
 
 export default function BrokerageBills() {
   const navigate = useNavigate();
-  const { contracts, parties, settings } = useAppStore();
+  const { contracts, settings } = useAppStore();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [viewingBill, setViewingBill] = useState<any>(null);

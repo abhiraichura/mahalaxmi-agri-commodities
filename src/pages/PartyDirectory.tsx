@@ -68,8 +68,7 @@ export default function PartyDirectory() {
     reader.onload = async (event) => {
       const text = event.target?.result as string;
       const lines = text.split('\n').filter(l => l.trim());
-      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-      let imported = 0;
+            let imported = 0;
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
         if (values.length < 4) continue;

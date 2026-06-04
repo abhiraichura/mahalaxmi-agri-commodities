@@ -3,6 +3,7 @@ import { useAuthStore } from './hooks/useAuthStore';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
+import AllContracts from './pages/AllContracts';
 import ContractForm from './pages/ContractForm';
 import ContractView from './pages/ContractView';
 import PartyDirectory from './pages/PartyDirectory';
@@ -39,7 +40,7 @@ function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/contracts" element={<Dashboard />} />
+          <Route path="/contracts" element={<AllContracts />} />
           <Route path="/contracts/new" element={<ContractForm />} />
           <Route path="/contracts/edit/:id" element={<ContractForm />} />
           <Route path="/contracts/:id" element={<ContractView />} />

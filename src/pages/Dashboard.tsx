@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
 import { FileText, Users, Package, Receipt, TrendingUp, AlertTriangle, Calendar, ChevronDown, Plus } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
+import { startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -12,8 +12,6 @@ export default function Dashboard() {
   const [showAddYear, setShowAddYear] = useState(false);
 
   const yearContracts = contracts.filter(c => c.financialYear === currentYear);
-  const activeContracts = yearContracts.filter(c => c.status === 'active');
-  const completedContracts = yearContracts.filter(c => c.status === 'completed');
 
   // Monthly brokerage summary
   const now = new Date();

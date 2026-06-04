@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { ArrowLeft, Edit2, Trash2, Printer, Download, Share2, Phone, MapPin, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Edit2, Trash2, Printer, Download, Phone, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';

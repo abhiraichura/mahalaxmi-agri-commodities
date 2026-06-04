@@ -2,9 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Party, ProductSpec, Contract, CompanySettings, Note, LedgerEntry } from '../types';
 import {
-  addDoc, updateDocData, deleteDocData, getColData, subscribeCol, COLLECTIONS, db, Timestamp, setDocData, getColDataWhere
+  addDoc, updateDocData, deleteDocData, getColData, COLLECTIONS, Timestamp, setDocData, getColDataWhere
 } from '../utils/firebase';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 
 const defaultSettings: CompanySettings = {
   name: 'MAHALAXMI AGRI COMMODITIES',
