@@ -10,41 +10,43 @@ export interface ProductSpec {
   id: string;
   name: string;
   specs: SpecField[];
-  // Product-specific brokerage (moved from party)
-  buyerBrokerageType: 'percent' | 'flat';
-  sellerBrokerageType: 'percent' | 'flat';
-  buyerBrokeragePercent: number;
-  sellerBrokeragePercent: number;
-  buyerBrokerageFixed: number;
-  sellerBrokerageFixed: number;
-  createdAt: Date;
-  updatedAt: Date;
+  defaultBrokerage: number;
+  buyerBrokerageType?: 'percent' | 'fixed';
+  sellerBrokerageType?: 'percent' | 'fixed';
+  buyerBrokeragePercent?: number;
+  sellerBrokeragePercent?: number;
+  buyerBrokerageFixed?: number;
+  sellerBrokerageFixed?: number;
+  createdAt: any;
+  updatedAt?: any;
 }
 
 export interface Party {
   id: string;
   name: string;
   legalName: string;
-  gstin: string;
+  gstin?: string;
   address: string;
   city: string;
   state: string;
   pincode: string;
   phone: string;
-  email: string;
-  pan: string;
-  type: 'buyer' | 'seller' | 'both';
-  // Private fields (not shown on contract)
-  contactPerson: string;
-  altPhone: string;
-  altEmail: string;
-  remarks: string;
-  notes: string;
-  bankName: string;
-  bankAccount: string;
-  bankIfsc: string;
-  createdAt: Date;
-  updatedAt: Date;
+  email?: string;
+  pan?: string;
+  type?: 'buyer' | 'seller' | 'both';
+  contactPerson?: string;
+  altPhone?: string;
+  altEmail?: string;
+  remarks?: string;
+  notes?: string;
+  bankName?: string;
+  bankAccount?: string;
+  bankIfsc?: string;
+  brokeragePercent?: number;
+  brokerageFixed?: number;
+  productIds?: string[];
+  createdAt: any;
+  updatedAt?: any;
 }
 
 export interface Contract {
@@ -70,17 +72,16 @@ export interface Contract {
   gstPercent: number;
   otherTerms: string;
   notes: string;
-  status: 'confirmed' | 'cancelled';
-  // Separate brokerage for buyer and seller (copied from product)
-  buyerBrokeragePercent: number;
-  sellerBrokeragePercent: number;
-  buyerBrokerageFixed: number;
-  sellerBrokerageFixed: number;
-  buyerBrokerageAmount: number;
-  sellerBrokerageAmount: number;
-  totalBrokerageAmount: number;
-  createdAt: Date;
-  updatedAt: Date;
+  status: 'active' | 'completed' | 'cancelled';
+  brokerageAmount: number;
+  buyerBrokeragePercent?: number;
+  sellerBrokeragePercent?: number;
+  buyerBrokerageFixed?: number;
+  sellerBrokerageFixed?: number;
+  totalBrokerageAmount?: number;
+  loadingDeadline?: string;
+  createdAt: any;
+  updatedAt?: any;
 }
 
 export interface BrokerageBill {
@@ -92,11 +93,8 @@ export interface BrokerageBill {
   contracts: Contract[];
   totalBrokerage: number;
   totalQuantity: number;
-  generatedAt: Date;
-  status: 'pending' | 'paid' | 'partial';
-  paidAmount: number;
-  paymentDate?: string;
-  paymentNotes?: string;
+  generatedAt: any;
+  status: 'pending' | 'sent' | 'paid';
 }
 
 export interface CompanySettings {
@@ -121,5 +119,35 @@ export interface CompanySettings {
   defaultLoadingCondition: string;
   defaultPacking: string;
   financialYearStart: number;
-  nextContractNumber: number;
+  nextContractNumber?: number;
+  financialYears?: string[];
+}
+
+export interface BusinessNote {
+  id: string;
+  title: string;
+  content: string;
+  tags: string[];
+  createdAt: any;
+  updatedAt?: any;
+}
+
+export interface LedgerEntry {
+  id: string;
+  partyId: string;
+  date: string;
+  type: 'contract' | 'payment_received' | 'payment_made' | 'adjustment';
+  description: string;
+  contractId?: string;
+  debit: number;
+  credit: number;
+  balance: number;
+  createdAt: any;
+}
+
+export interface User {
+  uid: string;
+  email: string;
+  displayName: string;
+  role: 'admin' | 'user';
 }

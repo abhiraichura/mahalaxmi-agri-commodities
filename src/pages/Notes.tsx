@@ -1,175 +1,151 @@
 import { useState } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Search, Plus, Trash2, Edit2, Save, Tag } from 'lucide-react';
+import { Search, Plus, X, Tag, Trash2, Edit3 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
+import { BusinessNote } from '../types';
 
 export default function Notes() {
-  const { notes, addNote, updateNote, deleteNote } = useAppStore();
+  const { addNote, updateNote, deleteNote, notes } = useAppStore();
   const [search, setSearch] = useState('');
-  const [editing, setEditing] = useState<any>(null);
+  const [tagFilter, setTagFilter] = useState('');
+  const [editing, setEditing] = useState<BusinessNote | null>(null);
+  const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', content: '', tags: '' });
+
+  const allTags = Array.from(new Set(notes.flatMap(n => n.tags || [])));
 
   const filtered = notes.filter(n => {
     const q = search.toLowerCase();
-    return (
-      n.title?.toLowerCase().includes(q) ||
-      n.content?.toLowerCase().includes(q) ||
-      n.tags?.some(t => t.toLowerCase().includes(q))
-    );
-  });
+    const matchesSearch = n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
+    const matchesTag = !tagFilter || (n.tags || []).includes(tagFilter);
+    return matchesSearch && matchesTag;
+  }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const handleSave = async () => {
-    if (!form.title.trim()) {
-      toast.error('Title is required');
+    if (!form.title.trim() || !form.content.trim()) {
+      toast.error('Title and content required');
       return;
     }
-    const tags = form.tags.split(',').map(t => t.trim()).filter(Boolean);
+    const data = {
+      title: form.title.trim(),
+      content: form.content.trim(),
+      tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+    };
     if (editing) {
-      await updateNote(editing.id, { title: form.title, content: form.content, tags });
+      await updateNote(editing.id, data);
       toast.success('Note updated');
     } else {
-      await addNote({
-        id: uuidv4(),
-        title: form.title,
-        content: form.content,
-        tags,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
+      await addNote({ ...data, id: uuidv4(), createdAt: new Date().toISOString() } as BusinessNote);
       toast.success('Note added');
     }
-    setEditing(null);
     setForm({ title: '', content: '', tags: '' });
+    setEditing(null);
+    setShowForm(false);
   };
 
-  const handleEdit = (note: any) => {
-    setEditing(note);
-    setForm({
-      title: note.title,
-      content: note.content || '',
-      tags: (note.tags || []).join(', ')
-    });
+  const startEdit = (n: BusinessNote) => {
+    setEditing(n);
+    setForm({ title: n.title, content: n.content, tags: (n.tags || []).join(', ') });
+    setShowForm(true);
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this note?')) return;
     await deleteNote(id);
-    toast.success('Note deleted');
+    toast.success('Deleted');
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="max-w-4xl mx-auto p-6">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Notes</h1>
-          <p className="text-sm text-gray-500 mt-1">Quick business notes, searchable anytime</p>
+          <h1 className="text-2xl font-bold text-gray-900">Business Notes</h1>
+          <p className="text-sm text-gray-500">Quick memos, searchable</p>
         </div>
-        <button
-          onClick={() => { setEditing(null); setForm({ title: '', content: '', tags: '' }); }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-rose-600 text-white rounded-lg text-sm font-medium hover:bg-rose-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          New Note
+        <button onClick={() => { setShowForm(true); setEditing(null); setForm({ title: '', content: '', tags: '' }); }}
+          className="flex items-center gap-2 bg-rose-600 text-white px-4 py-2 rounded-xl text-sm hover:bg-rose-700">
+          <Plus size={16} /> Add Note
         </button>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search notes by title, content, or tags..."
-          className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none"
-        />
+      {/* Search */}
+      <div className="flex gap-3 mb-6">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search notes..." autoFocus
+            className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm" />
+        </div>
+        <select value={tagFilter} onChange={e => setTagFilter(e.target.value)}
+          className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm">
+          <option value="">All Tags</option>
+          {allTags.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
       </div>
 
-      {/* Note Form */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <div className="flex items-center gap-2 mb-4">
-          {editing ? <Edit2 className="w-4 h-4 text-rose-600" /> : <Plus className="w-4 h-4 text-rose-600" />}
-          <h3 className="font-semibold text-gray-900">{editing ? 'Edit Note' : 'Add Note'}</h3>
-        </div>
-        <div className="space-y-3">
-          <input
-            value={form.title}
-            onChange={e => setForm({ ...form, title: e.target.value })}
-            placeholder="Note title..."
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none"
-          />
-          <textarea
-            value={form.content}
-            onChange={e => setForm({ ...form, content: e.target.value })}
-            placeholder="Note content..."
-            rows={3}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none resize-none"
-          />
-          <input
-            value={form.tags}
-            onChange={e => setForm({ ...form, tags: e.target.value })}
-            placeholder="Tags (comma separated) e.g. urgent, payment, followup"
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none"
-          />
-          <div className="flex gap-2">
-            <button
-              onClick={handleSave}
-              className="flex items-center gap-2 px-5 py-2.5 bg-rose-600 text-white rounded-lg text-sm font-medium hover:bg-rose-700 transition-colors"
-            >
-              <Save className="w-4 h-4" />
+      {/* Add/Edit Form */}
+      {showForm && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">{editing ? 'Edit Note' : 'New Note'}</h2>
+            <button onClick={() => setShowForm(false)} className="p-1 hover:bg-gray-100 rounded-lg">
+              <X size={18} className="text-gray-400" />
+            </button>
+          </div>
+          <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
+            placeholder="Title" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium" />
+          <textarea value={form.content} onChange={e => setForm({ ...form, content: e.target.value })}
+            rows={4} placeholder="What's on your mind?" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
+          <div className="flex items-center gap-2">
+            <Tag size={14} className="text-gray-400" />
+            <input value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })}
+              placeholder="Tags (comma separated)" className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          </div>
+          <div className="flex gap-3">
+            <button onClick={handleSave} className="bg-rose-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-rose-700">
               {editing ? 'Update' : 'Save'}
             </button>
-            {editing && (
-              <button
-                onClick={() => { setEditing(null); setForm({ title: '', content: '', tags: '' }); }}
-                className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
-            )}
+            <button onClick={() => setShowForm(false)} className="px-6 py-2.5 border border-gray-200 rounded-xl text-sm hover:bg-gray-50">
+              Cancel
+            </button>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Notes List */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-          <p className="text-gray-500">{search ? 'No notes match your search' : 'No notes yet. Add your first note above.'}</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filtered.map(note => (
-            <div key={note.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-all group">
-              <div className="flex items-start justify-between mb-2">
+      <div className="space-y-3">
+        {filtered.map(note => (
+          <div key={note.id} className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-sm transition-shadow group">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
                 <h3 className="font-semibold text-gray-900">{note.title}</h3>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => handleEdit(note)}
-                    className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(note.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                <p className="text-sm text-gray-600 mt-2 whitespace-pre-wrap">{note.content}</p>
+                <div className="flex items-center gap-2 mt-3">
+                  {(note.tags || []).map(t => (
+                    <span key={t} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md">{t}</span>
+                  ))}
+                  <span className="text-xs text-gray-400">
+                    {new Date(note.createdAt).toLocaleDateString('en-IN')}
+                  </span>
                 </div>
               </div>
-              {note.content && <p className="text-sm text-gray-600 mt-1 line-clamp-3">{note.content}</p>}
-              {note.tags && note.tags.length > 0 && (
-                <div className="flex items-center gap-1.5 mt-3 flex-wrap">
-                  <Tag className="w-3 h-3 text-gray-400" />
-                  {note.tags.map((tag: string, i: number) => (
-                    <span key={i} className="px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-600 font-medium">{tag}</span>
-                  ))}
-                </div>
-              )}
-              <p className="text-xs text-gray-400 mt-3">
-                {new Date(note.createdAt).toLocaleDateString('en-IN')}
-              </p>
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => startEdit(note)} className="p-2 hover:bg-gray-100 rounded-lg">
+                  <Edit3 size={16} className="text-gray-500" />
+                </button>
+                <button onClick={() => handleDelete(note.id)} className="p-2 hover:bg-red-50 rounded-lg">
+                  <Trash2 size={16} className="text-red-500" />
+                </button>
+              </div>
             </div>
-          ))}
+          </div>
+        ))}
+      </div>
+
+      {filtered.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-gray-500">{search ? 'No notes match your search' : 'No notes yet'}</p>
         </div>
       )}
     </div>

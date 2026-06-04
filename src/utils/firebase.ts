@@ -1,9 +1,8 @@
-/// <reference types="vite/client" />
-
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where, orderBy, Timestamp, onSnapshot, enableIndexedDbPersistence } from 'firebase/firestore';
 
+// Vite environment variables - must use direct property access
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "mahalaxmi-contracts.firebaseapp.com",
@@ -54,11 +53,6 @@ export const getColData = async (col: string, orderField = 'createdAt', orderDir
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
 
-export const getColDataWhere = async (col: string, field: string, operator: any, value: any, orderField = 'createdAt', orderDir: 'desc' | 'asc' = 'desc') => {
-  const snap = await getDocs(query(collection(db, col), where(field, operator, value), orderBy(orderField, orderDir)));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-};
-
 export const updateDocData = async (col: string, id: string, data: any) => {
   await updateDoc(doc(db, col, id), { ...data, updatedAt: Timestamp.now() });
 };
@@ -73,10 +67,6 @@ export const subscribeCol = (col: string, callback: any, orderField = 'createdAt
 
 export const subscribeDoc = (col: string, id: string, callback: any) => {
   return onSnapshot(doc(db, col, id), callback);
-};
-
-export const subscribeColWhere = (col: string, field: string, operator: any, value: any, callback: any, orderField = 'createdAt') => {
-  return onSnapshot(query(collection(db, col), where(field, operator, value), orderBy(orderField, 'desc')), callback);
 };
 
 export { Timestamp };

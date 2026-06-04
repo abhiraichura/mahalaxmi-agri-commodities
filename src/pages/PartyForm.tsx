@@ -1,203 +1,304 @@
-import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Save, Search, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Party } from '../types';
-import { v4 as uuidv4 } from 'uuid';
+import { ArrowLeft, Check, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function PartyForm() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { parties, addParty, updateParty, loadParties } = useAppStore();
-  const [gstLoading, setGstLoading] = useState(false);
-  const [gstVerified, setGstVerified] = useState(false);
-  const [showPrivate, setShowPrivate] = useState(false);
-  const [pincodeLoading, setPincodeLoading] = useState(false);
+  const { parties, products, addParty, updateParty } = useAppStore();
 
   const existing = id ? parties.find(p => p.id === id) : null;
 
   const [form, setForm] = useState({
-    name: '', legalName: '', gstin: '', address: '', city: '', state: '', pincode: '',
-    phone: '', email: '', pan: '', type: 'buyer' as 'buyer' | 'seller' | 'both',
-    // Private fields
-    contactPerson: '', altPhone: '', altEmail: '', remarks: '', notes: '',
-    bankName: '', bankAccount: '', bankIfsc: ''
+    name: existing?.name || '',
+    legalName: existing?.legalName || '',
+    gstin: existing?.gstin || '',
+    pan: existing?.pan || '',
+    address: existing?.address || '',
+    city: existing?.city || '',
+    state: existing?.state || '',
+    pincode: existing?.pincode || '',
+    phone: existing?.phone || '',
+    altPhone: existing?.altPhone || '',
+    email: existing?.email || '',
+    altEmail: existing?.altEmail || '',
+    type: existing?.type || 'both',
+    contactPerson: existing?.contactPerson || '',
+    bankName: existing?.bankName || '',
+    bankAccount: existing?.bankAccount || '',
+    bankIfsc: existing?.bankIfsc || '',
+    remarks: existing?.remarks || '',
+    notes: existing?.notes || '',
+    brokeragePercent: existing?.brokeragePercent || 0,
+    brokerageFixed: existing?.brokerageFixed || 0,
+    productIds: existing?.productIds || [] as string[],
   });
 
-  useEffect(() => { loadParties(); }, []);
-
-  useEffect(() => {
-    if (existing) {
-      setForm({
-        name: existing.name || '', legalName: existing.legalName, gstin: existing.gstin,
-        address: existing.address, city: existing.city, state: existing.state, pincode: existing.pincode,
-        phone: existing.phone, email: existing.email, pan: existing.pan,
-        type: existing.type,
-        contactPerson: existing.contactPerson || '', altPhone: existing.altPhone || '',
-        altEmail: existing.altEmail || '', remarks: existing.remarks || '', notes: existing.notes || '',
-        bankName: existing.bankName || '', bankAccount: existing.bankAccount || '', bankIfsc: existing.bankIfsc || ''
-      });
-    }
-  }, [existing]);
-
-  // Pincode auto-fetch
-  const fetchPincode = async (pincode: string) => {
-    if (pincode.length !== 6) return;
-    setPincodeLoading(true);
-    try {
-      const res = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
-      const data = await res.json();
-      if (data && data[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
-        const po = data[0].PostOffice[0];
-        setForm(prev => ({
-          ...prev,
-          city: po.District || po.Name || prev.city,
-          state: po.State || prev.state,
-        }));
-      }
-    } catch (e) { console.error('Pincode fetch failed', e); }
-    setPincodeLoading(false);
-  };
+  const [gstVerified, setGstVerified] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   const verifyGST = async () => {
-    if (form.gstin.length !== 15) { toast.error('Enter valid 15-digit GSTIN'); return; }
-    setGstLoading(true);
+    if (!form.gstin || form.gstin.length !== 15) {
+      toast.error('Enter valid 15-digit GSTIN');
+      return;
+    }
+    setVerifying(true);
     try {
-      const res = await fetch(`https://sheet.gstincheck.co.in/check/${form.gstin}`);
+      const res = await fetch(`https://gst-insights.p.rapidapi.com/getGSTDetails/?gstin=${form.gstin}`, {
+        headers: {
+          'X-RapidAPI-Key': 'YOUR_RAPIDAPI_KEY',
+          'X-RapidAPI-Host': 'gst-insights.p.rapidapi.com'
+        }
+      });
       const data = await res.json();
-      if (data?.taxpayerInfo) {
-        const info = data.taxpayerInfo;
-        const addr = info.pradr?.addr || {};
-        setForm(prev => ({
-          ...prev,
-          legalName: info.lgnm || prev.legalName,
-          address: `${addr.bno || ''} ${addr.st || ''} ${addr.loc || ''}`.trim(),
-          city: addr.city || addr.dst || '', state: addr.stcd || '', pincode: addr.pncd || ''
-        }));
+      if (data && data.tradeName) {
+        setForm(prev => ({ ...prev, legalName: data.tradeName, name: data.tradeName }));
         setGstVerified(true);
-        toast.success('GST verified!');
-      } else { toast.error('Could not verify'); }
-    } catch (e) { toast.error('Service unavailable'); }
-    setGstLoading(false);
+        toast.success('GST verified');
+      } else {
+        toast.error('GST verification failed');
+      }
+    } catch (e) {
+      toast.error('GST API error');
+    }
+    setVerifying(false);
   };
 
-  const handleSubmit = async () => {
-    if (!form.legalName || !form.gstin) { toast.error('Legal name and GSTIN required'); return; }
-    const party: Party = {
-      id: id || uuidv4(),
-      name: form.name,
-      legalName: form.legalName,
-      gstin: form.gstin,
-      address: form.address,
-      city: form.city,
-      state: form.state,
-      pincode: form.pincode,
-      phone: form.phone,
-      email: form.email,
-      pan: form.pan,
-      type: form.type,
-      contactPerson: form.contactPerson,
-      altPhone: form.altPhone,
-      altEmail: form.altEmail,
-      remarks: form.remarks,
-      notes: form.notes,
-      bankName: form.bankName,
-      bankAccount: form.bankAccount,
-      bankIfsc: form.bankIfsc,
-      createdAt: existing?.createdAt || new Date(),
-      updatedAt: new Date()
+  const toggleProduct = (productId: string) => {
+    setForm(prev => ({
+      ...prev,
+      productIds: prev.productIds.includes(productId)
+        ? prev.productIds.filter(id => id !== productId)
+        : [...prev.productIds, productId]
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.legalName || !form.phone || !form.address || !form.city || !form.state || !form.pincode) {
+      toast.error('Fill required fields');
+      return;
+    }
+
+    const partyData = {
+      ...form,
+      id: existing?.id || uuidv4(),
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
-    try {
-      if (id) { await updateParty(id, party); toast.success('Updated!'); }
-      else { await addParty(party); toast.success('Added!'); }
-      navigate('/parties');
-    } catch (e) { toast.error('Failed to save'); }
+
+    if (existing) {
+      await updateParty(existing.id, partyData);
+      toast.success('Party updated');
+    } else {
+      await addParty(partyData as any);
+      toast.success('Party added');
+    }
+    navigate('/parties');
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <button onClick={() => navigate('/parties')} className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6">
-        <ArrowLeft className="w-4 h-4" /> Back
-      </button>
-      <div className="bg-white rounded-2xl border border-gray-200 p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">{id ? 'Edit Party' : 'Add New Party'}</h1>
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <input value={form.gstin} onChange={e => setForm({ ...form, gstin: e.target.value.toUpperCase() })} maxLength={15}
-              placeholder="GSTIN *" className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm uppercase" />
-            <button onClick={verifyGST} disabled={gstLoading || form.gstin.length !== 15}
-              className="px-4 py-3 bg-rose-50 text-rose-700 rounded-xl text-sm font-medium disabled:opacity-50 flex items-center gap-2">
-              <Search className="w-4 h-4" /> {gstLoading ? '...' : 'Verify'}
-            </button>
-          </div>
-          {gstVerified && <div className="flex items-center gap-2 text-sm text-rose-600"><CheckCircle2 className="w-4 h-4" /> GST Verified</div>}
-          <input value={form.legalName} onChange={e => setForm({ ...form, legalName: e.target.value })} placeholder="Legal Name *" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-          <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Display Name" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-          <textarea value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Address" rows={2} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
-          <div className="grid md:grid-cols-3 gap-4">
-            <input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} placeholder="City" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-            <input value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} placeholder="State" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-            <div className="relative">
-              <input value={form.pincode} onChange={e => { setForm({ ...form, pincode: e.target.value }); if (e.target.value.length === 6) fetchPincode(e.target.value); }} placeholder="Pincode" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-              {pincodeLoading && <div className="absolute right-3 top-3 w-4 h-4 border-2 border-gray-300 border-t-rose-600 rounded-full animate-spin" />}
+    <div className="max-w-3xl mx-auto p-6">
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={() => navigate('/parties')} className="p-2 hover:bg-gray-100 rounded-lg">
+          <ArrowLeft size={20} />
+        </button>
+        <h1 className="text-xl font-bold text-gray-900">{id ? 'Edit Party' : 'Add New Party'}</h1>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Basic Info */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Basic Information</h2>
+
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">GSTIN</label>
+            <div className="flex gap-2">
+              <input value={form.gstin} onChange={e => { setForm({ ...form, gstin: e.target.value.toUpperCase() }); setGstVerified(false); }}
+                maxLength={15} placeholder="GSTIN (optional)"
+                className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm uppercase" />
+              <button type="button" onClick={verifyGST} disabled={verifying}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm disabled:opacity-50">
+                {verifying ? '...' : 'Verify'}
+              </button>
             </div>
-          </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="Phone" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-            <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Email" type="email" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-          </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            <input value={form.pan} onChange={e => setForm({ ...form, pan: e.target.value.toUpperCase() })} maxLength={10} placeholder="PAN" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm uppercase" />
-            <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value as 'buyer' | 'seller' | 'both' })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
-              <option value="buyer">Buyer</option>
-              <option value="seller">Seller</option>
-              <option value="both">Both</option>
-            </select>
+            {gstVerified && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Check size={12} /> Verified</p>}
           </div>
 
-          {/* Private Details Toggle */}
-          <div className="border-t border-gray-100 pt-4">
-            <button onClick={() => setShowPrivate(!showPrivate)}
-              className="flex items-center gap-2 text-sm font-semibold text-rose-600 hover:text-rose-700">
-              {showPrivate ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              {showPrivate ? 'Hide Private Details' : 'Show Private Details (Not on Contract)'}
-            </button>
-            {showPrivate && (
-              <div className="mt-4 space-y-4 bg-gray-50 rounded-xl p-4 border border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-700">Private Information</h4>
-                <input value={form.contactPerson} onChange={e => setForm({ ...form, contactPerson: e.target.value })}
-                  placeholder="Contact Person Name" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm" />
-                <div className="grid md:grid-cols-2 gap-4">
-                  <input value={form.altPhone} onChange={e => setForm({ ...form, altPhone: e.target.value })}
-                    placeholder="Alt. Phone" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm" />
-                  <input value={form.altEmail} onChange={e => setForm({ ...form, altEmail: e.target.value })}
-                    placeholder="Alt. Email" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm" />
-                </div>
-                <textarea value={form.remarks} onChange={e => setForm({ ...form, remarks: e.target.value })}
-                  placeholder="Remarks" rows={2} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm resize-none" />
-                <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
-                  placeholder="Notes" rows={2} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm resize-none" />
-                <div className="grid md:grid-cols-2 gap-4">
-                  <input value={form.bankName} onChange={e => setForm({ ...form, bankName: e.target.value })}
-                    placeholder="Bank Name" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm" />
-                  <input value={form.bankAccount} onChange={e => setForm({ ...form, bankAccount: e.target.value })}
-                    placeholder="Account Number" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm" />
-                </div>
-                <input value={form.bankIfsc} onChange={e => setForm({ ...form, bankIfsc: e.target.value })}
-                  placeholder="IFSC Code" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm" />
-              </div>
-            )}
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Legal Name *</label>
+            <input value={form.legalName} onChange={e => setForm({ ...form, legalName: e.target.value })}
+              placeholder="Legal Name" required className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Display Name</label>
+            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+              placeholder="Display Name" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">PAN</label>
+              <input value={form.pan} onChange={e => setForm({ ...form, pan: e.target.value.toUpperCase() })}
+                maxLength={10} placeholder="PAN" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm uppercase" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Type</label>
+              <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value as any })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
+                <option value="buyer">Buyer</option>
+                <option value="seller">Seller</option>
+                <option value="both">Both</option>
+              </select>
+            </div>
           </div>
         </div>
-        <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-100 mt-6">
-          <button onClick={() => navigate('/parties')} className="px-6 py-3 text-gray-600 font-medium">Cancel</button>
-          <button onClick={handleSubmit} className="px-8 py-3 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 flex items-center gap-2">
-            <Save className="w-4 h-4" /> {id ? 'Update' : 'Save'} Party
+
+        {/* Contact */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Contact</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Phone *</label>
+              <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
+                placeholder="e.g., 90330 00032 / 98255 00032" required className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Alt Phone</label>
+              <input value={form.altPhone} onChange={e => setForm({ ...form, altPhone: e.target.value })}
+                placeholder="Alternative number" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Email</label>
+              <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
+                placeholder="Email" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Alt Email</label>
+              <input type="email" value={form.altEmail} onChange={e => setForm({ ...form, altEmail: e.target.value })}
+                placeholder="Alternative email" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Contact Person</label>
+            <input value={form.contactPerson} onChange={e => setForm({ ...form, contactPerson: e.target.value })}
+              placeholder="Contact person name" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          </div>
+        </div>
+
+        {/* Address */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Address</h2>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Address *</label>
+            <textarea value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
+              rows={2} required placeholder="Full address" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">City *</label>
+              <input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })}
+                required className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">State *</label>
+              <input value={form.state} onChange={e => setForm({ ...form, state: e.target.value })}
+                required className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Pincode *</label>
+              <input value={form.pincode} onChange={e => setForm({ ...form, pincode: e.target.value })}
+                required className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+          </div>
+        </div>
+
+        {/* Products */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Products</h2>
+          <p className="text-xs text-gray-500">Select products this party deals in</p>
+          <div className="flex flex-wrap gap-2">
+            {products.map(pr => (
+              <button key={pr.id} type="button" onClick={() => toggleProduct(pr.id)}
+                className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                  form.productIds.includes(pr.id)
+                    ? 'bg-rose-600 text-white border-rose-600'
+                    : 'bg-white text-gray-700 border-gray-200 hover:border-rose-300'
+                }`}>
+                {pr.name}
+              </button>
+            ))}
+          </div>
+          {products.length === 0 && <p className="text-sm text-gray-400">No products added yet. Add products in Product Manager first.</p>}
+        </div>
+
+        {/* Bank */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Bank Details</h2>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Bank Name</label>
+              <input value={form.bankName} onChange={e => setForm({ ...form, bankName: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Account Number</label>
+              <input value={form.bankAccount} onChange={e => setForm({ ...form, bankAccount: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">IFSC</label>
+              <input value={form.bankIfsc} onChange={e => setForm({ ...form, bankIfsc: e.target.value.toUpperCase() })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm uppercase" />
+            </div>
+          </div>
+        </div>
+
+        {/* Brokerage */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Brokerage</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Brokerage %</label>
+              <input type="number" value={form.brokeragePercent} onChange={e => setForm({ ...form, brokeragePercent: parseFloat(e.target.value) || 0 })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Fixed Brokerage (Rs.)</label>
+              <input type="number" value={form.brokerageFixed} onChange={e => setForm({ ...form, brokerageFixed: parseFloat(e.target.value) || 0 })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Notes</h2>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Remarks</label>
+            <textarea value={form.remarks} onChange={e => setForm({ ...form, remarks: e.target.value })}
+              rows={2} placeholder="Short remarks" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Internal Notes</label>
+            <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
+              rows={2} placeholder="Internal notes" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button type="submit" className="flex-1 bg-rose-600 text-white py-3 rounded-xl font-medium hover:bg-rose-700 transition-colors">
+            {id ? 'Update Party' : 'Add Party'}
+          </button>
+          <button type="button" onClick={() => navigate('/parties')} className="px-6 py-3 border border-gray-200 rounded-xl text-sm hover:bg-gray-50">
+            Cancel
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Party, ProductSpec, Contract, CompanySettings, Note, LedgerEntry } from '../types';
+import { Party, ProductSpec, Contract, CompanySettings, BusinessNote, LedgerEntry } from '../types';
 import {
-  addDoc, updateDocData, deleteDocData, getColData, COLLECTIONS, Timestamp, setDocData, 
+  addDoc, updateDocData, deleteDocData, getColData, subscribeCol,
+  COLLECTIONS, db, Timestamp, setDocData
 } from '../utils/firebase';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 
 const defaultSettings: CompanySettings = {
   name: 'MAHALAXMI AGRI COMMODITIES',
@@ -33,7 +35,7 @@ const defaultSettings: CompanySettings = {
   defaultLoadingCondition: 'Goods to be loaded within one week',
   defaultPacking: '40 KG Plain P.P. Nett Packing with Double Stitching',
   financialYearStart: 2020,
-  financialYears: ['2024-2025', '2025-2026']
+  financialYears: ['2024-2025', '2025-2026'],
 };
 
 interface AppState {
@@ -66,10 +68,10 @@ interface AppState {
   deleteContract: (id: string) => Promise<void>;
   loadContracts: () => Promise<void>;
 
-  notes: Note[];
-  setNotes: (notes: Note[]) => void;
-  addNote: (note: Note) => Promise<void>;
-  updateNote: (id: string, note: Partial<Note>) => Promise<void>;
+  notes: BusinessNote[];
+  setNotes: (notes: BusinessNote[]) => void;
+  addNote: (note: BusinessNote) => Promise<void>;
+  updateNote: (id: string, note: Partial<BusinessNote>) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
   loadNotes: () => Promise<void>;
 
@@ -78,8 +80,8 @@ interface AppState {
   addLedgerEntry: (entry: LedgerEntry) => Promise<void>;
   loadLedger: () => Promise<void>;
 
-  currentYear: string;
-  setCurrentYear: (year: string) => void;
+  currentYear: number;
+  setCurrentYear: (year: number) => void;
 
   loading: boolean;
   setLoading: (loading: boolean) => void;
@@ -178,36 +180,36 @@ export const useAppStore = create<AppState>()(
       notes: [],
       setNotes: (notes) => set({ notes }),
       addNote: async (note) => {
-        await addDoc(COLLECTIONS.NOTES, note.id, note);
+        await addDoc('notes', note.id, note);
         set({ notes: [note, ...get().notes] });
       },
       updateNote: async (id, updates) => {
-        await updateDocData(COLLECTIONS.NOTES, id, updates);
+        await updateDocData('notes', id, updates);
         set({
-          notes: get().notes.map(n => n.id === id ? { ...n, ...updates, updatedAt: Timestamp.now() } : n)
+          notes: get().notes.map(n => n.id === id ? { ...n, ...updates } : n)
         });
       },
       deleteNote: async (id) => {
-        await deleteDocData(COLLECTIONS.NOTES, id);
+        await deleteDocData('notes', id);
         set({ notes: get().notes.filter(n => n.id !== id) });
       },
       loadNotes: async () => {
-        const data = await getColData(COLLECTIONS.NOTES);
-        set({ notes: data as Note[] });
+        const data = await getColData('notes');
+        set({ notes: data as BusinessNote[] });
       },
 
       ledger: [],
       setLedger: (ledger) => set({ ledger }),
       addLedgerEntry: async (entry) => {
-        await addDoc(COLLECTIONS.LEDGER, entry.id, entry);
+        await addDoc('ledger', entry.id, entry);
         set({ ledger: [...get().ledger, entry] });
       },
       loadLedger: async () => {
-        const data = await getColData(COLLECTIONS.LEDGER);
+        const data = await getColData('ledger');
         set({ ledger: data as LedgerEntry[] });
       },
 
-      currentYear: '2025-2026',
+      currentYear: new Date().getFullYear(),
       setCurrentYear: (year) => set({ currentYear: year })
     }),
     {
