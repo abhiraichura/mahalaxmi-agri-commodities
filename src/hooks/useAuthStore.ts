@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Party, ProductSpec, Contract, CompanySettings } from '../types';
-import { 
-  addDoc, updateDocData, deleteDocData, getColData,
-  COLLECTIONS, db, setDocData
+import { Party, ProductSpec, Contract, CompanySettings, Note } from '../types';
+import {
+  addDoc, updateDocData, deleteDocData, getColData, subscribeCol,
+  COLLECTIONS, db, Timestamp, setDocData
 } from '../utils/firebase';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 
 const defaultSettings: CompanySettings = {
   name: 'MAHALAXMI AGRI COMMODITIES',
@@ -18,6 +19,7 @@ const defaultSettings: CompanySettings = {
   email: 'mahalaxmiagricommodities@gmail.com',
   logo: null,
   signature: null,
+  letterhead: null,
   pan: 'ACEPR5988A',
   bankName: '',
   bankAccount: '',
@@ -34,7 +36,7 @@ const defaultSettings: CompanySettings = {
   defaultLoadingCondition: 'Goods to be loaded within one week',
   defaultPacking: '40 KG Plain P.P. Nett Packing with Double Stitching',
   financialYearStart: 2020,
-  nextContractNumber: 1
+  financialYears: ['2024-2025', '2025-2026']
 };
 
 interface AppState {
@@ -67,8 +69,15 @@ interface AppState {
   deleteContract: (id: string) => Promise<void>;
   loadContracts: () => Promise<void>;
 
-  currentYear: number;
-  setCurrentYear: (year: number) => void;
+  notes: Note[];
+  setNotes: (notes: Note[]) => void;
+  addNote: (note: Note) => Promise<void>;
+  updateNote: (id: string, note: Partial<Note>) => Promise<void>;
+  deleteNote: (id: string) => Promise<void>;
+  loadNotes: () => Promise<void>;
+
+  currentFinancialYear: string;
+  setCurrentFinancialYear: (year: string) => void;
 
   loading: boolean;
   setLoading: (loading: boolean) => void;
@@ -84,8 +93,8 @@ export const useAppStore = create<AppState>()(
       setLoading: (loading) => set({ loading }),
 
       settings: defaultSettings,
-      updateSettings: (newSettings) => set({ 
-        settings: { ...get().settings, ...newSettings } 
+      updateSettings: (newSettings) => set({
+        settings: { ...get().settings, ...newSettings }
       }),
       saveSettingsToFirebase: async () => {
         try {
@@ -96,7 +105,12 @@ export const useAppStore = create<AppState>()(
         try {
           const data = await getColData(COLLECTIONS.SETTINGS);
           if (data && data.length > 0) {
-            set({ settings: { ...defaultSettings, ...data[0] } });
+            const loaded = { ...defaultSettings, ...data[0] };
+            // Ensure financialYears exists
+            if (!loaded.financialYears || loaded.financialYears.length === 0) {
+              loaded.financialYears = defaultSettings.financialYears;
+            }
+            set({ settings: loaded });
           }
         } catch (e) { console.error(e); }
       },
@@ -110,7 +124,7 @@ export const useAppStore = create<AppState>()(
       updateParty: async (id, updates) => {
         await updateDocData(COLLECTIONS.PARTIES, id, updates);
         set({
-          parties: get().parties.map(p => p.id === id ? { ...p, ...updates, updatedAt: new Date() } : p)
+          parties: get().parties.map(p => p.id === id ? { ...p, ...updates, updatedAt: Timestamp.now() } : p)
         });
       },
       deleteParty: async (id) => {
@@ -119,7 +133,12 @@ export const useAppStore = create<AppState>()(
       },
       loadParties: async () => {
         const data = await getColData(COLLECTIONS.PARTIES);
-        set({ parties: data as Party[] });
+        // Backward compat: ensure productIds exists
+        const normalized = (data as Party[]).map(p => ({
+          ...p,
+          productIds: p.productIds || []
+        }));
+        set({ parties: normalized });
       },
 
       products: [],
@@ -148,8 +167,6 @@ export const useAppStore = create<AppState>()(
       addContract: async (contract) => {
         await addDoc(COLLECTIONS.CONTRACTS, contract.id, contract);
         set({ contracts: [contract, ...get().contracts] });
-        const nextNum = (get().settings.nextContractNumber || 1) + 1;
-        set({ settings: { ...get().settings, nextContractNumber: nextNum } });
       },
       updateContract: async (id, updates) => {
         await updateDocData(COLLECTIONS.CONTRACTS, id, updates);
@@ -163,17 +180,45 @@ export const useAppStore = create<AppState>()(
       },
       loadContracts: async () => {
         const data = await getColData(COLLECTIONS.CONTRACTS);
-        set({ contracts: data as Contract[] });
+        // Backward compat: ensure new fields exist
+        const normalized = (data as Contract[]).map(c => ({
+          ...c,
+          financialYear: c.financialYear || `${c.year}-${c.year + 1}`,
+          loadingDeadline: c.loadingDeadline || '',
+          payments: c.payments || []
+        }));
+        set({ contracts: normalized });
       },
 
-      currentYear: new Date().getFullYear(),
-      setCurrentYear: (year) => set({ currentYear: year })
+      notes: [],
+      setNotes: (notes) => set({ notes }),
+      addNote: async (note) => {
+        await addDoc(COLLECTIONS.NOTES, note.id, note);
+        set({ notes: [note, ...get().notes] });
+      },
+      updateNote: async (id, updates) => {
+        await updateDocData(COLLECTIONS.NOTES, id, updates);
+        set({
+          notes: get().notes.map(n => n.id === id ? { ...n, ...updates, updatedAt: Timestamp.now() } : n)
+        });
+      },
+      deleteNote: async (id) => {
+        await deleteDocData(COLLECTIONS.NOTES, id);
+        set({ notes: get().notes.filter(n => n.id !== id) });
+      },
+      loadNotes: async () => {
+        const data = await getColData(COLLECTIONS.NOTES);
+        set({ notes: data as Note[] });
+      },
+
+      currentFinancialYear: '2025-2026',
+      setCurrentFinancialYear: (year) => set({ currentFinancialYear: year })
     }),
     {
       name: 'mahalaxmi-app-storage',
-      partialize: (state) => ({ 
-        settings: state.settings, 
-        currentYear: state.currentYear 
+      partialize: (state) => ({
+        settings: state.settings,
+        currentFinancialYear: state.currentFinancialYear
       })
     }
   )
@@ -205,8 +250,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 }));
 
 onAuthChange((firebaseUser: any) => {
-  useAuthStore.setState({ 
-    user: firebaseUser ? { uid: firebaseUser.uid, email: firebaseUser.email } : null, 
-    loading: false 
+  useAuthStore.setState({
+    user: firebaseUser ? { uid: firebaseUser.uid, email: firebaseUser.email } : null,
+    loading: false
   });
 });

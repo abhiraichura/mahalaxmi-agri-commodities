@@ -2,7 +2,6 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where, orderBy, Timestamp, onSnapshot, enableIndexedDbPersistence } from 'firebase/firestore';
 
-// Vite environment variables - must use direct property access
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "mahalaxmi-contracts.firebaseapp.com",
@@ -23,16 +22,16 @@ export const COLLECTIONS = {
   BILLS: 'bills',
   SETTINGS: 'settings',
   LOGOS: 'logos',
-  SIGNATURES: 'signatures'
+  SIGNATURES: 'signatures',
+  NOTES: 'notes',           // NEW
+  FINANCIAL_YEARS: 'financialYears' // NEW
 };
 
-// Auth
 export const loginUser = (email: string, password: string) => signInWithEmailAndPassword(auth, email, password);
 export const registerUser = (email: string, password: string) => createUserWithEmailAndPassword(auth, email, password);
 export const logoutUser = () => signOut(auth);
 export const onAuthChange = (callback: any) => onAuthStateChanged(auth, callback);
 
-// Firestore CRUD Helpers
 export const addDoc = async (col: string, id: string, data: any) => {
   await setDoc(doc(db, col, id), { ...data, createdAt: Timestamp.now(), updatedAt: Timestamp.now() });
 };
