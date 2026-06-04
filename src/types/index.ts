@@ -26,11 +26,19 @@ export interface SpecField {
   order: number;
 }
 
+export interface BrokerageConfig {
+  type: 'percent' | 'fixed';
+  value: number;
+}
+
 export interface ProductBrokerage {
-  buyerPercent: number;
-  buyerFixed: number;
-  sellerPercent: number;
-  sellerFixed: number;
+  buyer: BrokerageConfig;
+  seller: BrokerageConfig;
+  // backward compat fields
+  buyerPercent?: number;
+  buyerFixed?: number;
+  sellerPercent?: number;
+  sellerFixed?: number;
 }
 
 export interface ProductSpec {
