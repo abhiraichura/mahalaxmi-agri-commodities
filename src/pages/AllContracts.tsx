@@ -51,7 +51,7 @@ export default function AllContracts() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-rose-200 border-t-rose-600 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin" />
       </div>
     );
   }
@@ -64,7 +64,7 @@ export default function AllContracts() {
           <p className="text-sm text-gray-500 mt-1">{filtered.length} of {contracts.length} contracts</p>
         </div>
         <button onClick={() => navigate('/contract/new')}
-          className="px-4 py-2 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700 flex items-center gap-2">
+          className="px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 flex items-center gap-2 transition-colors">
           <Plus className="w-4 h-4" /> New Contract
         </button>
       </div>
@@ -99,7 +99,7 @@ export default function AllContracts() {
           </select>
           {(search || statusFilter !== 'all' || monthFilter !== 'all' || yearFilter !== 'all') && (
             <button onClick={() => { setSearch(''); setStatusFilter('all'); setMonthFilter('all'); setYearFilter('all'); }}
-              className="px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 rounded-lg font-medium">
+              className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg font-medium">
               Clear Filters
             </button>
           )}
@@ -112,12 +112,12 @@ export default function AllContracts() {
           <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500">No contracts found</p>
           <button onClick={() => navigate('/contract/new')}
-            className="mt-3 text-rose-600 text-sm font-medium hover:underline">
+            className="mt-3 text-gray-900 text-sm font-medium hover:underline">
             Create your first contract
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -147,7 +147,7 @@ export default function AllContracts() {
                       <td className="px-4 py-3 text-right font-medium text-gray-900">Rs.{totalValue.toLocaleString('en-IN')}</td>
                       <td className="px-4 py-3 text-center">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          contract.status === 'confirmed' ? 'bg-rose-50 text-rose-700' : 'bg-gray-100 text-gray-700'
+                          contract.status === 'confirmed' ? 'bg-gray-100 text-gray-700' : 'bg-gray-100 text-gray-500'
                         }`}>
                           {contract.status}
                         </span>
@@ -155,11 +155,11 @@ export default function AllContracts() {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => navigate(`/contract/${contract.id}`)}
-                            className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-rose-600" title="View">
+                            className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-900" title="View">
                             <Eye className="w-4 h-4" />
                           </button>
                           <button onClick={() => navigate(`/contract/${contract.id}/edit`)}
-                            className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-rose-600" title="Edit">
+                            className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-900" title="Edit">
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button onClick={() => handleDelete(contract.id)}

@@ -2,19 +2,17 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { Contract, CompanySettings } from '../types';
 
-// Brand colors
 const BRAND = {
   primary: '#ed1879',
-  primaryLight: '#fce4ef',
-  primaryMid: '#f8bbd0',
+  primaryDark: '#c41465',
   black: '#000000',
-  darkGray: '#333333',
-  gray: '#666666',
-  lightGray: '#f5f5f5',
+  darkGray: '#374151',
+  gray: '#6b7280',
+  lightGray: '#f9fafb',
+  border: '#e5e7eb',
   white: '#ffffff',
 };
 
-// Helper to convert hex to RGB for jsPDF
 function hexToRgb(hex: string) {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result ? {
@@ -35,114 +33,141 @@ export function generateContractPDF(
   const margin = 15;
   const contentWidth = pageWidth - margin * 2;
 
-  // Use Helvetica (closest to Barlow in jsPDF built-in fonts)
   doc.setFont('helvetica', 'normal');
 
-  let y = 12;
+  let y = 10;
 
   // ─── HEADER ───
-  // Top logo if available
+  const logoW = 20, logoH = 9;
+  let headerX = margin;
+
   if (settings.logo) {
     try {
-      doc.addImage(settings.logo, 'PNG', margin, y, 25, 12);
-    } catch (e) {
-      // Logo failed to load, skip
-    }
+      doc.addImage(settings.logo, 'PNG', headerX, y, logoW, logoH);
+      headerX += logoW + 3;
+    } catch (e) { /* skip */ }
   }
 
   // Company name
-  doc.setFontSize(11);
+  doc.setFontSize(10.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b);
-  doc.text(settings.legalName || settings.name || 'MAHALAXMI AGRI COMMODITIES', margin + (settings.logo ? 30 : 0), y + 5);
+  doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
+  doc.text(settings.legalName || settings.name || 'MAHALAXMI AGRI COMMODITIES', headerX, y + 4);
 
-  doc.setFontSize(8);
+  // Address
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(hexToRgb(BRAND.gray).r, hexToRgb(BRAND.gray).g, hexToRgb(BRAND.gray).b);
-  const addrLines = [
-    settings.address,
-    `${settings.city}${settings.state ? ', ' + settings.state : ''}`,
-    `GSTIN: ${settings.gstin || ''} | Phone: ${settings.phone || ''}`
-  ].filter(Boolean);
-  addrLines.forEach((line, i) => {
-    doc.text(line, margin + (settings.logo ? 30 : 0), y + 9 + i * 3.5);
-  });
+  const addrLine = `${settings.address || ''}, ${settings.city || ''}${settings.state ? ', ' + settings.state : ''}`.replace(/^,\s*/, '').replace(/,\s*,/g, ',');
+  if (addrLine.length > 3) {
+    doc.text(addrLine, headerX, y + 8);
+  }
+  const contactLine = `GSTIN: ${settings.gstin || ''} | Phone: ${settings.phone || ''}`.replace(/GSTIN:\s*\|/, '').replace(/\|\s*Phone:\s*$/, '');
+  if (contactLine.length > 10) {
+    doc.text(contactLine, headerX, y + 11);
+  }
 
-  // Copy label (top right)
+  // Top-right: Copy label (small, brand color)
   const copyLabel = type === 'buyer_copy' ? 'BUYER COPY' : type === 'seller_copy' ? 'SELLER COPY' : 'BROKER COPY';
-  doc.setFontSize(10);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b);
   doc.text(copyLabel, pageWidth - margin, y + 3, { align: 'right' });
 
-  // Contract No. (top right below label)
-  doc.setFontSize(9);
-  doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
-  doc.text(`No. ${contract.contractNo || ''}`, pageWidth - margin, y + 8, { align: 'right' });
+  doc.setFontSize(8);
+  doc.setTextColor(hexToRgb(BRAND.darkGray).r, hexToRgb(BRAND.darkGray).g, hexToRgb(BRAND.darkGray).b);
+  doc.text(`No. ${contract.contractNo || ''}`, pageWidth - margin, y + 6.5, { align: 'right' });
 
-  y += 22;
+  // Thin black line under header
+  y += 14;
+  doc.setDrawColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
+  doc.setLineWidth(0.3);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 5;
 
   // ─── PARTIES ───
-  // Layout: buyer_copy => buyer left, seller right
-  //         seller_copy => seller left, buyer right
-  //         broker_copy => seller left, buyer right (default)
   const leftParty = type === 'buyer_copy' ? contract.buyer : contract.seller;
   const rightParty = type === 'buyer_copy' ? contract.seller : contract.buyer;
   const leftLabel = type === 'buyer_copy' ? 'BUYER' : 'SELLER';
   const rightLabel = type === 'buyer_copy' ? 'SELLER' : 'BUYER';
-
   const colWidth = (contentWidth - 4) / 2;
 
-  // Left party box
-  doc.setFillColor(hexToRgb(BRAND.primaryLight).r, hexToRgb(BRAND.primaryLight).g, hexToRgb(BRAND.primaryLight).b);
-  doc.rect(margin, y, colWidth, 30, 'F');
-  doc.setDrawColor(hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b);
-  doc.rect(margin, y, colWidth, 30, 'S');
+  // Left party box - clean white with thin gray border
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(hexToRgb(BRAND.border).r, hexToRgb(BRAND.border).g, hexToRgb(BRAND.border).b);
+  doc.setLineWidth(0.2);
+  doc.rect(margin, y, colWidth, 26, 'FD');
 
-  doc.setFontSize(8);
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b);
-  doc.text(leftLabel, margin + 2, y + 5);
+  doc.text(leftLabel, margin + 2, y + 4);
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
-  doc.text(leftParty.legalName || '', margin + 2, y + 10);
+  doc.setFontSize(8.5);
+  const leftName = leftParty.legalName || '';
+  const splitLeftName = doc.splitTextToSize(leftName, colWidth - 4);
+  doc.text(splitLeftName, margin + 2, y + 8);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(hexToRgb(BRAND.darkGray).r, hexToRgb(BRAND.darkGray).g, hexToRgb(BRAND.darkGray).b);
   doc.setFontSize(7);
-  const leftAddr = [leftParty.address, `${leftParty.city}, ${leftParty.state}`, `GSTIN: ${leftParty.gstin || ''}`, `Phone: ${leftParty.phone || 'N/A'}`].filter(Boolean);
-  leftAddr.forEach((line, i) => doc.text(line, margin + 2, y + 14 + i * 3.5));
+  const leftAddrLines = [
+    leftParty.address,
+    `${leftParty.city}${leftParty.state ? ', ' + leftParty.state : ''}`,
+    `GSTIN: ${leftParty.gstin || ''}`,
+    `Phone: ${leftParty.phone || 'N/A'}`
+  ].filter(Boolean);
+  let leftY = y + 11 + (splitLeftName.length - 1) * 2.8;
+  leftAddrLines.forEach(line => {
+    if (leftY < y + 24) {
+      doc.text(line, margin + 2, leftY);
+      leftY += 3.2;
+    }
+  });
 
   // Right party box
-  doc.setFillColor(hexToRgb(BRAND.primaryLight).r, hexToRgb(BRAND.primaryLight).g, hexToRgb(BRAND.primaryLight).b);
-  doc.rect(margin + colWidth + 4, y, colWidth, 30, 'F');
-  doc.setDrawColor(hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b);
-  doc.rect(margin + colWidth + 4, y, colWidth, 30, 'S');
+  doc.setFillColor(255, 255, 255);
+  doc.rect(margin + colWidth + 4, y, colWidth, 26, 'FD');
 
-  doc.setFontSize(8);
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b);
-  doc.text(rightLabel, margin + colWidth + 6, y + 5);
+  doc.text(rightLabel, margin + colWidth + 6, y + 4);
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
-  doc.text(rightParty.legalName || '', margin + colWidth + 6, y + 10);
+  doc.setFontSize(8.5);
+  const rightName = rightParty.legalName || '';
+  const splitRightName = doc.splitTextToSize(rightName, colWidth - 4);
+  doc.text(splitRightName, margin + colWidth + 6, y + 8);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(hexToRgb(BRAND.darkGray).r, hexToRgb(BRAND.darkGray).g, hexToRgb(BRAND.darkGray).b);
   doc.setFontSize(7);
-  const rightAddr = [rightParty.address, `${rightParty.city}, ${rightParty.state}`, `GSTIN: ${rightParty.gstin || ''}`, `Phone: ${rightParty.phone || 'N/A'}`].filter(Boolean);
-  rightAddr.forEach((line, i) => doc.text(line, margin + colWidth + 6, y + 14 + i * 3.5));
+  const rightAddrLines = [
+    rightParty.address,
+    `${rightParty.city}${rightParty.state ? ', ' + rightParty.state : ''}`,
+    `GSTIN: ${rightParty.gstin || ''}`,
+    `Phone: ${rightParty.phone || 'N/A'}`
+  ].filter(Boolean);
+  let rightY = y + 11 + (splitRightName.length - 1) * 2.8;
+  rightAddrLines.forEach(line => {
+    if (rightY < y + 24) {
+      doc.text(line, margin + colWidth + 6, rightY);
+      rightY += 3.2;
+    }
+  });
 
-  y += 36;
+  y += 30;
 
   // ─── PRODUCT SPECIFICATIONS ───
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b);
+  doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
   doc.text('PRODUCT SPECIFICATIONS', margin, y);
-  y += 5;
+  y += 3.5;
 
   const specRows = (contract.product?.specs || []).map((s: any) => [s.label || '', `${s.value || ''} ${s.unit || ''}`]);
   (doc as any).autoTable({
@@ -152,38 +177,39 @@ export function generateContractPDF(
     body: specRows,
     theme: 'grid',
     headStyles: {
-      fillColor: [hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b],
+      fillColor: [hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 8,
+      fontSize: 7.5,
       font: 'helvetica',
+      halign: 'left',
     },
     bodyStyles: {
-      fontSize: 8,
+      fontSize: 7.5,
       font: 'helvetica',
-      textColor: [51, 51, 51],
+      textColor: [hexToRgb(BRAND.darkGray).r, hexToRgb(BRAND.darkGray).g, hexToRgb(BRAND.darkGray).b],
     },
     alternateRowStyles: {
-      fillColor: [hexToRgb(BRAND.primaryLight).r, hexToRgb(BRAND.primaryLight).g, hexToRgb(BRAND.primaryLight).b],
+      fillColor: [hexToRgb(BRAND.lightGray).r, hexToRgb(BRAND.lightGray).g, hexToRgb(BRAND.lightGray).b],
     },
     styles: {
-      lineColor: [hexToRgb(BRAND.primaryMid).r, hexToRgb(BRAND.primaryMid).g, hexToRgb(BRAND.primaryMid).b],
-      lineWidth: 0.3,
+      lineColor: [hexToRgb(BRAND.border).r, hexToRgb(BRAND.border).g, hexToRgb(BRAND.border).b],
+      lineWidth: 0.2,
     },
     columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 60 },
+      0: { fontStyle: 'bold', cellWidth: 50 },
       1: { cellWidth: 'auto' },
     },
   });
 
-  y = (doc as any).lastAutoTable.finalY + 6;
+  y = (doc as any).lastAutoTable.finalY + 5;
 
   // ─── COMMERCIAL TERMS ───
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b);
+  doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
   doc.text('COMMERCIAL TERMS', margin, y);
-  y += 5;
+  y += 3.5;
 
   const totalValue = contract.quantity * contract.price;
   const termsBody: any[] = [
@@ -198,7 +224,6 @@ export function generateContractPDF(
     ['GST', `${contract.gstPercent || 0}% Extra as per Government Rules`],
   ];
 
-  // Brokerage in commercial terms - only show relevant one per copy type
   if (type === 'buyer_copy') {
     const bb = contract.product?.buyerBrokerageType === 'flat' && contract.product?.buyerBrokerageFixed > 0
       ? `Rs. ${contract.product.buyerBrokerageFixed}`
@@ -210,7 +235,6 @@ export function generateContractPDF(
       : `${contract.sellerBrokeragePercent || contract.product?.sellerBrokeragePercent || 0}%`;
     termsBody.push(['Brokerage', sb]);
   } else {
-    // broker copy - show both
     const bb = contract.product?.buyerBrokerageType === 'flat' && contract.product?.buyerBrokerageFixed > 0
       ? `Rs. ${contract.product.buyerBrokerageFixed}`
       : `${contract.buyerBrokeragePercent || contract.product?.buyerBrokeragePercent || 0}%`;
@@ -232,37 +256,38 @@ export function generateContractPDF(
     body: termsBody,
     theme: 'grid',
     headStyles: {
-      fillColor: [hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b],
+      fillColor: [hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 8,
+      fontSize: 7.5,
       font: 'helvetica',
+      halign: 'left',
     },
     bodyStyles: {
-      fontSize: 8,
+      fontSize: 7.5,
       font: 'helvetica',
-      textColor: [51, 51, 51],
+      textColor: [hexToRgb(BRAND.darkGray).r, hexToRgb(BRAND.darkGray).g, hexToRgb(BRAND.darkGray).b],
     },
     alternateRowStyles: {
-      fillColor: [hexToRgb(BRAND.primaryLight).r, hexToRgb(BRAND.primaryLight).g, hexToRgb(BRAND.primaryLight).b],
+      fillColor: [hexToRgb(BRAND.lightGray).r, hexToRgb(BRAND.lightGray).g, hexToRgb(BRAND.lightGray).b],
     },
     styles: {
-      lineColor: [hexToRgb(BRAND.primaryMid).r, hexToRgb(BRAND.primaryMid).g, hexToRgb(BRAND.primaryMid).b],
-      lineWidth: 0.3,
+      lineColor: [hexToRgb(BRAND.border).r, hexToRgb(BRAND.border).g, hexToRgb(BRAND.border).b],
+      lineWidth: 0.2,
     },
     columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 50 },
+      0: { fontStyle: 'bold', cellWidth: 42 },
       1: { cellWidth: 'auto' },
     },
     didParseCell: function(data: any) {
       if (data.row.index === 2 && data.column.index === 1) {
         data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.textColor = [hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b];
+        data.cell.styles.textColor = [hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b];
       }
     },
   });
 
-  y = (doc as any).lastAutoTable.finalY + 8;
+  y = (doc as any).lastAutoTable.finalY + 5;
 
   // ─── TERMS & CONDITIONS ───
   const tnc = settings.termsAndConditions?.length > 0 ? settings.termsAndConditions : [
@@ -273,61 +298,65 @@ export function generateContractPDF(
     '5. We have full power to settle all claims amicably which will bind both buyer and seller equally.',
   ];
 
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b);
+  doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
   doc.text('TERMS & CONDITIONS', margin, y);
-  y += 5;
+  y += 3.5;
 
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(hexToRgb(BRAND.darkGray).r, hexToRgb(BRAND.darkGray).g, hexToRgb(BRAND.darkGray).b);
   tnc.forEach((line: string) => {
     const splitLines = doc.splitTextToSize(line, contentWidth);
     splitLines.forEach((l: string) => {
-      if (y > pageHeight - 35) {
+      if (y > pageHeight - 30) {
         doc.addPage();
-        y = 15;
+        y = 12;
       }
       doc.text(l, margin, y);
-      y += 3.8;
+      y += 3.4;
     });
   });
 
-  y += 4;
+  y += 3;
 
   // ─── FOOTER ───
-  // Ensure footer doesn't overlap with content
-  const footerY = Math.min(y, pageHeight - 28);
-
-  // Footer line
-  doc.setDrawColor(hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b);
-  doc.setLineWidth(0.5);
-  doc.line(margin, footerY, pageWidth - margin, footerY);
-
-  // Footer logo (small, right side) - ensure no overlap
-  if (settings.logo) {
-    try {
-      doc.addImage(settings.logo, 'PNG', pageWidth - margin - 20, footerY + 2, 18, 8);
-    } catch (e) {
-      // skip
-    }
+  const footerHeight = 20;
+  if (y > pageHeight - footerHeight - margin) {
+    doc.addPage();
+    y = margin;
   }
 
-  // Footer text
-  doc.setFontSize(7);
+  const footerY = pageHeight - footerHeight;
+
+  // Footer thin line
+  doc.setDrawColor(hexToRgb(BRAND.border).r, hexToRgb(BRAND.border).g, hexToRgb(BRAND.border).b);
+  doc.setLineWidth(0.2);
+  doc.line(margin, footerY, pageWidth - margin, footerY);
+
+  // Footer logo (small, right side) - only if space available
+  if (settings.logo) {
+    try {
+      doc.addImage(settings.logo, 'PNG', pageWidth - margin - 15, footerY + 2, 14, 6);
+    } catch (e) { /* skip */ }
+  }
+
+  // Left side: "For, Company Name"
+  doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b);
-  doc.text(`For, ${settings.legalName || settings.name || 'MAHALAXMI AGRI COMMODITIES'}`, margin, footerY + 5);
+  doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
+  doc.text(`For, ${settings.legalName || settings.name || 'MAHALAXMI AGRI COMMODITIES'}`, margin, footerY + 4);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(hexToRgb(BRAND.gray).r, hexToRgb(BRAND.gray).g, hexToRgb(BRAND.gray).b);
-  doc.text('Authorized Signature', margin, footerY + 10);
+  doc.setFontSize(7);
+  doc.text('Authorized Signature', margin, footerY + 8);
 
-  // Date on footer right
+  // Right side: Date
   doc.setFontSize(7);
   doc.setTextColor(hexToRgb(BRAND.gray).r, hexToRgb(BRAND.gray).g, hexToRgb(BRAND.gray).b);
-  doc.text(`Date: ${new Date(contract.date).toLocaleDateString('en-IN')}`, pageWidth - margin, footerY + 5, { align: 'right' });
+  doc.text(`Date: ${new Date(contract.date).toLocaleDateString('en-IN')}`, pageWidth - margin, footerY + 4, { align: 'right' });
 
   return doc;
 }
@@ -346,12 +375,12 @@ export function generateBrokerageBillPDF(bill: any, settings: CompanySettings) {
   let y = 12;
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b);
+  doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
   doc.text('BROKERAGE BILL', pageWidth / 2, y, { align: 'center' });
 
   y += 8;
   doc.setFontSize(9);
-  doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
+  doc.setTextColor(hexToRgb(BRAND.darkGray).r, hexToRgb(BRAND.darkGray).g, hexToRgb(BRAND.darkGray).b);
   doc.text(settings.legalName || settings.name || '', pageWidth / 2, y, { align: 'center' });
 
   y += 10;
@@ -378,7 +407,7 @@ export function generateBrokerageBillPDF(bill: any, settings: CompanySettings) {
     body: rows,
     theme: 'grid',
     headStyles: {
-      fillColor: [hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b],
+      fillColor: [hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 8,
@@ -387,21 +416,21 @@ export function generateBrokerageBillPDF(bill: any, settings: CompanySettings) {
     bodyStyles: {
       fontSize: 8,
       font: 'helvetica',
-      textColor: [51, 51, 51],
+      textColor: [hexToRgb(BRAND.darkGray).r, hexToRgb(BRAND.darkGray).g, hexToRgb(BRAND.darkGray).b],
     },
     alternateRowStyles: {
-      fillColor: [hexToRgb(BRAND.primaryLight).r, hexToRgb(BRAND.primaryLight).g, hexToRgb(BRAND.primaryLight).b],
+      fillColor: [hexToRgb(BRAND.lightGray).r, hexToRgb(BRAND.lightGray).g, hexToRgb(BRAND.lightGray).b],
     },
     styles: {
-      lineColor: [hexToRgb(BRAND.primaryMid).r, hexToRgb(BRAND.primaryMid).g, hexToRgb(BRAND.primaryMid).b],
-      lineWidth: 0.3,
+      lineColor: [hexToRgb(BRAND.border).r, hexToRgb(BRAND.border).g, hexToRgb(BRAND.border).b],
+      lineWidth: 0.2,
     },
   });
 
   const finalY = (doc as any).lastAutoTable.finalY + 8;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(hexToRgb(BRAND.primary).r, hexToRgb(BRAND.primary).g, hexToRgb(BRAND.primary).b);
+  doc.setTextColor(hexToRgb(BRAND.black).r, hexToRgb(BRAND.black).g, hexToRgb(BRAND.black).b);
   doc.text(`Total Brokerage: Rs. ${(bill.totalBrokerage || 0).toLocaleString('en-IN')}`, pageWidth - margin, finalY, { align: 'right' });
 
   return doc;

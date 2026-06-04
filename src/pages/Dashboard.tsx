@@ -31,7 +31,7 @@ export default function Dashboard() {
   const stats = [
     { label: 'Total Parties', value: parties.length, icon: Users, color: 'bg-gray-100 text-gray-600' },
     { label: 'Products', value: products.length, icon: Package, color: 'bg-gray-100 text-gray-600' },
-    { label: 'Contracts', value: contracts.length, icon: FileText, color: 'bg-rose-50 text-rose-600' },
+    { label: 'Contracts', value: contracts.length, icon: FileText, color: 'bg-gray-900 text-white' },
     { label: 'This Month', value: contracts.filter(c => {
       const d = new Date(c.date);
       return d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear();
@@ -45,7 +45,7 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-rose-200 border-t-rose-600 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin" />
       </div>
     );
   }
@@ -58,7 +58,7 @@ export default function Dashboard() {
           <p className="text-sm text-gray-500 mt-1">Your business overview</p>
         </div>
         <button onClick={() => navigate('/contract/new')}
-          className="px-4 py-2 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700 flex items-center gap-2">
+          className="px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 flex items-center gap-2 transition-colors">
           <Plus className="w-4 h-4" /> New Contract
         </button>
       </div>
@@ -84,14 +84,14 @@ export default function Dashboard() {
       </div>
 
       {/* Recent Contracts */}
-      <div className="bg-white rounded-2xl border border-gray-200">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Recent Contracts</h2>
             <p className="text-sm text-gray-500">{contracts.length} total</p>
           </div>
           <button onClick={() => navigate('/contracts')}
-            className="text-sm text-rose-600 font-medium hover:underline flex items-center gap-1">
+            className="text-sm text-gray-900 font-medium hover:underline flex items-center gap-1">
             View All <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -100,7 +100,7 @@ export default function Dashboard() {
             <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500">No contracts yet</p>
             <button onClick={() => navigate('/contract/new')}
-              className="mt-3 text-rose-600 text-sm font-medium hover:underline">
+              className="mt-3 text-gray-900 text-sm font-medium hover:underline">
               Create your first contract
             </button>
           </div>
@@ -110,8 +110,8 @@ export default function Dashboard() {
               <div key={contract.id} className="p-4 hover:bg-gray-50 transition-colors">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center">
-                      <FileText className="w-5 h-5 text-rose-600" />
+                    <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-gray-600" />
                     </div>
                     <div>
                       <p className="font-medium text-gray-900">Contract #{contract.contractNo}</p>
@@ -126,11 +126,11 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center gap-1">
                     <button onClick={() => navigate(`/contract/${contract.id}`)}
-                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-rose-600" title="View">
+                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-900" title="View">
                       <Eye className="w-4 h-4" />
                     </button>
                     <button onClick={() => navigate(`/contract/${contract.id}/edit`)}
-                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-rose-600" title="Edit">
+                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-900" title="Edit">
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button onClick={() => handleDelete(contract.id)}

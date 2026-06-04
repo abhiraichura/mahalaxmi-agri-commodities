@@ -73,25 +73,25 @@ export default function Settings() {
       </div>
 
       {/* GST API Key */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6">
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Key className="w-5 h-5 text-rose-600" /> GST Verification API Key
+          <Key className="w-5 h-5 text-gray-600" /> GST Verification API Key
         </h2>
         <div className="space-y-3">
           <input type="text" value={gstApiKey} onChange={e => setGstApiKey(e.target.value)}
             placeholder="Enter your GST API key from gstincheck.co.in"
             className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
           <p className="text-xs text-gray-500">
-            Get free API key at <a href="https://gstincheck.co.in" target="_blank" rel="noopener noreferrer" className="text-rose-600 hover:underline font-medium">gstincheck.co.in</a>
+            Get free API key at <a href="https://gstincheck.co.in" target="_blank" rel="noopener noreferrer" className="text-gray-900 hover:underline font-medium">gstincheck.co.in</a>
             . Enter your email and they will send you a key (20 free verifications).
           </p>
         </div>
       </div>
 
       {/* Company Branding */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6">
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Building2 className="w-5 h-5 text-rose-600" /> Company Branding
+          <Building2 className="w-5 h-5 text-gray-600" /> Company Branding
         </h2>
 
         <div className="space-y-6">
@@ -100,12 +100,12 @@ export default function Settings() {
             <label className="text-sm font-medium text-gray-700 mb-2 block">Company Logo <span className="text-xs text-gray-400 font-normal">(max 500KB)</span></label>
             <div className="flex items-center gap-4">
               <div onClick={() => logoRef.current?.click()}
-                className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center cursor-pointer hover:border-rose-500 transition-colors overflow-hidden bg-gray-50">
+                className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center cursor-pointer hover:border-gray-500 transition-colors overflow-hidden bg-gray-50">
                 {logoPreview ? <img src={logoPreview} alt="Logo" className="w-full h-full object-contain" /> : <Upload className="w-6 h-6 text-gray-400" />}
               </div>
               <div>
                 <button onClick={() => logoRef.current?.click()} disabled={logoLoading}
-                  className="px-4 py-2 bg-gray-50 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 disabled:opacity-50">
+                  className="px-4 py-2 bg-gray-50 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 disabled:opacity-50 transition-colors">
                   {logoLoading ? 'Uploading...' : 'Upload Logo'}
                 </button>
                 <p className="text-xs text-gray-500 mt-1">PNG or JPG, max 500KB. Shows on contract top-left.</p>
@@ -119,12 +119,12 @@ export default function Settings() {
             <label className="text-sm font-medium text-gray-700 mb-2 block">Digital Signature <span className="text-xs text-gray-400 font-normal">(max 500KB, transparent PNG preferred)</span></label>
             <div className="flex items-center gap-4">
               <div onClick={() => sigRef.current?.click()}
-                className="w-32 h-16 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center cursor-pointer hover:border-rose-500 transition-colors overflow-hidden bg-gray-50">
+                className="w-32 h-16 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center cursor-pointer hover:border-gray-500 transition-colors overflow-hidden bg-gray-50">
                 {sigPreview ? <img src={sigPreview} alt="Signature" className="w-full h-full object-contain" /> : <PenTool className="w-6 h-6 text-gray-400" />}
               </div>
               <div>
                 <button onClick={() => sigRef.current?.click()} disabled={sigLoading}
-                  className="px-4 py-2 bg-gray-50 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 disabled:opacity-50">
+                  className="px-4 py-2 bg-gray-50 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 disabled:opacity-50 transition-colors">
                   {sigLoading ? 'Uploading...' : 'Upload Signature'}
                 </button>
                 <p className="text-xs text-gray-500 mt-1">Upload your scanned signature. Shows on contract footer.</p>
@@ -169,7 +169,7 @@ export default function Settings() {
       </div>
 
       {/* Default Settings */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6">
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Default Contract Settings</h2>
         <div className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
@@ -188,7 +188,7 @@ export default function Settings() {
       </div>
 
       {/* Terms & Conditions */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6">
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Terms & Conditions</h2>
         <div className="space-y-3">
           {formData.termsAndConditions.map((term, index) => (
@@ -201,13 +201,13 @@ export default function Settings() {
           <div className="flex gap-2 mt-4">
             <input value={newTerm} onChange={e => setNewTerm(e.target.value)} placeholder="Add new term..." onKeyPress={e => e.key === 'Enter' && addTerm()}
               className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-            <button onClick={addTerm} className="px-4 py-3 bg-rose-50 text-rose-700 rounded-xl text-sm font-medium hover:bg-rose-100"><Plus className="w-4 h-4" /></button>
+            <button onClick={addTerm} className="px-4 py-3 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors"><Plus className="w-4 h-4" /></button>
           </div>
         </div>
       </div>
 
       {/* Bank Details */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6">
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Bank Details</h2>
         <div className="grid md:grid-cols-3 gap-4">
           <div><label className="text-sm font-medium text-gray-700 mb-2 block">Bank Name</label>
@@ -220,7 +220,7 @@ export default function Settings() {
       </div>
 
       <div className="flex justify-end">
-        <button onClick={handleSave} className="px-8 py-3 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 transition-colors flex items-center gap-2">
+        <button onClick={handleSave} className="px-8 py-3 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-colors flex items-center gap-2">
           <Save className="w-4 h-4" /> Save All Settings
         </button>
       </div>

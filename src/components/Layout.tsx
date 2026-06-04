@@ -27,7 +27,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} flex flex-col`}>
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-rose-600 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-lg">M</span>
             </div>
             <div>
@@ -43,7 +43,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             const Icon = item.icon;
             return (
               <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? 'bg-rose-50 text-rose-700' : 'text-gray-600 hover:bg-gray-50'}`}>
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}>
                 <Icon className="w-5 h-5" />
                 {item.label}
                 {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
