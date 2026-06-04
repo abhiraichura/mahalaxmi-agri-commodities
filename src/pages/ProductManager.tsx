@@ -1,177 +1,207 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Package, Trash2, Edit2, GripVertical } from 'lucide-react';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Plus, Trash2, Edit2, Save, X } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { ProductSpec, SpecField } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import toast from 'react-hot-toast';
 
 export default function ProductManager() {
-  const { products, addProduct, updateProduct, deleteProduct } = useAppStore();
-  const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState({ name: '', specs: [{ label: '', value: '', unit: '' }] });
+  const navigate = useNavigate();
+  const { products, addProduct, updateProduct, deleteProduct, loadProducts } = useAppStore();
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<ProductSpec | null>(null);
+  const [name, setName] = useState('');
+  const [specs, setSpecs] = useState<SpecField[]>([{ id: '1', label: '', value: '', unit: '', order: 1 }]);
+
+  // Buyer brokerage
+  const [buyerBrokerageType, setBuyerBrokerageType] = useState<'percent' | 'flat'>('percent');
+  const [buyerBrokeragePercent, setBuyerBrokeragePercent] = useState(0.25);
+  const [buyerBrokerageFixed, setBuyerBrokerageFixed] = useState(0);
+
+  // Seller brokerage
+  const [sellerBrokerageType, setSellerBrokerageType] = useState<'percent' | 'flat'>('percent');
+  const [sellerBrokeragePercent, setSellerBrokeragePercent] = useState(0.5);
+  const [sellerBrokerageFixed, setSellerBrokerageFixed] = useState(0);
+
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadProducts().then(() => setLoading(false)); }, []);
+
+  const addSpec = () => setSpecs([...specs, { id: uuidv4(), label: '', value: '', unit: '', order: specs.length + 1 }]);
+  const updateSpec = (i: number, field: keyof SpecField, val: string) => {
+    const n = [...specs]; n[i] = { ...n[i], [field]: val }; setSpecs(n);
+  };
+  const removeSpec = (i: number) => setSpecs(specs.filter((_, idx) => idx !== i));
 
   const handleSave = async () => {
-    if (!form.name.trim()) {
-      toast.error('Product name is required');
-      return;
-    }
-    const cleanSpecs = form.specs.filter(s => s.label.trim());
-    if (editing) {
-      await updateProduct(editing.id, { name: form.name, specs: cleanSpecs });
-      toast.success('Product updated');
-    } else {
-      await addProduct({
-        id: uuidv4(),
-        name: form.name,
-        specs: cleanSpecs,
-        createdAt: new Date().toISOString()
-      });
-      toast.success('Product added');
-    }
-    setEditing(null);
-    setForm({ name: '', specs: [{ label: '', value: '', unit: '' }] });
+    if (!name.trim()) { toast.error('Product name required'); return; }
+    const product: ProductSpec = {
+      id: editing?.id || uuidv4(),
+      name,
+      specs: specs.filter(s => s.label.trim()),
+      buyerBrokerageType,
+      sellerBrokerageType,
+      buyerBrokeragePercent,
+      sellerBrokeragePercent,
+      buyerBrokerageFixed,
+      sellerBrokerageFixed,
+      createdAt: editing?.createdAt || new Date(),
+      updatedAt: new Date()
+    };
+    try {
+      if (editing) { await updateProduct(product.id, product); toast.success('Updated!'); }
+      else { await addProduct(product); toast.success('Added!'); }
+      reset();
+    } catch (e) { toast.error('Failed'); }
   };
 
-  const handleEdit = (product: any) => {
-    setEditing(product);
-    setForm({
-      name: product.name,
-      specs: product.specs?.length > 0 ? product.specs : [{ label: '', value: '', unit: '' }]
-    });
+  const reset = () => { 
+    setShowForm(false); setEditing(null); setName(''); 
+    setSpecs([{ id: uuidv4(), label: '', value: '', unit: '', order: 1 }]);
+    setBuyerBrokerageType('percent'); setBuyerBrokeragePercent(0.25); setBuyerBrokerageFixed(0);
+    setSellerBrokerageType('percent'); setSellerBrokeragePercent(0.5); setSellerBrokerageFixed(0);
   };
 
-  const addSpec = () => {
-    setForm(prev => ({ ...prev, specs: [...prev.specs, { label: '', value: '', unit: '' }] }));
-  };
-
-  const updateSpec = (index: number, field: string, value: string) => {
-    const specs = [...form.specs];
-    specs[index] = { ...specs[index], [field]: value };
-    setForm(prev => ({ ...prev, specs }));
-  };
-
-  const removeSpec = (index: number) => {
-    setForm(prev => ({ ...prev, specs: prev.specs.filter((_, i) => i !== index) }));
+  const handleEdit = (p: ProductSpec) => { 
+    setEditing(p); setName(p.name); setSpecs(p.specs);
+    setBuyerBrokerageType(p.buyerBrokerageType || 'percent');
+    setSellerBrokerageType(p.sellerBrokerageType || 'percent');
+    setBuyerBrokeragePercent(p.buyerBrokeragePercent || 0.25);
+    setSellerBrokeragePercent(p.sellerBrokeragePercent || 0.5);
+    setBuyerBrokerageFixed(p.buyerBrokerageFixed || 0);
+    setSellerBrokerageFixed(p.sellerBrokerageFixed || 0);
+    setShowForm(true); 
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this product?')) return;
-    await deleteProduct(id);
-    toast.success('Product deleted');
+    try { await deleteProduct(id); toast.success('Deleted'); } catch (e) { toast.error('Failed'); }
   };
+
+  if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-rose-200 border-t-rose-600 rounded-full animate-spin" /></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-          <p className="text-sm text-gray-500 mt-1">{products.length} products registered</p>
+          <p className="text-sm text-gray-500 mt-1">{products.length} products</p>
         </div>
+        <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700 flex items-center gap-2">
+          <Plus className="w-4 h-4" /> Add Product
+        </button>
       </div>
 
-      {/* Product Form */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <div className="flex items-center gap-2 mb-4">
-          {editing ? <Edit2 className="w-4 h-4 text-rose-600" /> : <Plus className="w-4 h-4 text-rose-600" />}
-          <h3 className="font-semibold text-gray-900">{editing ? 'Edit Product' : 'Add Product'}</h3>
-        </div>
-        <div className="space-y-3">
-          <input
-            value={form.name}
-            onChange={e => setForm({ ...form, name: e.target.value })}
-            placeholder="Product name (e.g., Cumin Seeds)"
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none"
-          />
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-gray-700">Specifications</p>
-            {form.specs.map((spec, i) => (
-              <div key={i} className="flex gap-2">
-                <input
-                  value={spec.label}
-                  onChange={e => updateSpec(i, 'label', e.target.value)}
-                  placeholder="Label (e.g., Grade)"
-                  className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none"
-                />
-                <input
-                  value={spec.value}
-                  onChange={e => updateSpec(i, 'value', e.target.value)}
-                  placeholder="Value"
-                  className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none"
-                />
-                <input
-                  value={spec.unit}
-                  onChange={e => updateSpec(i, 'unit', e.target.value)}
-                  placeholder="Unit"
-                  className="w-24 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none"
-                />
-                <button
-                  onClick={() => removeSpec(i)}
-                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+      <div className="space-y-4">
+        {products.map(p => (
+          <div key={p.id} className="bg-white rounded-2xl border border-gray-200 p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center"><Package className="w-5 h-5 text-rose-600" /></div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{p.name}</h3>
+                  <p className="text-sm text-gray-500">Buyer: {p.buyerBrokerageType === 'percent' ? p.buyerBrokeragePercent + '%' : 'Rs. ' + p.buyerBrokerageFixed} | Seller: {p.sellerBrokerageType === 'percent' ? p.sellerBrokeragePercent + '%' : 'Rs. ' + p.sellerBrokerageFixed}</p>
+                </div>
               </div>
-            ))}
-            <button
-              onClick={addSpec}
-              className="text-sm text-rose-600 hover:text-rose-700 font-medium flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Specification
-            </button>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleSave}
-              className="flex items-center gap-2 px-5 py-2.5 bg-rose-600 text-white rounded-lg text-sm font-medium hover:bg-rose-700 transition-colors"
-            >
-              <Save className="w-4 h-4" />
-              {editing ? 'Update' : 'Save'}
-            </button>
-            {editing && (
-              <button
-                onClick={() => { setEditing(null); setForm({ name: '', specs: [{ label: '', value: '', unit: '' }] }); }}
-                className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Products List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {products.map(product => (
-          <div key={product.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-all group">
-            <div className="flex items-start justify-between mb-3">
-              <h3 className="font-semibold text-gray-900">{product.name}</h3>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => handleEdit(product)}
-                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => handleDelete(product.id)}
-                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+              <div className="flex gap-2">
+                <button onClick={() => handleEdit(p)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600"><Edit2 className="w-4 h-4" /></button>
+                <button onClick={() => handleDelete(p.id)} className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
-            {product.specs && product.specs.length > 0 && (
-              <div className="space-y-1">
-                {product.specs.map((spec: any, i: number) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <span className="text-gray-500">{spec.label}:</span>
-                    <span className="font-medium text-gray-900">{spec.value} {spec.unit}</span>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {p.specs.map(s => (
+                  <div key={s.id} className="flex items-center gap-2 text-sm">
+                    <GripVertical className="w-4 h-4 text-gray-400" />
+                    <span className="font-medium text-gray-700">{s.label}:</span>
+                    <span className="text-gray-600">{s.value} {s.unit}</span>
                   </div>
                 ))}
               </div>
-            )}
+            </div>
           </div>
         ))}
       </div>
+
+      {showForm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-auto">
+            <div className="p-6 border-b border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900">{editing ? 'Edit Product' : 'Add New Product'}</h3>
+            </div>
+            <div className="p-6 space-y-6">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Product Name *</label>
+                <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Coriander Seeds" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              </div>
+
+              {/* Buyer Brokerage */}
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Buyer Brokerage</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">Type</label>
+                    <select value={buyerBrokerageType} onChange={e => setBuyerBrokerageType(e.target.value as 'percent' | 'flat')} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm">
+                      <option value="percent">Percentage (%)</option>
+                      <option value="flat">Fixed Amount (Rs.)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">{buyerBrokerageType === 'percent' ? 'Percentage (%)' : 'Fixed Amount (Rs.)'}</label>
+                    <input type="number" step="0.01" value={buyerBrokerageType === 'percent' ? buyerBrokeragePercent : buyerBrokerageFixed} 
+                      onChange={e => buyerBrokerageType === 'percent' ? setBuyerBrokeragePercent(parseFloat(e.target.value) || 0) : setBuyerBrokerageFixed(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Seller Brokerage */}
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Seller Brokerage</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">Type</label>
+                    <select value={sellerBrokerageType} onChange={e => setSellerBrokerageType(e.target.value as 'percent' | 'flat')} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm">
+                      <option value="percent">Percentage (%)</option>
+                      <option value="flat">Fixed Amount (Rs.)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">{sellerBrokerageType === 'percent' ? 'Percentage (%)' : 'Fixed Amount (Rs.)'}</label>
+                    <input type="number" step="0.01" value={sellerBrokerageType === 'percent' ? sellerBrokeragePercent : sellerBrokerageFixed} 
+                      onChange={e => sellerBrokerageType === 'percent' ? setSellerBrokeragePercent(parseFloat(e.target.value) || 0) : setSellerBrokerageFixed(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm" />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-sm font-medium text-gray-700">Specifications</label>
+                  <button onClick={addSpec} className="text-sm text-rose-600 font-medium">+ Add Spec</button>
+                </div>
+                <div className="space-y-3">
+                  {specs.map((s, i) => (
+                    <div key={s.id} className="flex gap-2">
+                      <div className="flex-1 grid grid-cols-3 gap-2">
+                        <input value={s.label} onChange={e => updateSpec(i, 'label', e.target.value)} placeholder="Label" className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+                        <input value={s.value} onChange={e => updateSpec(i, 'value', e.target.value)} placeholder="Value" className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+                        <input value={s.unit} onChange={e => updateSpec(i, 'unit', e.target.value)} placeholder="Unit" className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+                      </div>
+                      <button onClick={() => removeSpec(i)} className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
+              <button onClick={reset} className="px-4 py-2 text-gray-600 font-medium">Cancel</button>
+              <button onClick={handleSave} className="px-6 py-2 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700">{editing ? 'Update' : 'Save'} Product</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
