@@ -267,7 +267,7 @@ export const generateContractPDF = (
     const lineHeight = 2.8; // Reduced from 3.5
     const termHeight = splitText.length * lineHeight;
 
-    // If we're about to overflow, reduce font size further
+    // If we are about to overflow, reduce font size further
     if (y + termHeight > availableSpace) {
       doc.setFontSize(6.5);
     }
@@ -357,7 +357,7 @@ export const generateBrokerageBillPDF = (
   if (bill.month && bill.month > 0) {
     doc.text(`Period: ${bill.month}/${bill.year}`, M, y);
   } else if (bill.fromDate && bill.toDate) {
-    doc.text(`Period: ${format(new Date(bill.fromDate), 'dd/MM/yyyy')} - ${format(new Date(b.toDate), 'dd/MM/yyyy')}`, M, y);
+    doc.text(`Period: ${format(new Date(bill.fromDate), 'dd/MM/yyyy')} - ${format(new Date(bill.toDate), 'dd/MM/yyyy')}`, M, y);
   } else {
     doc.text(`Period: ${bill.year}`, M, y);
   }
