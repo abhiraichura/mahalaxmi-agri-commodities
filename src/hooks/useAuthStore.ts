@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Party, ProductSpec, Contract, CompanySettings, Note } from '../types';
+import { Party, ProductSpec, Contract, CompanySettings, Note, BrokerageBill, BillPayment } from '../types';
 import {
   addDoc, updateDocData, deleteDocData, getColData, subscribeCol,
   COLLECTIONS, db, Timestamp, setDocData
@@ -106,7 +106,6 @@ export const useAppStore = create<AppState>()(
           const data = await getColData(COLLECTIONS.SETTINGS);
           if (data && data.length > 0) {
             const loaded = { ...defaultSettings, ...data[0] };
-            // Ensure financialYears exists
             if (!loaded.financialYears || loaded.financialYears.length === 0) {
               loaded.financialYears = defaultSettings.financialYears;
             }
@@ -133,10 +132,13 @@ export const useAppStore = create<AppState>()(
       },
       loadParties: async () => {
         const data = await getColData(COLLECTIONS.PARTIES);
-        // Backward compat: ensure productIds exists
         const normalized = (data as Party[]).map(p => ({
           ...p,
-          productIds: p.productIds || []
+          productIds: p.productIds || [],
+          alternatePhones: p.alternatePhones || [],
+          alternateEmails: p.alternateEmails || [],
+          otherContacts: p.otherContacts || [],
+          contactPerson: p.contactPerson || ''
         }));
         set({ parties: normalized });
       },
@@ -180,7 +182,6 @@ export const useAppStore = create<AppState>()(
       },
       loadContracts: async () => {
         const data = await getColData(COLLECTIONS.CONTRACTS);
-        // Backward compat: ensure new fields exist
         const normalized = (data as Contract[]).map(c => ({
           ...c,
           financialYear: c.financialYear || `${c.year}-${c.year + 1}`,
