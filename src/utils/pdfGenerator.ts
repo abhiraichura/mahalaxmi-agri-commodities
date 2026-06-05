@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Contract, CompanySettings } from '../types';
+import { Contract, CompanySettings, BrokerageBill, BillPayment } from '../types';
 import { format } from 'date-fns';
 
 type RGB = [number, number, number];
@@ -241,12 +241,12 @@ export const generateContractPDF = (
   const terms = settings.termsAndConditions.length > 0
     ? settings.termsAndConditions
     : [
-        'Goods to be loaded within stipulated time as per contract.',
-        'After dispatching of goods, intimation must be given to us.',
-        'If any bargain cancelled due to time limit, loading condition or Govt. restriction, our brokerage will be charged as usual.',
-        'This contract is subject to responsibility of both parties and effected as a broker of both parties without any liabilities.',
-        'We have full power to settle all claims amicably which will bind both buyer and seller equally.'
-      ];
+      'Goods to be loaded within stipulated time as per contract.',
+      'After dispatching of goods, intimation must be given to us.',
+      'If any bargain cancelled due to time limit, loading condition or Govt. restriction, our brokerage will be charged as usual.',
+      'This contract is subject to responsibility of both parties and effected as a broker of both parties without any liabilities.',
+      'We have full power to settle all claims amicably which will bind both buyer and seller equally.'
+    ];
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
@@ -336,7 +336,16 @@ export const generateBrokerageBillPDF = (
 
   doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
-  doc.text(`Period: ${bill.month}/${bill.year}`, M, y);
+
+  // Show date range if available, otherwise month/year
+  if (bill.month && bill.month > 0) {
+    doc.text(`Period: ${bill.month}/${bill.year}`, M, y);
+  } else if (bill.fromDate && bill.toDate) {
+    doc.text(`Period: ${format(new Date(bill.fromDate), 'dd/MM/yyyy')} - ${format(new Date(bill.toDate), 'dd/MM/yyyy')}`, M, y);
+  } else {
+    doc.text(`Period: ${bill.year}`, M, y);
+  }
+
   doc.text(`Generated: ${format(new Date(bill.generatedAt?.toDate ? bill.generatedAt.toDate() : bill.generatedAt), 'dd/MM/yyyy')}`, 198, y, { align: 'right' });
   y += 8;
 
@@ -347,8 +356,37 @@ export const generateBrokerageBillPDF = (
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(...GRAY);
-  doc.text(`GSTIN: ${bill.party.gstin}`, M, y);
-  y += 8;
+  if (bill.party.gstin) {
+    doc.text(`GSTIN: ${bill.party.gstin}`, M, y);
+    y += 4;
+  }
+  if (bill.party.address) {
+    doc.text(`${bill.party.address}, ${bill.party.city}, ${bill.party.state}`, M, y);
+    y += 4;
+  }
+  y += 4;
+
+  // Payment status summary
+  if (bill.status || bill.paidAmount > 0) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...RED);
+    const statusText = bill.status === 'paid' ? 'PAID' : bill.status === 'partial' ? 'PARTIALLY PAID' : 'PENDING';
+    doc.text(`Payment Status: ${statusText}`, M, y);
+    y += 5;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Total Brokerage: Rs. ${bill.totalBrokerage.toLocaleString('en-IN')}`, M, y);
+    if (bill.paidAmount > 0) {
+      doc.text(`Paid: Rs. ${bill.paidAmount.toLocaleString('en-IN')}`, 105, y, { align: 'center' });
+    }
+    if (bill.balanceAmount > 0) {
+      doc.text(`Balance: Rs. ${bill.balanceAmount.toLocaleString('en-IN')}`, 198, y, { align: 'right' });
+    }
+    y += 8;
+  }
 
   const tableData = (bill.contracts || []).map((c: any) => [
     c.contractNo,
@@ -380,6 +418,39 @@ export const generateBrokerageBillPDF = (
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...RED);
   doc.text(`Total Brokerage: Rs.${bill.totalBrokerage.toLocaleString('en-IN')}`, 198, finalY, { align: 'right' });
+
+  // Payment history in PDF
+  if (bill.payments && bill.payments.length > 0) {
+    let payY = finalY + 15;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...RED);
+    doc.text('Payment History', M, payY);
+    payY += 8;
+
+    const paymentRows = bill.payments.map((p: BillPayment) => [
+      format(new Date(p.date), 'dd/MM/yyyy'),
+      p.mode.replace('_', ' ').toUpperCase(),
+      p.reference || '-',
+      `Rs. ${p.amount.toLocaleString('en-IN')}`
+    ]);
+
+    autoTable(doc, {
+      startY: payY,
+      head: [['Date', 'Mode', 'Reference', 'Amount']],
+      body: paymentRows,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [240, 240, 240],
+        textColor: [0, 0, 0],
+        fontStyle: 'bold',
+        fontSize: 8
+      },
+      bodyStyles: { fontSize: 8 },
+      margin: { left: M, right: M },
+      tableWidth: W
+    });
+  }
 
   doc.setFontSize(8);
   doc.setTextColor(...GRAY);
