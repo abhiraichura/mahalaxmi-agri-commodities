@@ -1,3 +1,11 @@
+export interface ContactPerson {
+  id: string;
+  name: string;
+  role: string; // e.g., "Manager", "Logistic Manager", "Director"
+  phone: string;
+  email: string;
+}
+
 export interface Party {
   id: string;
   name: string;
@@ -11,9 +19,13 @@ export interface Party {
   email: string;
   pan: string;
   type: 'buyer' | 'seller' | 'both';
-  brokeragePercent: number;
-  brokerageFixed: number;
-  productIds: string[]; // NEW: products this party deals in
+  // REMOVED: brokeragePercent, brokerageFixed (moved to product level)
+  productIds: string[];
+  // NEW: Internal directory fields (NOT for contracts/bills)
+  contactPerson: string; // Primary contact person name
+  alternatePhones: string[];
+  alternateEmails: string[];
+  otherContacts: ContactPerson[]; // Manager, logistic manager, etc.
   createdAt: any;
   updatedAt: any;
 }
@@ -54,7 +66,7 @@ export interface Contract {
   id: string;
   contractNo: string;
   year: number;
-  financialYear: string; // NEW: e.g. "2025-2026"
+  financialYear: string;
   date: string;
   sellerId: string;
   seller: Party;
@@ -70,19 +82,29 @@ export interface Contract {
   deliveryAddress: string;
   packing: string;
   loadingCondition: string;
-  loadingDeadline: string; // NEW: date by which goods must be loaded
+  loadingDeadline: string;
   paymentTerms: string;
   gstPercent: number;
   otherTerms: string;
   notes: string;
   status: 'draft' | 'confirmed' | 'cancelled' | 'completed';
   brokerageAmount: number;
-  payments: Payment[]; // NEW: for ledger tracking
+  payments: Payment[];
   createdAt: any;
   updatedAt: any;
 }
 
 export interface Payment {
+  id: string;
+  date: string;
+  amount: number;
+  mode: 'cash' | 'cheque' | 'bank_transfer' | 'upi' | 'other';
+  reference: string;
+  notes: string;
+  createdAt: any;
+}
+
+export interface BillPayment {
   id: string;
   date: string;
   amount: number;
@@ -102,7 +124,10 @@ export interface BrokerageBill {
   totalBrokerage: number;
   totalQuantity: number;
   generatedAt: any;
-  status: 'pending' | 'sent' | 'paid';
+  status: 'pending' | 'paid' | 'partial';
+  payments: BillPayment[];
+  paidAmount: number;
+  balanceAmount: number;
 }
 
 export interface CompanySettings {
@@ -117,7 +142,7 @@ export interface CompanySettings {
   email: string;
   logo: string | null;
   signature: string | null;
-  letterhead: string | null; // NEW: letterhead image for print reference
+  letterhead: string | null;
   pan: string;
   bankName: string;
   bankAccount: string;
@@ -128,7 +153,7 @@ export interface CompanySettings {
   defaultLoadingCondition: string;
   defaultPacking: string;
   financialYearStart: number;
-  financialYears: string[]; // NEW: list of available years like ["2025-2026", "2026-2027"]
+  financialYears: string[];
 }
 
 export interface Note {
