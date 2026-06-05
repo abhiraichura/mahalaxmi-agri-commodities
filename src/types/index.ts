@@ -1,3 +1,11 @@
+export interface ContactPerson {
+  id: string;
+  name: string;
+  designation: string;
+  phone: string;
+  email: string;
+}
+
 export interface Party {
   id: string;
   name: string;
@@ -11,9 +19,14 @@ export interface Party {
   email: string;
   pan: string;
   type: 'buyer' | 'seller' | 'both';
-  brokeragePercent: number;
-  brokerageFixed: number;
-  productIds: string[]; // NEW: products this party deals in
+  // Contact details - strictly for directory only, never in contracts/bills
+  contactPerson: string;
+  alternateNumbers: string[];
+  alternateEmails: string[];
+  contacts: ContactPerson[];
+  // Product trading info - strictly for directory only
+  productIds: string[];
+  products: ProductSpec[];
   createdAt: any;
   updatedAt: any;
 }
@@ -26,27 +39,11 @@ export interface SpecField {
   order: number;
 }
 
-export interface BrokerageConfig {
-  type: 'percent' | 'fixed';
-  value: number;
-}
-
-export interface ProductBrokerage {
-  buyer: BrokerageConfig;
-  seller: BrokerageConfig;
-  // backward compat fields
-  buyerPercent?: number;
-  buyerFixed?: number;
-  sellerPercent?: number;
-  sellerFixed?: number;
-}
-
 export interface ProductSpec {
   id: string;
   name: string;
   specs: SpecField[];
-  defaultBrokerage: number; // kept for backward compatibility
-  brokerage: ProductBrokerage;
+  defaultBrokerage: number;
   createdAt: any;
 }
 
@@ -54,7 +51,6 @@ export interface Contract {
   id: string;
   contractNo: string;
   year: number;
-  financialYear: string; // NEW: e.g. "2025-2026"
   date: string;
   sellerId: string;
   seller: Party;
@@ -70,26 +66,14 @@ export interface Contract {
   deliveryAddress: string;
   packing: string;
   loadingCondition: string;
-  loadingDeadline: string; // NEW: date by which goods must be loaded
   paymentTerms: string;
   gstPercent: number;
   otherTerms: string;
   notes: string;
   status: 'draft' | 'confirmed' | 'cancelled' | 'completed';
   brokerageAmount: number;
-  payments: Payment[]; // NEW: for ledger tracking
   createdAt: any;
   updatedAt: any;
-}
-
-export interface Payment {
-  id: string;
-  date: string;
-  amount: number;
-  mode: 'cash' | 'cheque' | 'bank_transfer' | 'upi' | 'other';
-  reference: string;
-  notes: string;
-  createdAt: any;
 }
 
 export interface BrokerageBill {
@@ -102,7 +86,13 @@ export interface BrokerageBill {
   totalBrokerage: number;
   totalQuantity: number;
   generatedAt: any;
-  status: 'pending' | 'sent' | 'paid';
+  status: 'pending' | 'paid';
+  // Payment details
+  paymentDate: string;
+  paymentMode: string;
+  paymentAmount: number;
+  paymentReference: string;
+  paymentNotes: string;
 }
 
 export interface CompanySettings {
@@ -117,7 +107,6 @@ export interface CompanySettings {
   email: string;
   logo: string | null;
   signature: string | null;
-  letterhead: string | null; // NEW: letterhead image for print reference
   pan: string;
   bankName: string;
   bankAccount: string;
@@ -128,16 +117,6 @@ export interface CompanySettings {
   defaultLoadingCondition: string;
   defaultPacking: string;
   financialYearStart: number;
-  financialYears: string[]; // NEW: list of available years like ["2025-2026", "2026-2027"]
-}
-
-export interface Note {
-  id: string;
-  title: string;
-  content: string;
-  tags: string[];
-  createdAt: any;
-  updatedAt: any;
 }
 
 export interface User {
