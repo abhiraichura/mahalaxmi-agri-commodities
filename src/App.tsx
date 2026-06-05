@@ -15,6 +15,7 @@ import LoadingScreen from './components/LoadingScreen';
 import Notes from './pages/Notes';
 import PartyLedger from './pages/PartyLedger';
 import AllContracts from './pages/AllContracts';
+import GulfFoodDirectory from './pages/GulfFoodDirectory';
 
 function App() {
   const { user, loading } = useAuthStore();
@@ -24,15 +25,14 @@ function App() {
   if (!user) {
     return (
       <>
-        <Toaster position="top-right" />
         <Login />
+        <Toaster position="top-right" />
       </>
     );
   }
 
   return (
     <BrowserRouter>
-      <Toaster position="top-right" />
       <Layout>
         <Routes>
           <Route path="/" element={<Dashboard />} />
@@ -43,14 +43,16 @@ function App() {
           <Route path="/parties" element={<PartyDirectory />} />
           <Route path="/parties/new" element={<PartyForm />} />
           <Route path="/parties/edit/:id" element={<PartyForm />} />
+          <Route path="/gulfood" element={<GulfFoodDirectory />} />
           <Route path="/products" element={<ProductManager />} />
-          <Route path="/bills" element={<BrokerageBills />} />
+          <Route path="/brokerage" element={<BrokerageBills />} />
           <Route path="/ledger" element={<PartyLedger />} />
           <Route path="/notes" element={<Notes />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Layout>
+      <Toaster position="top-right" />
     </BrowserRouter>
   );
 }
