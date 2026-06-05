@@ -38,27 +38,28 @@ export const generateContractPDF = (
 
   const PW = 210;
   const PH = 297;
-  const M = 15;
+  const M = 12; // Reduced margin from 15 to 12
   const W = PW - M * 2;
 
-  let y = 50; // Letterhead spacer
+  // Reduced letterhead spacer - if no letterhead image, start higher
+  let y = settings.letterhead ? 35 : 20;
 
   // CONTRACT TITLE
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
+  doc.setFontSize(12); // Slightly smaller
   doc.setTextColor(...RED);
   doc.text('CONTRACT NOTE', PW / 2, y, { align: 'center' });
-  y += 6;
+  y += 5;
 
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setTextColor(...DARK);
   doc.text(`No. ${contract.contractNo} / ${contract.financialYear || contract.year}`, PW / 2, y, { align: 'center' });
-  y += 4.5;
+  y += 4;
   doc.text(`Date: ${format(new Date(contract.date), 'dd/MM/yyyy')}`, PW / 2, y, { align: 'center' });
-  y += 10;
+  y += 7;
 
-  // PARTIES BOX
-  const partyH = 36;
+  // PARTIES BOX - Compact
+  const partyH = 30; // Reduced from 36
   doc.setDrawColor(...BORDER);
   doc.setLineWidth(0.25);
   doc.setFillColor(...LIGHT);
@@ -72,82 +73,82 @@ export const generateContractPDF = (
   const secondLabel = type === 'buyer_copy' ? 'SELLER' : 'BUYER';
 
   // First party (left)
-  let py = y + 5;
+  let py = y + 4;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(...RED);
-  doc.text(`${firstLabel}:`, M + 3, py);
-  py += 5;
-  doc.setTextColor(...BLACK);
-  doc.setFontSize(9.5);
-  doc.text(firstParty.legalName, M + 3, py);
-  py += 4.5;
-  doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
+  doc.setTextColor(...RED);
+  doc.text(`${firstLabel}:`, M + 2, py);
+  py += 4;
+  doc.setTextColor(...BLACK);
+  doc.setFontSize(9);
+  doc.text(firstParty.legalName, M + 2, py);
+  py += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
   doc.setTextColor(...GRAY);
-  const addr1 = wrapText(doc, firstParty.address, colW - 6);
+  const addr1 = wrapText(doc, firstParty.address, colW - 4);
   addr1.forEach(line => {
-    doc.text(line, M + 3, py);
-    py += 3.5;
+    doc.text(line, M + 2, py);
+    py += 3;
   });
-  doc.text(`${firstParty.city}, ${firstParty.state} - ${firstParty.pincode}`, M + 3, py);
-  py += 3.5;
+  doc.text(`${firstParty.city}, ${firstParty.state} - ${firstParty.pincode}`, M + 2, py);
+  py += 3;
   if (firstParty.gstin) {
-    doc.text(`GSTIN: ${firstParty.gstin}`, M + 3, py);
-    py += 3.5;
+    doc.text(`GSTIN: ${firstParty.gstin}`, M + 2, py);
+    py += 3;
   }
   if (firstParty.phone) {
-    doc.text(`Phone: ${firstParty.phone}`, M + 3, py);
+    doc.text(`Phone: ${firstParty.phone}`, M + 2, py);
   }
 
   // Second party (right)
   const rx = M + colW + 2;
-  py = y + 5;
+  py = y + 4;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setTextColor(...RED);
   doc.text(`${secondLabel}:`, rx, py);
-  py += 5;
+  py += 4;
   doc.setTextColor(...BLACK);
-  doc.setFontSize(9.5);
+  doc.setFontSize(9);
   doc.text(secondParty.legalName, rx, py);
-  py += 4.5;
+  py += 4;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setTextColor(...GRAY);
-  const addr2 = wrapText(doc, secondParty.address, colW - 6);
+  const addr2 = wrapText(doc, secondParty.address, colW - 4);
   addr2.forEach(line => {
     doc.text(line, rx, py);
-    py += 3.5;
+    py += 3;
   });
   doc.text(`${secondParty.city}, ${secondParty.state} - ${secondParty.pincode}`, rx, py);
-  py += 3.5;
+  py += 3;
   if (secondParty.gstin) {
     doc.text(`GSTIN: ${secondParty.gstin}`, rx, py);
-    py += 3.5;
+    py += 3;
   }
   if (secondParty.phone) {
     doc.text(`Phone: ${secondParty.phone}`, rx, py);
   }
 
-  y += partyH + 8;
+  y += partyH + 5;
 
   // PRODUCT
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setTextColor(...RED);
   doc.text('PRODUCT', M, y);
-  y += 5;
+  y += 4;
 
   doc.setFillColor(...LIGHT);
-  doc.rect(M, y, W, 7, 'FD');
+  doc.rect(M, y, W, 6, 'FD');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(...BLACK);
-  doc.text(contract.product.name.toUpperCase(), M + 3, y + 5);
-  y += 9;
+  doc.text(contract.product.name.toUpperCase(), M + 2, y + 4.5);
+  y += 7;
 
-  // Specs table
+  // Specs table - compact
   if (contract.product.specs && contract.product.specs.length > 0) {
     const specRows = contract.product.specs
       .sort((a, b) => (a.order || 0) - (b.order || 0))
@@ -162,32 +163,34 @@ export const generateContractPDF = (
         fillColor: [255, 255, 255],
         textColor: [160, 30, 50],
         fontStyle: 'bold',
-        fontSize: 8,
-        lineWidth: 0.3,
-        lineColor: [220, 220, 220]
+        fontSize: 7.5,
+        lineWidth: 0.25,
+        lineColor: [220, 220, 220],
+        cellPadding: 1.5
       },
       bodyStyles: {
-        fontSize: 8,
+        fontSize: 7.5,
         lineWidth: 0.2,
-        lineColor: [220, 220, 220]
+        lineColor: [220, 220, 220],
+        cellPadding: 1.5
       },
       columnStyles: {
-        0: { cellWidth: 55, fontStyle: 'bold' },
+        0: { cellWidth: 50, fontStyle: 'bold' },
         1: { cellWidth: 'auto' }
       },
       margin: { left: M, right: M },
       tableWidth: W
     });
 
-    y = (doc as any).lastAutoTable.finalY + 6;
+    y = (doc as any).lastAutoTable.finalY + 4;
   }
 
   // COMMERCIAL TERMS
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setTextColor(...RED);
   doc.text('COMMERCIAL TERMS', M, y);
-  y += 5;
+  y += 4;
 
   const quantityKg = toKg(contract.quantity, contract.quantityUnit);
   const totalValue = quantityKg * contract.price;
@@ -217,97 +220,110 @@ export const generateContractPDF = (
     body: commRows,
     theme: 'grid',
     bodyStyles: {
-      fontSize: 8,
+      fontSize: 7.5,
       lineWidth: 0.2,
-      lineColor: [220, 220, 220]
+      lineColor: [220, 220, 220],
+      cellPadding: 1.5
     },
     columnStyles: {
-      0: { cellWidth: 45, fontStyle: 'bold', fillColor: [248, 248, 248] },
+      0: { cellWidth: 42, fontStyle: 'bold', fillColor: [248, 248, 248] },
       1: { cellWidth: 'auto' }
     },
     margin: { left: M, right: M },
     tableWidth: W
   });
 
-  y = (doc as any).lastAutoTable.finalY + 6;
+  y = (doc as any).lastAutoTable.finalY + 4;
 
-  // TERMS & CONDITIONS
+  // TERMS & CONDITIONS - Compact single column to save space
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setTextColor(...RED);
   doc.text('TERMS & CONDITIONS', M, y);
-  y += 5;
+  y += 4;
 
   const terms = settings.termsAndConditions.length > 0
     ? settings.termsAndConditions
     : [
-      'Goods to be loaded within stipulated time as per contract.',
-      'After dispatching of goods, intimation must be given to us.',
-      'If any bargain cancelled due to time limit, loading condition or Govt. restriction, our brokerage will be charged as usual.',
-      'This contract is subject to responsibility of both parties and effected as a broker of both parties without any liabilities.',
-      'We have full power to settle all claims amicably which will bind both buyer and seller equally.'
-    ];
+        'Goods to be loaded within stipulated time as per contract.',
+        'After dispatching of goods, intimation must be given to us.',
+        'If any bargain cancelled due to time limit, loading condition or Govt. restriction, our brokerage will be charged as usual.',
+        'This contract is subject to responsibility of both parties and effected as a broker of both parties without any liabilities.',
+        'We have full power to settle all claims amicably which will bind both buyer and seller equally.'
+      ];
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setTextColor(...DARK);
+
+  // Calculate available space for terms
+  const footerHeight = 22; // Reduced from 40
+  const availableSpace = PH - M - footerHeight;
 
   terms.forEach((term, index) => {
     const num = `${index + 1}. `;
     const text = num + term;
-    const splitText = wrapText(doc, text, W - 5);
+    const splitText = wrapText(doc, text, W - 4);
+    const lineHeight = 2.8; // Reduced from 3.5
+    const termHeight = splitText.length * lineHeight;
+
+    // If we're about to overflow, reduce font size further
+    if (y + termHeight > availableSpace) {
+      doc.setFontSize(6.5);
+    }
+
     doc.text(splitText, M + 2, y);
-    y += (splitText.length * 3.5) + 1;
+    y += termHeight + 0.5;
   });
 
-  y += 4;
+  y += 2;
 
-  // FOOTER
-  if (y > PH - 40) {
-    doc.addPage();
-    y = M;
-    y = 50;
+  // FOOTER - Always on same page, no addPage
+  // If y is too close to bottom, push it up slightly
+  const minFooterY = PH - M - 20;
+  if (y > minFooterY) {
+    y = minFooterY;
   }
 
   // Separator
   doc.setDrawColor(...RED);
-  doc.setLineWidth(0.4);
+  doc.setLineWidth(0.35);
   doc.line(M, y, PW - M, y);
-  y += 7;
+  y += 5;
 
   // Broker info left, signature right
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(...BLACK);
   doc.text(settings.legalName, M, y);
 
   if (settings.signature) {
     try {
-      doc.addImage(settings.signature, 'PNG', PW - M - 40, y - 5, 35, 15);
+      doc.addImage(settings.signature, 'PNG', PW - M - 35, y - 4, 30, 12);
     } catch (e) {
       // skip
     }
   }
 
   doc.text('Authorized Signature', PW - M, y, { align: 'right' });
-  y += 5;
+  y += 4;
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(...GRAY);
   doc.text(`For, ${settings.name}`, M, y);
 
   // Page border
   doc.setDrawColor(...BORDER);
-  doc.setLineWidth(0.4);
+  doc.setLineWidth(0.35);
   doc.rect(M - 2, M - 2, W + 4, PH - M * 2 + 4, 'D');
 
   // Copy label at bottom right
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(...RED);
   const copyLabel = type === 'buyer_copy' ? 'BUYER COPY' : type === 'seller_copy' ? 'SELLER COPY' : 'BROKER COPY';
-  doc.text(copyLabel, PW - M, PH - M + 2, { align: 'right' });
+  doc.text(copyLabel, PW - M, PH - M + 1, { align: 'right' });
 
   return doc;
 };
@@ -341,7 +357,7 @@ export const generateBrokerageBillPDF = (
   if (bill.month && bill.month > 0) {
     doc.text(`Period: ${bill.month}/${bill.year}`, M, y);
   } else if (bill.fromDate && bill.toDate) {
-    doc.text(`Period: ${format(new Date(bill.fromDate), 'dd/MM/yyyy')} - ${format(new Date(bill.toDate), 'dd/MM/yyyy')}`, M, y);
+    doc.text(`Period: ${format(new Date(bill.fromDate), 'dd/MM/yyyy')} - ${format(new Date(b.toDate), 'dd/MM/yyyy')}`, M, y);
   } else {
     doc.text(`Period: ${bill.year}`, M, y);
   }
