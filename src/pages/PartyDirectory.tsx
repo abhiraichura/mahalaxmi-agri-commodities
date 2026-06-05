@@ -1,371 +1,283 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Search, Plus, Phone, MapPin, Building2, UserCircle, Trash2, Edit2, X, Mail, Users, Package } from 'lucide-react';
 import { useAppStore } from '../hooks/useAuthStore';
-import {
-  Search, Plus, Phone, MapPin, Edit2, Trash2, Eye, Upload, Download,
-  ChevronDown, X, FileSpreadsheet
-} from 'lucide-react';
 import toast from 'react-hot-toast';
+import type { Party } from '../types';
 
 export default function PartyDirectory() {
   const navigate = useNavigate();
-  const { parties, products, deleteParty, addParty } = useAppStore();
+  const { parties, products, loadParties, loadProducts, deleteParty } = useAppStore();
   const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'buyer' | 'seller' | 'both'>('all');
-  const [viewingParty, setViewingParty] = useState<any>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [filter, setFilter] = useState<'all' | 'buyer' | 'seller'>('all');
+  const [loading, setLoading] = useState(true);
+  const [selectedParty, setSelectedParty] = useState<Party | null>(null);
+
+  useEffect(() => {
+    Promise.all([loadParties(), loadProducts()]).then(() => setLoading(false));
+  }, []);
 
   const filtered = parties.filter(p => {
-    const matchesSearch =
-      (p.legalName || '').toLowerCase().includes(search.toLowerCase()) ||
-      (p.name || '').toLowerCase().includes(search.toLowerCase()) ||
-      (p.gstin || '').toLowerCase().includes(search.toLowerCase()) ||
-      (p.city || '').toLowerCase().includes(search.toLowerCase()) ||
-      (p.phone || '').toLowerCase().includes(search.toLowerCase());
-    const matchesType = filterType === 'all' || p.type === filterType;
-    return matchesSearch && matchesType;
+    const searchLower = search.toLowerCase();
+    const matchesName = p.legalName.toLowerCase().includes(searchLower) ||
+      (p.name || '').toLowerCase().includes(searchLower);
+    const matchesCity = p.city.toLowerCase().includes(searchLower);
+    const matchesContact = (p.contactPerson || '').toLowerCase().includes(searchLower);
+    const matchesPhone = (p.phone || '').includes(search) ||
+      (p.alternateNumbers || []).some(n => n.includes(search));
+    // Product search: if search matches any product name, show parties that trade that product
+    const matchesProduct = (p.products || []).some(prod => prod.name.toLowerCase().includes(searchLower));
+    const matches = matchesName || matchesCity || matchesContact || matchesPhone || matchesProduct;
+    const typeMatch = filter === 'all' || p.type === filter || p.type === 'both';
+    return matches && typeMatch;
   });
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this party?')) return;
-    await deleteParty(id);
-    toast.success('Deleted');
+    try { await deleteParty(id); toast.success('Deleted'); } catch (e) { toast.error('Failed'); }
   };
 
-  // Parse phone numbers - split by / or ,
-  const parsePhones = (phoneStr: string): string[] => {
-    if (!phoneStr) return [];
-    return phoneStr.split(/[/,]/).map(s => s.trim()).filter(Boolean);
-  };
-
-  // Export to CSV
-  const exportCSV = () => {
-    const headers = ['ID', 'Legal Name', 'Display Name', 'GSTIN', 'Type', 'Address', 'City', 'State', 'Pincode', 'Phone', 'Email', 'PAN', 'Brokerage %', 'Brokerage Fixed', 'Products'];
-    const rows = parties.map(p => [
-      p.id,
-      p.legalName,
-      p.name,
-      p.gstin,
-      p.type,
-      p.address,
-      p.city,
-      p.state,
-      p.pincode,
-      p.phone,
-      p.email,
-      p.pan,
-      p.brokeragePercent,
-      p.brokerageFixed,
-      (p.productIds || []).map(pid => products.find(prod => prod.id === pid)?.name || pid).join('; ')
-    ]);
-
-    const csv = [headers.join(','), ...rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `parties_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Exported to CSV');
-  };
-
-  // Import from CSV
-  const importCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const text = ev.target?.result as string;
-      const lines = text.split('\n').filter(l => l.trim());
-      if (lines.length < 2) {
-        toast.error('CSV is empty');
-        return;
-      }
-
-      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-      const imported: any[] = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
-        const row: any = {};
-        headers.forEach((h, idx) => {
-          row[h] = values[idx] || '';
-        });
-        imported.push(row);
-      }
-
-      let count = 0;
-      for (const row of imported) {
-        if (!row['Legal Name']) continue;
-        const party = {
-          id: row['ID'] || crypto.randomUUID(),
-          legalName: row['Legal Name'],
-          name: row['Display Name'] || row['Legal Name'],
-          gstin: row['GSTIN'] || '',
-          type: (row['Type'] as any) || 'both',
-          address: row['Address'] || '',
-          city: row['City'] || '',
-          state: row['State'] || 'Gujarat',
-          pincode: row['Pincode'] || '',
-          phone: row['Phone'] || '',
-          email: row['Email'] || '',
-          pan: row['PAN'] || '',
-          brokeragePercent: parseFloat(row['Brokerage %']) || 0,
-          brokerageFixed: parseFloat(row['Brokerage Fixed']) || 0,
-          productIds: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        try {
-          await addParty(party);
-          count++;
-        } catch (err) {
-          console.error('Import error:', err);
-        }
-      }
-
-      toast.success(`Imported ${count} parties`);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-    reader.readAsText(file);
-  };
+  if (loading) return (
+    <div className="flex justify-center py-20">
+      <div className="w-8 h-8 border-4 border-rose-200 border-t-rose-600 rounded-full animate-spin" />
+    </div>
+  );
 
   return (
-    <div>
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold">Party Directory</h1>
-        <div className="flex items-center gap-2">
-          <input
-            type="file"
-            accept=".csv"
-            ref={fileInputRef}
-            onChange={importCSV}
-            className="hidden"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50"
-          >
-            <Upload className="w-4 h-4" /> Import CSV
-          </button>
-          <button
-            onClick={exportCSV}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50"
-          >
-            <Download className="w-4 h-4" /> Export CSV
-          </button>
-          <button
-            onClick={() => navigate('/parties/new')}
-            className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700"
-          >
-            <Plus className="w-4 h-4" /> Add Party
-          </button>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Party Directory</h1>
+          <p className="text-sm text-gray-500 mt-1">{filtered.length} parties</p>
+        </div>
+        <button onClick={() => navigate('/party/new')}
+          className="px-4 py-2 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700 flex items-center gap-2">
+          <Plus className="w-4 h-4" /> Add Party
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-4">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name, city, contact person, phone, or product (e.g. sesame)..."
+            className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+        </div>
+        <div className="flex gap-2">
+          {(['all', 'buyer', 'seller'] as const).map(t => (
+            <button key={t} onClick={() => setFilter(t)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${filter === t ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>
+              {t === 'all' ? 'All' : t === 'buyer' ? 'Buyers' : 'Sellers'}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name, GSTIN, city, phone..."
-            className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm"
-          />
-        </div>
-        <select
-          value={filterType}
-          onChange={e => setFilterType(e.target.value as any)}
-          className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm"
-        >
-          <option value="all">All Types</option>
-          <option value="buyer">Buyers</option>
-          <option value="seller">Sellers</option>
-          <option value="both">Both</option>
-        </select>
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <FileSpreadsheet className="w-12 h-12 mx-auto mb-3" />
-          <p>No parties found</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(party => {
-            const phones = parsePhones(party.phone);
-            const partyProducts = (party.productIds || []).map(pid => products.find(prod => prod.id === pid)).filter(Boolean);
-
-            return (
-              <div
-                key={party.id}
-                onClick={() => setViewingParty(party)}
-                className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md hover:border-rose-200 transition-all cursor-pointer group"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{party.legalName}</h3>
-                    {party.name !== party.legalName && (
-                      <p className="text-xs text-gray-500">{party.name}</p>
-                    )}
-                  </div>
-                  <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                    party.type === 'buyer' ? 'bg-blue-50 text-blue-700' :
-                    party.type === 'seller' ? 'bg-amber-50 text-amber-700' :
-                    'bg-purple-50 text-purple-700'
-                  }`}>
-                    {party.type}
-                  </span>
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filtered.map(party => (
+          <div key={party.id} 
+            onClick={() => setSelectedParty(party)}
+            className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md transition-all group cursor-pointer">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  party.type === 'buyer' ? 'bg-blue-50 text-blue-600' :
+                  party.type === 'seller' ? 'bg-green-50 text-green-600' : 'bg-purple-50 text-purple-600'
+                }`}>
+                  {party.type === 'buyer' ? <Building2 className="w-5 h-5" /> :
+                     party.type === 'seller' ? <UserCircle className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
                 </div>
-
-                <div className="space-y-2 text-sm">
-                  {party.gstin && (
-                    <p className="text-gray-600">GSTIN: {party.gstin}</p>
-                  )}
-                  <div className="flex items-start gap-2 text-gray-600">
-                    <MapPin className="w-4 h-4 mt-0.5 text-gray-400 shrink-0" />
-                    <span>{party.city}, {party.state}</span>
-                  </div>
-
-                  {/* Clickable phone numbers */}
-                  {phones.length > 0 && (
-                    <div className="flex items-start gap-2">
-                      <Phone className="w-4 h-4 mt-0.5 text-gray-400 shrink-0" />
-                      <div className="flex flex-wrap gap-2">
-                        {phones.map((phone, idx) => (
-                          <a
-                            key={idx}
-                            href={`tel:+91${phone.replace(/\D/g, '')}`}
-                            onClick={e => e.stopPropagation()}
-                            className="text-rose-600 hover:text-rose-800 hover:underline"
-                          >
-                            {phone}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Product tags */}
-                  {partyProducts.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {partyProducts.map(prod => (
-                        <span key={prod!.id} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-md">
-                          {prod!.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      setViewingParty(party);
-                    }}
-                    className="p-2 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
-                    title="View"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      navigate(`/parties/edit/${party.id}`);
-                    }}
-                    className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                    title="Edit"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      handleDelete(party.id);
-                    }}
-                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg ml-auto"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{party.legalName}</h3>
+                  <p className="text-xs text-gray-500">{party.city}</p>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                <button onClick={() => navigate(`/party/${party.id}/edit`)} 
+                  className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600">
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button onClick={() => handleDelete(party.id)} 
+                  className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Users className="w-4 h-4 text-gray-400 shrink-0" />
+                <span className="truncate">{party.contactPerson || 'N/A'}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Phone className="w-4 h-4 text-gray-400 shrink-0" />
+                <a href={`tel:${party.phone}`} onClick={e => e.stopPropagation()} className="hover:text-rose-600 hover:underline">
+                  {party.phone || 'N/A'}
+                </a>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+                <span className="truncate">{party.address}, {party.city}</span>
+              </div>
+              {(party.products || []).length > 0 && (
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Package className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span className="truncate">{(party.products || []).map(p => p.name).join(', ')}</span>
+                </div>
+              )}
+            </div>
+            <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+              <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                party.type === 'buyer' ? 'bg-blue-50 text-blue-700' :
+                party.type === 'seller' ? 'bg-green-50 text-green-700' : 'bg-purple-50 text-purple-700'
+              }`}>
+                {party.type === 'both' ? 'Buyer & Seller' : party.type === 'buyer' ? 'Buyer' : 'Seller'}
+              </span>
+              <span className="text-xs text-gray-400">Click to view details</span>
+            </div>
+          </div>
+        ))}
+      </div>
 
-      {/* View Party Modal */}
-      {viewingParty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setViewingParty(null)}>
-          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-auto p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">{viewingParty.legalName}</h2>
-              <button onClick={() => setViewingParty(null)} className="p-1 hover:bg-gray-100 rounded-lg">
-                <X className="w-5 h-5" />
+      {/* Party Detail Modal */}
+      {selectedParty && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelectedParty(null)}>
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">{selectedParty.legalName}</h2>
+                <p className="text-sm text-gray-500">{selectedParty.city}, {selectedParty.state}</p>
+              </div>
+              <button onClick={() => setSelectedParty(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
-
-            <div className="space-y-3 text-sm">
-              {viewingParty.name !== viewingParty.legalName && (
-                <p><span className="text-gray-500">Display Name:</span> {viewingParty.name}</p>
-              )}
-              {viewingParty.gstin && <p><span className="text-gray-500">GSTIN:</span> {viewingParty.gstin}</p>}
-              {viewingParty.pan && <p><span className="text-gray-500">PAN:</span> {viewingParty.pan}</p>}
-              <p><span className="text-gray-500">Type:</span> <span className="capitalize">{viewingParty.type}</span></p>
-              <p><span className="text-gray-500">Address:</span> {viewingParty.address}</p>
-              <p><span className="text-gray-500">City:</span> {viewingParty.city}, {viewingParty.state} - {viewingParty.pincode}</p>
-
-              {viewingParty.phone && (
+            <div className="p-6 space-y-6">
+              {/* Basic Info */}
+              <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <span className="text-gray-500">Phone:</span>{' '}
-                  <div className="inline-flex flex-wrap gap-2 mt-1">
-                    {parsePhones(viewingParty.phone).map((phone, idx) => (
-                      <a key={idx} href={`tel:+91${phone.replace(/\D/g, '')}`} className="text-rose-600 hover:underline">
-                        {phone}
+                  <label className="text-xs font-medium text-gray-400 uppercase">GSTIN</label>
+                  <p className="text-sm text-gray-900 mt-1">{selectedParty.gstin}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-400 uppercase">PAN</label>
+                  <p className="text-sm text-gray-900 mt-1">{selectedParty.pan || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-400 uppercase">Address</label>
+                  <p className="text-sm text-gray-900 mt-1">{selectedParty.address}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-400 uppercase">Pincode</label>
+                  <p className="text-sm text-gray-900 mt-1">{selectedParty.pincode || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Contact Person */}
+              <div className="border-t border-gray-100 pt-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <Users className="w-4 h-4" /> Primary Contact
+                </h3>
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <p className="text-sm font-medium text-gray-900">{selectedParty.contactPerson || 'N/A'}</p>
+                  <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+                    <Phone className="w-4 h-4" />
+                    <a href={`tel:${selectedParty.phone}`} className="hover:text-rose-600 hover:underline">
+                      {selectedParty.phone || 'N/A'}
+                    </a>
+                  </div>
+                  {selectedParty.email && (
+                    <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+                      <Mail className="w-4 h-4" />
+                      <a href={`mailto:${selectedParty.email}`} className="hover:text-rose-600 hover:underline">
+                        {selectedParty.email}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Alternate Numbers */}
+              {(selectedParty.alternateNumbers || []).length > 0 && (
+                <div className="border-t border-gray-100 pt-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Alternate Numbers</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedParty.alternateNumbers.map((num, i) => (
+                      <a key={i} href={`tel:${num}`} 
+                        className="px-3 py-1.5 bg-gray-50 rounded-lg text-sm text-gray-700 hover:bg-rose-50 hover:text-rose-700 transition-colors">
+                        <Phone className="w-3 h-3 inline mr-1" />{num}
                       </a>
                     ))}
                   </div>
                 </div>
               )}
 
-              {viewingParty.email && <p><span className="text-gray-500">Email:</span> {viewingParty.email}</p>}
-              <p><span className="text-gray-500">Brokerage:</span> {viewingParty.brokeragePercent}% {viewingParty.brokerageFixed > 0 ? `+ Rs.${viewingParty.brokerageFixed}` : ''}</p>
-
-              {viewingParty.productIds && viewingParty.productIds.length > 0 && (
-                <div>
-                  <span className="text-gray-500">Products:</span>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {viewingParty.productIds.map((pid: string) => {
-                      const prod = products.find(p => p.id === pid);
-                      return prod ? (
-                        <span key={pid} className="px-2 py-1 bg-rose-50 text-rose-700 text-xs rounded-lg">{prod.name}</span>
-                      ) : null;
-                    })}
+              {/* Alternate Emails */}
+              {(selectedParty.alternateEmails || []).length > 0 && (
+                <div className="border-t border-gray-100 pt-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Alternate Emails</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedParty.alternateEmails.map((em, i) => (
+                      <a key={i} href={`mailto:${em}`}
+                        className="px-3 py-1.5 bg-gray-50 rounded-lg text-sm text-gray-700 hover:bg-rose-50 hover:text-rose-700 transition-colors">
+                        <Mail className="w-3 h-3 inline mr-1" />{em}
+                      </a>
+                    ))}
                   </div>
                 </div>
               )}
-            </div>
 
-            <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
-              <button
-                onClick={() => {
-                  setViewingParty(null);
-                  navigate(`/parties/edit/${viewingParty.id}`);
-                }}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700"
-              >
-                <Edit2 className="w-4 h-4" /> Edit
-              </button>
-              <button
-                onClick={() => setViewingParty(null)}
-                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200"
-              >
-                Close
-              </button>
+              {/* Other Contacts (Manager, Logistic Manager etc.) */}
+              {(selectedParty.contacts || []).length > 0 && (
+                <div className="border-t border-gray-100 pt-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Other Contacts</h3>
+                  <div className="space-y-3">
+                    {selectedParty.contacts.map((contact) => (
+                      <div key={contact.id} className="bg-gray-50 rounded-xl p-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-gray-900">{contact.name}</p>
+                          <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full">{contact.designation}</span>
+                        </div>
+                        {contact.phone && (
+                          <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+                            <Phone className="w-4 h-4" />
+                            <a href={`tel:${contact.phone}`} className="hover:text-rose-600 hover:underline">{contact.phone}</a>
+                          </div>
+                        )}
+                        {contact.email && (
+                          <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+                            <Mail className="w-4 h-4" />
+                            <a href={`mailto:${contact.email}`} className="hover:text-rose-600 hover:underline">{contact.email}</a>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Products */}
+              {(selectedParty.products || []).length > 0 && (
+                <div className="border-t border-gray-100 pt-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <Package className="w-4 h-4" /> Trading Products
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedParty.products.map((prod) => (
+                      <span key={prod.id} className="px-3 py-1.5 bg-rose-50 text-rose-700 rounded-lg text-sm font-medium">
+                        {prod.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="border-t border-gray-100 pt-4 flex gap-3">
+                <button onClick={() => { setSelectedParty(null); navigate(`/party/${selectedParty.id}/edit`); }}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 flex items-center justify-center gap-2">
+                  <Edit2 className="w-4 h-4" /> Edit Party
+                </button>
+              </div>
             </div>
           </div>
         </div>

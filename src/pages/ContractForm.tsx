@@ -1,139 +1,114 @@
-import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Save, FileText } from 'lucide-react';
 import { useAppStore } from '../hooks/useAuthStore';
-import { ArrowLeft, Save, ChevronDown, Plus } from 'lucide-react';
-import toast from 'react-hot-toast';
+import type { Contract, Party, ProductSpec } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-
-const QUANTITY_UNITS = [
-  { value: 'MT', label: 'Metric Ton (MT)', factor: 1000 }, // 1 MT = 1000 KG
-  { value: 'KG', label: 'Kilogram (KG)', factor: 1 },
-];
+import toast from 'react-hot-toast';
 
 export default function ContractForm() {
-  const { id } = useParams();
   const navigate = useNavigate();
-  const { parties, products, contracts, addContract, updateContract, settings, currentFinancialYear, setCurrentFinancialYear } = useAppStore();
+  const { id } = useParams();
+  const { contracts, parties, products, settings, addContract, updateContract, loadContracts, loadParties, loadProducts } = useAppStore();
+
+  const existing = id ? contracts.find(c => c.id === id) : null;
+  const currentYear = new Date().getFullYear();
 
   const [form, setForm] = useState({
     contractNo: '',
+    year: currentYear,
     date: new Date().toISOString().split('T')[0],
     sellerId: '',
     buyerId: '',
     productId: '',
     quantity: 0,
-    quantityUnit: 'MT' as 'MT' | 'KG',
+    quantityUnit: 'MT',
     price: 0,
-    priceUnit: 'KG',
+    priceUnit: 'per MT',
     deliveryLocation: '',
     deliveryAddress: '',
-    packing: settings.defaultPacking || '40 KG Plain P.P. Nett Packing with Double Stitching',
-    loadingCondition: settings.defaultLoadingCondition || 'Goods to be loaded within one week',
-    loadingDeadline: '',
-    paymentTerms: settings.defaultPaymentTerms || '3 to 4 days payment with 1% discount after delivery',
+    packing: settings.defaultPacking || '',
+    loadingCondition: settings.defaultLoadingCondition || '',
+    paymentTerms: settings.defaultPaymentTerms || '',
     gstPercent: settings.defaultGstPercent || 5,
     otherTerms: '',
     notes: '',
-    status: 'confirmed' as 'draft' | 'confirmed' | 'cancelled' | 'completed',
-    financialYear: currentFinancialYear
+    status: 'draft' as 'draft' | 'confirmed' | 'cancelled' | 'completed'
   });
 
-  const [fyDropdownOpen, setFyDropdownOpen] = useState(false);
-  const [newFyInput, setNewFyInput] = useState('');
-  const [showAddFy, setShowAddFy] = useState(false);
+  const [selectedSeller, setSelectedSeller] = useState<Party | null>(null);
+  const [selectedBuyer, setSelectedBuyer] = useState<Party | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductSpec | null>(null);
 
-  const existing = id ? contracts.find(c => c.id === id) : null;
+  useEffect(() => {
+    loadContracts();
+    loadParties();
+    loadProducts();
+  }, []);
 
   useEffect(() => {
     if (existing) {
       setForm({
-        contractNo: existing.contractNo || '',
-        date: existing.date ? existing.date.split('T')[0] : new Date().toISOString().split('T')[0],
-        sellerId: existing.sellerId || '',
-        buyerId: existing.buyerId || '',
-        productId: existing.productId || '',
-        quantity: existing.quantity || 0,
-        quantityUnit: (existing.quantityUnit as 'MT' | 'KG') || 'MT',
-        price: existing.price || 0,
-        priceUnit: existing.priceUnit || 'KG',
-        deliveryLocation: existing.deliveryLocation || '',
-        deliveryAddress: existing.deliveryAddress || '',
-        packing: existing.packing || settings.defaultPacking || '',
-        loadingCondition: existing.loadingCondition || settings.defaultLoadingCondition || '',
-        loadingDeadline: existing.loadingDeadline || '',
-        paymentTerms: existing.paymentTerms || settings.defaultPaymentTerms || '',
-        gstPercent: existing.gstPercent || settings.defaultGstPercent || 5,
+        contractNo: existing.contractNo,
+        year: existing.year,
+        date: existing.date,
+        sellerId: existing.sellerId,
+        buyerId: existing.buyerId,
+        productId: existing.productId,
+        quantity: existing.quantity,
+        quantityUnit: existing.quantityUnit,
+        price: existing.price,
+        priceUnit: existing.priceUnit,
+        deliveryLocation: existing.deliveryLocation,
+        deliveryAddress: existing.deliveryAddress,
+        packing: existing.packing,
+        loadingCondition: existing.loadingCondition,
+        paymentTerms: existing.paymentTerms,
+        gstPercent: existing.gstPercent,
         otherTerms: existing.otherTerms || '',
         notes: existing.notes || '',
-        status: existing.status || 'confirmed',
-        financialYear: existing.financialYear || currentFinancialYear
+        status: existing.status
       });
-    } else {
-      const fyContracts = contracts.filter(c => c.financialYear === currentFinancialYear);
-      const maxNo = fyContracts.reduce((max, c) => {
-        const num = parseInt(c.contractNo);
-        return num > max ? num : max;
-      }, 0);
-      setForm(prev => ({ ...prev, contractNo: String(maxNo + 1).padStart(3, '0') }));
+      setSelectedSeller(existing.seller);
+      setSelectedBuyer(existing.buyer);
+      setSelectedProduct(existing.product);
     }
-  }, [existing, contracts, currentFinancialYear, settings]);
+  }, [existing]);
 
-  const selectedSeller = parties.find(p => p.id === form.sellerId);
-  const selectedBuyer = parties.find(p => p.id === form.buyerId);
-  const selectedProduct = products.find(p => p.id === form.productId);
+  useEffect(() => {
+    if (form.sellerId) {
+      const seller = parties.find(p => p.id === form.sellerId);
+      setSelectedSeller(seller || null);
+    }
+  }, [form.sellerId, parties]);
 
-  // Calculate brokerage based on product settings and party type
-  const calculateBrokerage = (): number => {
-    if (!selectedProduct || form.quantity <= 0 || form.price <= 0) return 0;
+  useEffect(() => {
+    if (form.buyerId) {
+      const buyer = parties.find(p => p.id === form.buyerId);
+      setSelectedBuyer(buyer || null);
+    }
+  }, [form.buyerId, parties]);
 
-    const b = selectedProduct.brokerage || {
-      buyer: { type: 'percent', value: selectedProduct.defaultBrokerage || 0 },
-      seller: { type: 'percent', value: selectedProduct.defaultBrokerage || 0 }
-    };
+  useEffect(() => {
+    if (form.productId) {
+      const product = products.find(p => p.id === form.productId);
+      setSelectedProduct(product || null);
+    }
+  }, [form.productId, products]);
 
-    // Convert quantity to KG for calculation if needed
-    const unitFactor = QUANTITY_UNITS.find(u => u.value === form.quantityUnit)?.factor || 1;
-    const quantityInKg = form.quantity * unitFactor;
-    const totalValue = quantityInKg * form.price;
-
-    // Use buyer brokerage if buyer is selected, seller brokerage if seller is selected
-    // For the contract, we calculate total brokerage (buyer + seller)
-    const buyerBrokerage = b.buyer?.type === 'fixed' 
-      ? (b.buyer?.value || 0) 
-      : (totalValue * (b.buyer?.value || b.buyerPercent || 0)) / 100;
-
-    const sellerBrokerage = b.seller?.type === 'fixed'
-      ? (b.seller?.value || 0)
-      : (totalValue * (b.seller?.value || b.sellerPercent || 0)) / 100;
-
-    return buyerBrokerage + sellerBrokerage;
+  const calculateBrokerage = () => {
+    if (!selectedProduct) return 0;
+    // Use product's default brokerage
+    const brokerageRate = selectedProduct.defaultBrokerage || 0;
+    return (form.quantity * form.price * brokerageRate) / 100;
   };
 
-  const brokerageAmount = calculateBrokerage();
-
-  const handleAddFinancialYear = () => {
-    if (!newFyInput.match(/^\d{4}-\d{4}$/)) {
-      toast.error('Format must be YYYY-YYYY (e.g. 2026-2027)');
-      return;
-    }
-    const years = [...settings.financialYears, newFyInput].sort();
-    const updated = { ...settings, financialYears: years };
-    useAppStore.getState().updateSettings(updated);
-    useAppStore.getState().saveSettingsToFirebase();
-    setForm({ ...form, financialYear: newFyInput });
-    setCurrentFinancialYear(newFyInput);
-    setNewFyInput('');
-    setShowAddFy(false);
-    toast.success('Financial year added');
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!form.sellerId || !form.buyerId || !form.productId) {
-      toast.error('Please select seller, buyer and product');
+      toast.error('Seller, Buyer and Product are required');
       return;
     }
-    if (!form.contractNo.trim()) {
+    if (!form.contractNo) {
       toast.error('Contract number is required');
       return;
     }
@@ -141,375 +116,201 @@ export default function ContractForm() {
     const seller = parties.find(p => p.id === form.sellerId)!;
     const buyer = parties.find(p => p.id === form.buyerId)!;
     const product = products.find(p => p.id === form.productId)!;
+    const brokerageAmount = calculateBrokerage();
 
-    const year = parseInt(form.financialYear.split('-')[0]);
-
-    const payload = {
-      ...form,
+    const contract: Contract = {
       id: id || uuidv4(),
-      year,
+      contractNo: form.contractNo,
+      year: form.year,
+      date: form.date,
+      sellerId: form.sellerId,
       seller,
+      buyerId: form.buyerId,
       buyer,
+      productId: form.productId,
       product,
+      quantity: form.quantity,
+      quantityUnit: form.quantityUnit,
+      price: form.price,
+      priceUnit: form.priceUnit,
+      deliveryLocation: form.deliveryLocation,
+      deliveryAddress: form.deliveryAddress,
+      packing: form.packing,
+      loadingCondition: form.loadingCondition,
+      paymentTerms: form.paymentTerms,
+      gstPercent: form.gstPercent,
+      otherTerms: form.otherTerms,
+      notes: form.notes,
+      status: form.status,
       brokerageAmount,
-      payments: existing?.payments || [],
-      updatedAt: new Date().toISOString()
+      createdAt: existing?.createdAt || new Date(),
+      updatedAt: new Date()
     };
 
     try {
-      if (id) {
-        await updateContract(id, payload);
-        toast.success('Contract updated');
-      } else {
-        await addContract({ ...payload, createdAt: new Date().toISOString() });
-        toast.success('Contract created');
-      }
+      if (id) { await updateContract(id, contract); toast.success('Updated!'); }
+      else { await addContract(contract); toast.success('Created!'); }
       navigate('/contracts');
-    } catch (err) {
-      toast.error('Failed to save');
-    }
+    } catch (e) { toast.error('Failed to save'); }
   };
+
+  const sellers = parties.filter(p => p.type === 'seller' || p.type === 'both');
+  const buyers = parties.filter(p => p.type === 'buyer' || p.type === 'both');
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate('/contracts')} className="p-2 hover:bg-gray-100 rounded-lg">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h1 className="text-2xl font-bold">{id ? 'Edit Contract' : 'New Contract Note'}</h1>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Contract Number & Financial Year */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contract No. *</label>
-            <input
-              value={form.contractNo}
-              onChange={e => setForm({ ...form, contractNo: e.target.value })}
-              placeholder="001"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
-            <input
-              type="date"
-              value={form.date}
-              onChange={e => setForm({ ...form, date: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-            />
-          </div>
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Financial Year</label>
-            <button
-              type="button"
-              onClick={() => setFyDropdownOpen(!fyDropdownOpen)}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-left flex items-center justify-between"
-            >
-              <span>{form.financialYear}</span>
-              <ChevronDown className="w-4 h-4 text-gray-400" />
-            </button>
-
-            {fyDropdownOpen && (
-              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto">
-                {settings.financialYears.map(fy => (
-                  <button
-                    key={fy}
-                    type="button"
-                    onClick={() => {
-                      setForm({ ...form, financialYear: fy });
-                      setCurrentFinancialYear(fy);
-                      setFyDropdownOpen(false);
-                    }}
-                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 ${form.financialYear === fy ? 'bg-rose-50 text-rose-700 font-medium' : ''}`}
-                  >
-                    {fy}
-                  </button>
-                ))}
-                <div className="border-t border-gray-100 px-4 py-2">
-                  {!showAddFy ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowAddFy(true)}
-                      className="flex items-center gap-1 text-sm text-rose-600 hover:text-rose-700"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Add New Year
-                    </button>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        value={newFyInput}
-                        onChange={e => setNewFyInput(e.target.value)}
-                        placeholder="2026-2027"
-                        className="flex-1 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddFinancialYear}
-                        className="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-sm"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Parties */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Seller *</label>
-            <select
-              value={form.sellerId}
-              onChange={e => setForm({ ...form, sellerId: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-            >
-              <option value="">Select Seller</option>
-              {parties.filter(p => p.type === 'seller' || p.type === 'both').map(p => (
-                <option key={p.id} value={p.id}>{p.legalName}</option>
-              ))}
+      <button onClick={() => navigate('/contracts')} className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6">
+        <ArrowLeft className="w-4 h-4" /> Back
+      </button>
+      <div className="bg-white rounded-2xl border border-gray-200 p-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">{id ? 'Edit Contract' : 'New Contract Note'}</h1>
+        <div className="space-y-4">
+          {/* Contract No & Date */}
+          <div className="grid md:grid-cols-3 gap-4">
+            <input value={form.contractNo} onChange={e => setForm({ ...form, contractNo: e.target.value })}
+              placeholder="Contract No *" className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })}
+              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            <select value={form.year} onChange={e => setForm({ ...form, year: parseInt(e.target.value) })}
+              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
+              {[currentYear - 1, currentYear, currentYear + 1].map(y => <option key={y} value={y}>{y}</option>)}
             </select>
-            {selectedSeller && (
-              <div className="mt-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600 space-y-1">
-                <p>{selectedSeller.address}</p>
-                <p>{selectedSeller.city}, {selectedSeller.state}</p>
-                {selectedSeller.gstin && <p>GSTIN: {selectedSeller.gstin}</p>}
-              </div>
-            )}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Buyer *</label>
-            <select
-              value={form.buyerId}
-              onChange={e => setForm({ ...form, buyerId: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-            >
-              <option value="">Select Buyer</option>
-              {parties.filter(p => p.type === 'buyer' || p.type === 'both').map(p => (
-                <option key={p.id} value={p.id}>{p.legalName}</option>
-              ))}
-            </select>
-            {selectedBuyer && (
-              <div className="mt-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600 space-y-1">
-                <p>{selectedBuyer.address}</p>
-                <p>{selectedBuyer.city}, {selectedBuyer.state}</p>
-                {selectedBuyer.gstin && <p>GSTIN: {selectedBuyer.gstin}</p>}
-              </div>
-            )}
-          </div>
-        </div>
 
-        {/* Product */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Product *</label>
-          <select
-            value={form.productId}
-            onChange={e => setForm({ ...form, productId: e.target.value })}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-          >
-            <option value="">Select Product</option>
-            {products.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-          {selectedProduct && (
-            <div className="mt-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600">
-              <p>Buyer Brokerage: {selectedProduct.brokerage?.buyer?.value || selectedProduct.brokerage?.buyerPercent || selectedProduct.defaultBrokerage || 0}{selectedProduct.brokerage?.buyer?.type === 'fixed' || selectedProduct.brokerage?.buyerFixed ? ' Rs.' : '%'}</p>
-              <p>Seller Brokerage: {selectedProduct.brokerage?.seller?.value || selectedProduct.brokerage?.sellerPercent || selectedProduct.defaultBrokerage || 0}{selectedProduct.brokerage?.seller?.type === 'fixed' || selectedProduct.brokerage?.sellerFixed ? ' Rs.' : '%'}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Quantity & Price with proper units */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-            <div className="flex gap-2">
-              <input
-                type="number"
-                step="0.01"
-                value={form.quantity}
-                onChange={e => setForm({ ...form, quantity: parseFloat(e.target.value) || 0 })}
-                className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-              />
-              <select
-                value={form.quantityUnit}
-                onChange={e => setForm({ ...form, quantityUnit: e.target.value as 'MT' | 'KG' })}
-                className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-              >
-                {QUANTITY_UNITS.map(u => (
-                  <option key={u.value} value={u.value}>{u.label}</option>
-                ))}
+          {/* Parties */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Seller *</label>
+              <select value={form.sellerId} onChange={e => setForm({ ...form, sellerId: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
+                <option value="">Select Seller</option>
+                {sellers.map(p => <option key={p.id} value={p.id}>{p.legalName}</option>)}
               </select>
+              {selectedSeller && (
+                <div className="mt-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600">
+                  <p className="font-medium text-gray-900">{selectedSeller.legalName}</p>
+                  <p>{selectedSeller.address}, {selectedSeller.city}</p>
+                  <p>GSTIN: {selectedSeller.gstin}</p>
+                </div>
+              )}
             </div>
-            {form.quantity > 0 && form.quantityUnit === 'MT' && (
-              <p className="text-xs text-gray-500 mt-1">= {form.quantity * 1000} KG</p>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Buyer *</label>
+              <select value={form.buyerId} onChange={e => setForm({ ...form, buyerId: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
+                <option value="">Select Buyer</option>
+                {buyers.map(p => <option key={p.id} value={p.id}>{p.legalName}</option>)}
+              </select>
+              {selectedBuyer && (
+                <div className="mt-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600">
+                  <p className="font-medium text-gray-900">{selectedBuyer.legalName}</p>
+                  <p>{selectedBuyer.address}, {selectedBuyer.city}</p>
+                  <p>GSTIN: {selectedBuyer.gstin}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Product */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Product *</label>
+            <select value={form.productId} onChange={e => setForm({ ...form, productId: e.target.value })}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
+              <option value="">Select Product</option>
+              {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            {selectedProduct && (
+              <div className="mt-2 p-3 bg-gray-50 rounded-xl">
+                <p className="text-sm font-medium text-gray-900">{selectedProduct.name}</p>
+                <p className="text-xs text-gray-500">Brokerage: {selectedProduct.defaultBrokerage}%</p>
+                {selectedProduct.specs && selectedProduct.specs.length > 0 && (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {selectedProduct.specs.sort((a, b) => a.order - b.order).map(spec => (
+                      <div key={spec.id} className="text-xs text-gray-600">
+                        <span className="font-medium">{spec.label}:</span> {spec.value} {spec.unit}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+
+          {/* Commercial Terms */}
+          <h3 className="text-sm font-semibold text-gray-700 pt-4 border-t border-gray-100">Commercial Terms</h3>
+          <div className="grid md:grid-cols-2 gap-4">
             <div className="flex gap-2">
-              <input
-                type="number"
-                step="0.01"
-                value={form.price}
-                onChange={e => setForm({ ...form, price: parseFloat(e.target.value) || 0 })}
-                className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-              />
-              <input
-                value={form.priceUnit}
-                onChange={e => setForm({ ...form, priceUnit: e.target.value })}
-                placeholder="Per unit"
-                className="w-40 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-              />
+              <input type="number" step="0.01" value={form.quantity} onChange={e => setForm({ ...form, quantity: parseFloat(e.target.value) || 0 })}
+                placeholder="Quantity" className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              <input value={form.quantityUnit} onChange={e => setForm({ ...form, quantityUnit: e.target.value })}
+                className="w-32 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" placeholder="Unit" />
+            </div>
+            <div className="flex gap-2">
+              <input type="number" step="0.01" value={form.price} onChange={e => setForm({ ...form, price: parseFloat(e.target.value) || 0 })}
+                placeholder="Price" className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              <input value={form.priceUnit} onChange={e => setForm({ ...form, priceUnit: e.target.value })}
+                className="w-40 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" placeholder="Per unit" />
             </div>
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Location</label>
-            <input
-              value={form.deliveryLocation}
-              onChange={e => setForm({ ...form, deliveryLocation: e.target.value })}
-              placeholder="e.g., Unjha"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Address</label>
-            <input
-              value={form.deliveryAddress}
-              onChange={e => setForm({ ...form, deliveryAddress: e.target.value })}
-              placeholder="Address will be provided by buyer"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-            />
-          </div>
-        </div>
+          <input value={form.deliveryLocation} onChange={e => setForm({ ...form, deliveryLocation: e.target.value })}
+            placeholder="Delivery Location e.g., Unjha" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          <input value={form.deliveryAddress} onChange={e => setForm({ ...form, deliveryAddress: e.target.value })}
+            placeholder="Delivery Address (will be provided by buyer)" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          <input value={form.packing} onChange={e => setForm({ ...form, packing: e.target.value })}
+            placeholder="Packing" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          <input value={form.loadingCondition} onChange={e => setForm({ ...form, loadingCondition: e.target.value })}
+            placeholder="Loading Condition" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          <input value={form.paymentTerms} onChange={e => setForm({ ...form, paymentTerms: e.target.value })}
+            placeholder="Payment Terms" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Packing</label>
-            <input
-              value={form.packing}
-              onChange={e => setForm({ ...form, packing: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Loading Condition</label>
-            <input
-              value={form.loadingCondition}
-              onChange={e => setForm({ ...form, loadingCondition: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-            />
-          </div>
-        </div>
-
-        {/* Loading Deadline */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Loading Deadline</label>
-            <input
-              type="date"
-              value={form.loadingDeadline}
-              onChange={e => setForm({ ...form, loadingDeadline: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-            />
-            <p className="text-xs text-gray-500 mt-1">Goods must be loaded by this date. Alert will show if overdue.</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Payment Terms</label>
-            <input
-              value={form.paymentTerms}
-              onChange={e => setForm({ ...form, paymentTerms: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">GST %</label>
-            <input
-              type="number"
-              step="0.01"
-              value={form.gstPercent}
-              onChange={e => setForm({ ...form, gstPercent: parseFloat(e.target.value) || 0 })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select
-              value={form.status}
-              onChange={e => setForm({ ...form, status: e.target.value as any })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-            >
-              <option value="confirmed">Confirmed</option>
+          <div className="grid md:grid-cols-2 gap-4">
+            <input type="number" step="0.01" value={form.gstPercent} onChange={e => setForm({ ...form, gstPercent: parseFloat(e.target.value) || 0 })}
+              placeholder="GST %" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as any })}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
               <option value="draft">Draft</option>
+              <option value="confirmed">Confirmed</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
             </select>
           </div>
-        </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Other Terms</label>
-          <textarea
-            value={form.otherTerms}
-            onChange={e => setForm({ ...form, otherTerms: e.target.value })}
-            rows={2}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-          />
-        </div>
+          <textarea value={form.otherTerms} onChange={e => setForm({ ...form, otherTerms: e.target.value })}
+            placeholder="Other Terms & Conditions" rows={3} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
+          <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
+            placeholder="Internal Notes (not shown on contract)" rows={2} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Internal Notes</label>
-          <textarea
-            value={form.notes}
-            onChange={e => setForm({ ...form, notes: e.target.value })}
-            rows={2}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-          />
-        </div>
-
-        {/* Brokerage Preview */}
-        {selectedProduct && form.quantity > 0 && form.price > 0 && (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-            <p className="text-sm text-amber-800">
-              <strong>Brokerage Preview:</strong> Rs. {brokerageAmount.toLocaleString('en-IN')}
-            </p>
-            <p className="text-xs text-amber-700 mt-1">
-              Based on: {form.quantity} {form.quantityUnit} × Rs.{form.price}/{form.priceUnit} 
-              {' | '}
-              Buyer: {selectedProduct.brokerage?.buyer?.value || selectedProduct.brokerage?.buyerPercent || 0}{selectedProduct.brokerage?.buyer?.type === 'fixed' || selectedProduct.brokerage?.buyerFixed ? ' Rs.' : '%'}
-              {' | '}
-              Seller: {selectedProduct.brokerage?.seller?.value || selectedProduct.brokerage?.sellerPercent || 0}{selectedProduct.brokerage?.seller?.type === 'fixed' || selectedProduct.brokerage?.sellerFixed ? ' Rs.' : '%'}
-            </p>
+          {/* Brokerage Summary */}
+          <div className="bg-rose-50 rounded-xl p-4 border border-rose-100">
+            <h4 className="text-sm font-semibold text-rose-700 mb-2">Brokerage Summary</h4>
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <p className="text-gray-500">Quantity</p>
+                <p className="font-medium text-gray-900">{form.quantity} {form.quantityUnit}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Price</p>
+                <p className="font-medium text-gray-900">Rs.{form.price.toLocaleString('en-IN')} {form.priceUnit}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Brokerage</p>
+                <p className="font-bold text-rose-700">Rs.{calculateBrokerage().toLocaleString('en-IN')}</p>
+              </div>
+            </div>
+            {selectedProduct && (
+              <p className="text-xs text-gray-500 mt-2">Rate: {selectedProduct.defaultBrokerage}% (from product settings)</p>
+            )}
           </div>
-        )}
+        </div>
 
-        <div className="flex gap-3 pt-4">
-          <button
-            type="submit"
-            className="flex items-center gap-2 px-6 py-3 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700"
-          >
+        <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-100 mt-6">
+          <button onClick={() => navigate('/contracts')} className="px-6 py-3 text-gray-600 font-medium">Cancel</button>
+          <button onClick={handleSubmit} className="px-8 py-3 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 flex items-center gap-2">
             <Save className="w-4 h-4" /> {id ? 'Update' : 'Save'} Contract
           </button>
-          <button
-            type="button"
-            onClick={() => navigate('/contracts')}
-            className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200"
-          >
-            Cancel
-          </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
