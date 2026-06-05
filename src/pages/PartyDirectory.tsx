@@ -84,8 +84,7 @@ export default function PartyDirectory() {
       ];
     });
 
-    const csv = [headers.join(','), ...rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))].join('
-');
+    const csv = [headers.join(','), ...rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))].join("\n");
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -104,8 +103,7 @@ export default function PartyDirectory() {
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const text = ev.target?.result as string;
-      const lines = text.split('
-').filter(l => l.trim());
+      const lines = text.split("\n").filter(l => l.trim());
       if (lines.length < 2) {
         toast.error('CSV is empty');
         return;
