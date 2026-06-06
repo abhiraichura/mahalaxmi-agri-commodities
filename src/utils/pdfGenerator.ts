@@ -17,7 +17,6 @@ function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
   return doc.splitTextToSize(text, maxWidth);
 }
 
-// Convert quantity to KG for calculations
 const toKg = (quantity: number, unit: string): number => {
   if (unit === 'MT') return quantity * 1000;
   return quantity;
@@ -38,15 +37,15 @@ export const generateContractPDF = (
 
   const PW = 210;
   const PH = 297;
-  const M = 12; // Reduced margin from 15 to 12
+  const M = 10;
   const W = PW - M * 2;
+  const FOOTER_Y = 270; // Hard reserve footer area from here
 
-  // Reduced letterhead spacer - if no letterhead image, start higher
-  let y = settings.letterhead ? 35 : 20;
+  let y = settings.letterhead ? 32 : 14;
 
-  // CONTRACT TITLE
+  // === HEADER ===
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12); // Slightly smaller
+  doc.setFontSize(13);
   doc.setTextColor(...RED);
   doc.text('CONTRACT NOTE', PW / 2, y, { align: 'center' });
   y += 5;
@@ -54,143 +53,140 @@ export const generateContractPDF = (
   doc.setFontSize(8);
   doc.setTextColor(...DARK);
   doc.text(`No. ${contract.contractNo} / ${contract.financialYear || contract.year}`, PW / 2, y, { align: 'center' });
-  y += 4;
+  y += 3.5;
   doc.text(`Date: ${format(new Date(contract.date), 'dd/MM/yyyy')}`, PW / 2, y, { align: 'center' });
-  y += 7;
+  y += 6;
 
-  // PARTIES BOX - Compact
-  const partyH = 30; // Reduced from 36
+  // === PARTIES BOX ===
+  const partyH = 26;
   doc.setDrawColor(...BORDER);
   doc.setLineWidth(0.25);
   doc.setFillColor(...LIGHT);
   doc.rect(M, y, W, partyH, 'FD');
 
   const colW = (W - 4) / 2;
-
   const firstParty = type === 'buyer_copy' ? contract.buyer : contract.seller;
   const secondParty = type === 'buyer_copy' ? contract.seller : contract.buyer;
   const firstLabel = type === 'buyer_copy' ? 'BUYER' : 'SELLER';
   const secondLabel = type === 'buyer_copy' ? 'SELLER' : 'BUYER';
 
-  // First party (left)
-  let py = y + 4;
+  // Left party
+  let py = y + 3.5;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setTextColor(...RED);
   doc.text(`${firstLabel}:`, M + 2, py);
-  py += 4;
+  py += 3.5;
   doc.setTextColor(...BLACK);
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.text(firstParty.legalName, M + 2, py);
-  py += 4;
+  py += 3.5;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(...GRAY);
   const addr1 = wrapText(doc, firstParty.address, colW - 4);
-  addr1.forEach(line => {
-    doc.text(line, M + 2, py);
-    py += 3;
-  });
+  addr1.slice(0, 2).forEach(line => { doc.text(line, M + 2, py); py += 2.8; });
   doc.text(`${firstParty.city}, ${firstParty.state} - ${firstParty.pincode}`, M + 2, py);
-  py += 3;
-  if (firstParty.gstin) {
-    doc.text(`GSTIN: ${firstParty.gstin}`, M + 2, py);
-    py += 3;
-  }
-  if (firstParty.phone) {
-    doc.text(`Phone: ${firstParty.phone}`, M + 2, py);
-  }
+  py += 2.8;
+  if (firstParty.gstin) { doc.text(`GSTIN: ${firstParty.gstin}`, M + 2, py); py += 2.8; }
+  if (firstParty.phone) { doc.text(`Phone: ${firstParty.phone}`, M + 2, py); }
 
-  // Second party (right)
+  // Right party
   const rx = M + colW + 2;
-  py = y + 4;
+  py = y + 3.5;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setTextColor(...RED);
   doc.text(`${secondLabel}:`, rx, py);
-  py += 4;
+  py += 3.5;
   doc.setTextColor(...BLACK);
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.text(secondParty.legalName, rx, py);
-  py += 4;
+  py += 3.5;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(...GRAY);
   const addr2 = wrapText(doc, secondParty.address, colW - 4);
-  addr2.forEach(line => {
-    doc.text(line, rx, py);
-    py += 3;
-  });
+  addr2.slice(0, 2).forEach(line => { doc.text(line, rx, py); py += 2.8; });
   doc.text(`${secondParty.city}, ${secondParty.state} - ${secondParty.pincode}`, rx, py);
-  py += 3;
-  if (secondParty.gstin) {
-    doc.text(`GSTIN: ${secondParty.gstin}`, rx, py);
-    py += 3;
-  }
-  if (secondParty.phone) {
-    doc.text(`Phone: ${secondParty.phone}`, rx, py);
-  }
+  py += 2.8;
+  if (secondParty.gstin) { doc.text(`GSTIN: ${secondParty.gstin}`, rx, py); py += 2.8; }
+  if (secondParty.phone) { doc.text(`Phone: ${secondParty.phone}`, rx, py); }
 
-  y += partyH + 5;
+  y += partyH + 4;
 
-  // PRODUCT
+  // === PRODUCT ===
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(...RED);
   doc.text('PRODUCT', M, y);
-  y += 4;
+  y += 3.5;
 
   doc.setFillColor(...LIGHT);
-  doc.rect(M, y, W, 6, 'FD');
+  doc.rect(M, y, W, 5.5, 'FD');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(...BLACK);
-  doc.text(contract.product.name.toUpperCase(), M + 2, y + 4.5);
-  y += 7;
+  doc.text(contract.product.name.toUpperCase(), M + 2, y + 4);
+  y += 6.5;
 
-  // Specs table - compact
+  // === SPECS - 2 COLUMNS ===
   if (contract.product.specs && contract.product.specs.length > 0) {
-    const specRows = contract.product.specs
-      .sort((a, b) => (a.order || 0) - (b.order || 0))
-      .map(spec => [spec.label, `${spec.value} ${spec.unit}`]);
+    const sortedSpecs = contract.product.specs.sort((a, b) => (a.order || 0) - (b.order || 0));
+    const mid = Math.ceil(sortedSpecs.length / 2);
+    const leftSpecs = sortedSpecs.slice(0, mid);
+    const rightSpecs = sortedSpecs.slice(mid);
+    const maxRows = Math.max(leftSpecs.length, rightSpecs.length);
+    const rowH = 4.5;
+    const specH = maxRows * rowH + 4;
 
-    autoTable(doc, {
-      startY: y,
-      head: [['Specification', 'Standard / Value']],
-      body: specRows,
-      theme: 'grid',
-      headStyles: {
-        fillColor: [255, 255, 255],
-        textColor: [160, 30, 50],
-        fontStyle: 'bold',
-        fontSize: 7.5,
-        lineWidth: 0.25,
-        lineColor: [220, 220, 220],
-        cellPadding: 1.5
-      },
-      bodyStyles: {
-        fontSize: 7.5,
-        lineWidth: 0.2,
-        lineColor: [220, 220, 220],
-        cellPadding: 1.5
-      },
-      columnStyles: {
-        0: { cellWidth: 50, fontStyle: 'bold' },
-        1: { cellWidth: 'auto' }
-      },
-      margin: { left: M, right: M },
-      tableWidth: W
-    });
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.2);
+    doc.setFillColor(255, 255, 255);
+    doc.rect(M, y, W, specH, 'FD');
 
-    y = (doc as any).lastAutoTable.finalY + 4;
+    // Header row
+    doc.setFillColor(...LIGHT);
+    doc.rect(M, y, W / 2, 4.5, 'FD');
+    doc.rect(M + W / 2, y, W / 2, 4.5, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...RED);
+    doc.text('Specification', M + 2, y + 3.2);
+    doc.text('Value', M + 35, y + 3.2);
+    doc.text('Specification', M + W / 2 + 2, y + 3.2);
+    doc.text('Value', M + W / 2 + 35, y + 3.2);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...DARK);
+
+    for (let i = 0; i < maxRows; i++) {
+      const rowY = y + 4.5 + i * rowH;
+      if (leftSpecs[i]) {
+        doc.text(leftSpecs[i].label, M + 2, rowY + 3);
+        doc.text(`${leftSpecs[i].value} ${leftSpecs[i].unit}`, M + 35, rowY + 3);
+      }
+      if (rightSpecs[i]) {
+        doc.text(rightSpecs[i].label, M + W / 2 + 2, rowY + 3);
+        doc.text(`${rightSpecs[i].value} ${rightSpecs[i].unit}`, M + W / 2 + 35, rowY + 3);
+      }
+      // Horizontal line
+      if (i < maxRows - 1) {
+        doc.setDrawColor(...BORDER);
+        doc.setLineWidth(0.15);
+        doc.line(M, rowY + rowH, M + W, rowY + rowH);
+      }
+    }
+    y += specH + 3;
   }
 
-  // COMMERCIAL TERMS
+  // === COMMERCIAL TERMS ===
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(...RED);
   doc.text('COMMERCIAL TERMS', M, y);
-  y += 4;
+  y += 3.5;
 
   const quantityKg = toKg(contract.quantity, contract.quantityUnit);
   const totalValue = quantityKg * contract.price;
@@ -210,7 +206,6 @@ export const generateContractPDF = (
   if (showTotal) {
     commRows.splice(2, 0, ['Total Value', `Rs. ${totalValue.toLocaleString('en-IN')}`]);
   }
-
   if (contract.otherTerms) {
     commRows.push(['Other Terms', contract.otherTerms]);
   }
@@ -220,27 +215,27 @@ export const generateContractPDF = (
     body: commRows,
     theme: 'grid',
     bodyStyles: {
-      fontSize: 7.5,
-      lineWidth: 0.2,
+      fontSize: 7,
+      lineWidth: 0.15,
       lineColor: [220, 220, 220],
-      cellPadding: 1.5
+      cellPadding: 1.2
     },
     columnStyles: {
-      0: { cellWidth: 42, fontStyle: 'bold', fillColor: [248, 248, 248] },
+      0: { cellWidth: 38, fontStyle: 'bold', fillColor: [248, 248, 248] },
       1: { cellWidth: 'auto' }
     },
     margin: { left: M, right: M },
     tableWidth: W
   });
 
-  y = (doc as any).lastAutoTable.finalY + 4;
+  y = (doc as any).lastAutoTable.finalY + 3;
 
-  // TERMS & CONDITIONS - Compact single column to save space
+  // === TERMS & CONDITIONS ===
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(...RED);
   doc.text('TERMS & CONDITIONS', M, y);
-  y += 4;
+  y += 3.5;
 
   const terms = settings.termsAndConditions.length > 0
     ? settings.termsAndConditions
@@ -253,58 +248,51 @@ export const generateContractPDF = (
       ];
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(...DARK);
 
-  // Calculate available space for terms
-  const footerHeight = 22; // Reduced from 40
-  const availableSpace = PH - M - footerHeight;
+  // Fit terms within available space before footer
+  const maxTermsY = FOOTER_Y - 8;
 
   terms.forEach((term, index) => {
     const num = `${index + 1}. `;
     const text = num + term;
     const splitText = wrapText(doc, text, W - 4);
-    const lineHeight = 2.8; // Reduced from 3.5
+    const lineHeight = 2.6;
     const termHeight = splitText.length * lineHeight;
 
-    // If we are about to overflow, reduce font size further
-    if (y + termHeight > availableSpace) {
-      doc.setFontSize(6.5);
+    // If running out of space, auto-shrink font
+    if (y + termHeight > maxTermsY) {
+      doc.setFontSize(6);
     }
 
     doc.text(splitText, M + 2, y);
-    y += termHeight + 0.5;
+    y += termHeight + 0.3;
   });
 
-  y += 2;
+  // === FOOTER (Fixed position, never overlaps) ===
+  y = FOOTER_Y;
 
-  // FOOTER - Always on same page, no addPage
-  // If y is too close to bottom, push it up slightly
-  const minFooterY = PH - M - 20;
-  if (y > minFooterY) {
-    y = minFooterY;
-  }
-
-  // Separator
+  // Red separator line
   doc.setDrawColor(...RED);
   doc.setLineWidth(0.35);
   doc.line(M, y, PW - M, y);
-  y += 5;
+  y += 4.5;
 
-  // Broker info left, signature right
+  // Company name left
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(...BLACK);
   doc.text(settings.legalName, M, y);
 
+  // Signature right
   if (settings.signature) {
     try {
-      doc.addImage(settings.signature, 'PNG', PW - M - 35, y - 4, 30, 12);
+      doc.addImage(settings.signature, 'PNG', PW - M - 32, y - 4, 28, 10);
     } catch (e) {
       // skip
     }
   }
-
   doc.text('Authorized Signature', PW - M, y, { align: 'right' });
   y += 4;
 
@@ -315,10 +303,10 @@ export const generateContractPDF = (
 
   // Page border
   doc.setDrawColor(...BORDER);
-  doc.setLineWidth(0.35);
-  doc.rect(M - 2, M - 2, W + 4, PH - M * 2 + 4, 'D');
+  doc.setLineWidth(0.3);
+  doc.rect(M - 1.5, M - 1.5, W + 3, PH - M * 2 + 3, 'D');
 
-  // Copy label at bottom right
+  // Copy label bottom right
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.5);
   doc.setTextColor(...RED);
@@ -353,7 +341,6 @@ export const generateBrokerageBillPDF = (
   doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
 
-  // Show date range if available, otherwise month/year
   if (bill.month && bill.month > 0) {
     doc.text(`Period: ${bill.month}/${bill.year}`, M, y);
   } else if (bill.fromDate && bill.toDate) {
@@ -382,7 +369,6 @@ export const generateBrokerageBillPDF = (
   }
   y += 4;
 
-  // Payment status summary
   if (bill.status || bill.paidAmount > 0) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
@@ -435,7 +421,6 @@ export const generateBrokerageBillPDF = (
   doc.setTextColor(...RED);
   doc.text(`Total Brokerage: Rs.${bill.totalBrokerage.toLocaleString('en-IN')}`, 198, finalY, { align: 'right' });
 
-  // Payment history in PDF
   if (bill.payments && bill.payments.length > 0) {
     let payY = finalY + 15;
     doc.setFont('helvetica', 'bold');
