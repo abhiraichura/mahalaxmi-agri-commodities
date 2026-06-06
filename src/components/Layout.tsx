@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Menu, X, ArrowLeft, Home, FileText, Box, Settings, Users, Notebook, LogOut, ChevronRight, BookOpen, Calculator } from 'lucide-react';
+import { Menu, X, ArrowLeft, Home, FileText, Box, Settings, Users, Notebook, LogOut, ChevronRight, BookOpen, Calculator, Globe } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
 import toast from 'react-hot-toast';
@@ -22,6 +22,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Brokerage Bills', icon: Calculator, path: '/brokerage-bills' },
     { name: 'Party Ledger', icon: BookOpen, path: '/party-ledger' },
     { name: 'Notes', icon: Notebook, path: '/notes' },
+    { name: 'Gulf Food', icon: Globe, path: '/gulf-food-directory' },
     { name: 'Settings', icon: Settings, path: '/settings' },
   ];
 
