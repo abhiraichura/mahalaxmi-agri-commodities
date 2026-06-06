@@ -38,6 +38,7 @@ export default function AllContracts() {
   };
 
   return (
+<div className="page-container">
     <div>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
@@ -150,5 +151,6 @@ export default function AllContracts() {
         </div>
       )}
     </div>
+</div>
   );
 }
