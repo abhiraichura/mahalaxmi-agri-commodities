@@ -1,6 +1,6 @@
 // src/utils/cacheManager.ts
 
-const BUILD_VERSION = '1.0.0'; // Bump this manually on every deploy
+const BUILD_VERSION = '1.0.1'; // Bump this manually on every deploy
 
 export function getBuildVersion(): string {
   return BUILD_VERSION;
@@ -23,11 +23,21 @@ export async function clearAppCache(): Promise<void> {
     await Promise.all(cacheNames.map(name => caches.delete(name)));
   }
 
-  // 3. Clear localStorage (keep nothing app-related)
-  const keysToKeep: string[] = [];
+  // 3. Clear localStorage safely (PREVENT DATA LOSS)
+  const keysToKeep: string[] = [
+    'gulfood_directory_members', 
+    'mahalaxmi-app-storage', 
+    'app_version'
+  ];
+  
   for (let i = localStorage.length - 1; i >= 0; i--) {
     const key = localStorage.key(i);
-    if (key && !keysToKeep.includes(key)) {
+    if (
+      key && 
+      !keysToKeep.includes(key) && 
+      !key.startsWith('firebase:') && // Keep Firebase auth sessions intact
+      !key.startsWith('bill_payments_') // Keep Brokerage bill payments intact
+    ) {
       localStorage.removeItem(key);
     }
   }
@@ -36,7 +46,6 @@ export async function clearAppCache(): Promise<void> {
   sessionStorage.clear();
 
   // 5. Hard reload from server (forces fresh fetch, no cache)
-  // Use reload() with cache-bust header via no-cache fetch first
   try {
     await fetch(window.location.href, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
   } catch (e) {
