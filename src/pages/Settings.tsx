@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Upload, Save, Trash2, Plus, X } from 'lucide-react';
+import { Upload, Save, Trash2, Plus, X, AlertTriangle, RefreshCw } from 'lucide-react';
+import { clearAppCache, checkForUpdate, markVersionSeen } from '../utils/cacheManager';
 import toast from 'react-hot-toast';
 
 export default function Settings() {
@@ -11,6 +12,7 @@ export default function Settings() {
   const [letterheadPreview, setLetterheadPreview] = useState<string | null>(settings.letterhead);
   const [newTerm, setNewTerm] = useState('');
   const [newFy, setNewFy] = useState('');
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
   const sigRef = useRef<HTMLInputElement>(null);
   const letterheadRef = useRef<HTMLInputElement>(null);
@@ -25,6 +27,10 @@ export default function Settings() {
     setSigPreview(settings.signature);
     setLetterheadPreview(settings.letterhead);
   }, [settings]);
+
+  useEffect(() => {
+    setUpdateAvailable(checkForUpdate());
+  }, []);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'signature' | 'letterhead') => {
     const file = e.target.files?.[0];
@@ -325,6 +331,54 @@ export default function Settings() {
             >
               <Plus className="w-4 h-4" />
             </button>
+          </div>
+        </div>
+
+        {/* ─── SYSTEM SECTION ─── */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+          <h3 className="font-semibold text-sm">System</h3>
+
+          {updateAvailable && (
+            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-amber-800">
+                  A new version of the app is available.
+                </p>
+                <button
+                  onClick={() => {
+                    markVersionSeen();
+                    clearAppCache();
+                  }}
+                  className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Update Now
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-gray-900">Clear App Cache</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Delete cached files and load the latest version. Your contracts and parties are safe.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  if (confirm('This will clear the app cache and reload the page. Your data is safe. Continue?')) {
+                    clearAppCache();
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-700 bg-white border border-red-200 rounded-md hover:bg-red-50 flex-shrink-0"
+              >
+                <Trash2 className="w-4 h-4" />
+                Clear Cache
+              </button>
+            </div>
           </div>
         </div>
 
