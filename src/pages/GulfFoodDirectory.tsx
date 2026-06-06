@@ -1,6 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Phone, Mail, MapPin, Globe, User, X, Download, Upload, FileText, Trash2, Edit2, ExternalLink } from 'lucide-react';
+import { Search, Plus, Phone, Mail, MapPin, X, Download, Upload, Globe, Users, Trash2, Edit2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface GulfFoodMember {
@@ -16,23 +15,22 @@ interface GulfFoodMember {
   updatedAt: string;
 }
 
-const STORAGE_KEY = 'gulfood_directory_members';
+const STORAGE_KEY = 'gulfood_directory';
 
-function getStoredMembers(): GulfFoodMember[] {
+const getStoredMembers = (): GulfFoodMember[] => {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
     return data ? JSON.parse(data) : [];
   } catch {
     return [];
   }
-}
+};
 
-function saveMembers(members: GulfFoodMember[]) {
+const saveMembers = (members: GulfFoodMember[]) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(members));
-}
+};
 
 export default function GulfFoodDirectory() {
-  const navigate = useNavigate();
   const [members, setMembers] = useState<GulfFoodMember[]>(getStoredMembers);
   const [search, setSearch] = useState('');
   const [viewingMember, setViewingMember] = useState<GulfFoodMember | null>(null);
@@ -164,6 +162,7 @@ export default function GulfFoodDirectory() {
       const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
       const now = new Date().toISOString();
       let count = 0;
+      const newMembers = [...members];
 
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
@@ -187,12 +186,12 @@ export default function GulfFoodDirectory() {
           updatedAt: now
         };
 
-        members.push(newMember);
+        newMembers.push(newMember);
         count++;
       }
 
-      saveMembers(members);
-      setMembers([...members]);
+      saveMembers(newMembers);
+      setMembers(newMembers);
       toast.success(`Imported ${count} members`);
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
@@ -208,7 +207,7 @@ export default function GulfFoodDirectory() {
             <h1 className="text-2xl font-bold text-gray-900">Gulfood Directory</h1>
             <p className="text-sm text-gray-500 mt-1">{members.length} members registered</p>
           </div>
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2">
             <input
               type="file"
               ref={fileInputRef}
@@ -266,7 +265,7 @@ export default function GulfFoodDirectory() {
         {/* Members Grid */}
         {filtered.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 border border-gray-200 text-center">
-            <FileText size={48} className="mx-auto text-gray-300 mb-4" />
+            <Globe size={48} className="mx-auto text-gray-300 mb-4" />
             <p className="text-gray-500">No members found</p>
             {members.length === 0 && (
               <p className="text-sm text-gray-400 mt-1">Import a CSV file or add members manually</p>
@@ -281,45 +280,41 @@ export default function GulfFoodDirectory() {
                 className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md hover:border-rose-200 transition-all cursor-pointer group"
               >
                 <div className="flex items-start justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900 group-hover:text-rose-700 transition-colors line-clamp-2">
-                    {member.companyName}
-                  </h3>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 group-hover:text-rose-700 transition-colors">
+                      {member.companyName}
+                    </h3>
+                    {member.cityState && (
+                      <p className="text-xs text-gray-500">{member.cityState}</p>
+                    )}
+                  </div>
+                  <Globe size={16} className="text-gray-400" />
                 </div>
 
-                <div className="space-y-2 text-sm">
-                  {member.cityState && (
-                    <div className="flex items-center gap-1.5 text-gray-500">
-                      <MapPin size={14} />
-                      <span>{member.cityState}</span>
-                    </div>
-                  )}
+                {member.contactPerson && (
+                  <div className="flex items-center gap-1.5 text-sm text-gray-700 mb-2">
+                    <Users size={14} className="text-gray-400" />
+                    <span>{member.contactPerson}</span>
+                  </div>
+                )}
 
-                  {member.contactPerson && (
-                    <div className="flex items-center gap-1.5 text-gray-700">
-                      <User size={14} className="text-gray-400" />
-                      <span className="font-medium">{member.contactPerson}</span>
-                    </div>
-                  )}
+                {member.contactNumber && (
+                  <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
+                    <Phone size={14} />
+                    {member.contactNumber}
+                  </div>
+                )}
 
-                  {member.contactNumber && (
-                    <a
-                      href={`tel:${member.contactNumber.replace(/\s/g, '')}`}
-                      onClick={e => e.stopPropagation()}
-                      className="flex items-center gap-1.5 text-rose-600 hover:text-rose-700"
-                    >
-                      <Phone size={14} />
-                      <span>{member.contactNumber}</span>
-                    </a>
-                  )}
+                {member.email && (
+                  <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
+                    <Mail size={14} />
+                    <span className="truncate">{member.email}</span>
+                  </div>
+                )}
 
-                  {member.profile && (
-                    <div className="mt-3">
-                      <span className="inline-block text-xs px-2.5 py-1 bg-rose-50 text-rose-700 rounded-lg font-medium line-clamp-2">
-                        {member.profile}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                {member.profile && (
+                  <p className="text-xs text-gray-500 mt-2 line-clamp-2">{member.profile}</p>
+                )}
               </div>
             ))}
           </div>
@@ -336,17 +331,17 @@ export default function GulfFoodDirectory() {
                 </button>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3 text-sm">
                 {viewingMember.cityState && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <MapPin size={16} className="text-gray-400" />
-                    <span className="text-gray-700">{viewingMember.cityState}</span>
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <MapPin size={14} />
+                    {viewingMember.cityState}
                   </div>
                 )}
 
                 {viewingMember.contactPerson && (
                   <div className="flex items-center gap-2 p-3 bg-rose-50 rounded-xl">
-                    <User size={16} className="text-rose-600" />
+                    <Users size={16} className="text-rose-600" />
                     <div>
                       <p className="font-medium text-gray-900">{viewingMember.contactPerson}</p>
                       <p className="text-xs text-gray-500">Contact Person</p>
@@ -355,36 +350,36 @@ export default function GulfFoodDirectory() {
                 )}
 
                 {viewingMember.contactNumber && (
-                  <a href={`tel:${viewingMember.contactNumber.replace(/\s/g, '')}`} className="flex items-center gap-2 text-sm text-rose-600 hover:underline">
-                    <Phone size={16} />
-                    {viewingMember.contactNumber}
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <Phone size={14} className="text-gray-400" />
+                    <a href={`tel:${viewingMember.contactNumber.replace(/\s/g, '')}`} className="text-rose-600 hover:underline">
+                      {viewingMember.contactNumber}
+                    </a>
+                  </div>
                 )}
 
                 {viewingMember.email && (
-                  <a href={`mailto:${viewingMember.email}`} className="flex items-center gap-2 text-sm text-rose-600 hover:underline">
-                    <Mail size={16} />
-                    {viewingMember.email}
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <Mail size={14} className="text-gray-400" />
+                    <a href={`mailto:${viewingMember.email}`} className="text-rose-600 hover:underline">
+                      {viewingMember.email}
+                    </a>
+                  </div>
                 )}
 
                 {viewingMember.website && (
-                  <a
-                    href={viewingMember.website.startsWith('http') ? viewingMember.website : `https://${viewingMember.website}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-rose-600 hover:underline"
-                  >
-                    <Globe size={16} />
-                    {viewingMember.website}
-                    <ExternalLink size={12} />
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <Globe size={14} className="text-gray-400" />
+                    <a href={viewingMember.website.startsWith('http') ? viewingMember.website : `https://${viewingMember.website}`} target="_blank" rel="noopener noreferrer" className="text-rose-600 hover:underline">
+                      {viewingMember.website}
+                    </a>
+                  </div>
                 )}
 
                 {viewingMember.profile && (
                   <div className="p-3 bg-gray-50 rounded-xl">
                     <p className="text-xs font-medium text-gray-500 mb-1">Profile / Products</p>
-                    <p className="text-sm text-gray-800">{viewingMember.profile}</p>
+                    <p className="text-sm text-gray-700">{viewingMember.profile}</p>
                   </div>
                 )}
               </div>
@@ -414,8 +409,8 @@ export default function GulfFoodDirectory() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowAddModal(false)}>
             <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-900">
-                  {editingMember ? 'Edit Member' : 'Add New Member'}
+                <h2 className="text-xl font-bold text-gray-900">
+                  {editingMember ? 'Edit Member' : 'Add Member'}
                 </h2>
                 <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                   <X size={20} />
@@ -424,7 +419,7 @@ export default function GulfFoodDirectory() {
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Company Name *</label>
                   <input
                     type="text"
                     value={form.companyName}
@@ -436,7 +431,7 @@ export default function GulfFoodDirectory() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">City - State</label>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">City - State</label>
                   <input
                     type="text"
                     value={form.cityState}
@@ -446,31 +441,30 @@ export default function GulfFoodDirectory() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
-                    <input
-                      type="text"
-                      value={form.contactPerson}
-                      onChange={e => setForm({ ...form, contactPerson: e.target.value })}
-                      placeholder="Contact Person Name"
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Contact Number</label>
-                    <input
-                      type="text"
-                      value={form.contactNumber}
-                      onChange={e => setForm({ ...form, contactNumber: e.target.value })}
-                      placeholder="+91 ..."
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-                    />
-                  </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Contact Person</label>
+                  <input
+                    type="text"
+                    value={form.contactPerson}
+                    onChange={e => setForm({ ...form, contactPerson: e.target.value })}
+                    placeholder="Contact Person Name"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Contact Number</label>
+                  <input
+                    type="text"
+                    value={form.contactNumber}
+                    onChange={e => setForm({ ...form, contactNumber: e.target.value })}
+                    placeholder="+91 ..."
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Email</label>
                   <input
                     type="email"
                     value={form.email}
@@ -481,7 +475,7 @@ export default function GulfFoodDirectory() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Website</label>
                   <input
                     type="text"
                     value={form.website}
@@ -492,13 +486,13 @@ export default function GulfFoodDirectory() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Profile / Products</label>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Profile / Products</label>
                   <textarea
                     value={form.profile}
                     onChange={e => setForm({ ...form, profile: e.target.value })}
-                    placeholder="e.g. Dairy Products, Instant Coffee, Tea..."
+                    placeholder="What products they deal in..."
                     rows={3}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
                   />
                 </div>
 
@@ -514,7 +508,7 @@ export default function GulfFoodDirectory() {
                     type="submit"
                     className="flex-1 px-4 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700"
                   >
-                    {editingMember ? 'Update' : 'Add'} Member
+                    {editingMember ? 'Update' : 'Add'}
                   </button>
                 </div>
               </form>
