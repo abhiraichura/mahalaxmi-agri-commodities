@@ -2,9 +2,10 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
 import {
   LayoutDashboard, FileText, Users, Package, Receipt, Settings, LogOut,
-  BookOpen, StickyNote, ChevronDown, ChevronRight, FolderOpen, Menu, X
+  BookOpen, StickyNote, ChevronDown, ChevronRight, FolderOpen, Menu, X, RefreshCw
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { checkForUpdate, markVersionSeen, clearAppCache } from '../utils/cacheManager';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuthStore();
@@ -13,6 +14,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     location.pathname.startsWith('/parties') || location.pathname.startsWith('/gulfood')
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showUpdateBanner, setShowUpdateBanner] = useState(false);
+
+  useEffect(() => {
+    if (checkForUpdate()) {
+      setShowUpdateBanner(true);
+    }
+  }, []);
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -41,6 +49,36 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex">
+      {/* Update Banner */}
+      {showUpdateBanner && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-white px-4 py-2 flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <RefreshCw className="w-4 h-4" />
+            New version available. Please update to see latest changes.
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                markVersionSeen();
+                setShowUpdateBanner(false);
+              }}
+              className="text-xs underline opacity-90 hover:opacity-100"
+            >
+              Dismiss
+            </button>
+            <button
+              onClick={() => clearAppCache()}
+              className="px-3 py-1 text-xs font-semibold bg-white text-amber-600 rounded hover:bg-gray-100"
+            >
+              Update Now
+            </button>
+            <button onClick={() => setShowUpdateBanner(false)} className="opacity-80 hover:opacity-100">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Menu Toggle Button */}
       <button
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -155,7 +193,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 lg:ml-64 min-w-0">
+      <main className={`flex-1 lg:ml-64 min-w-0 ${showUpdateBanner ? 'pt-10' : ''}`}>
         {children}
       </main>
     </div>
