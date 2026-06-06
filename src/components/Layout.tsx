@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Menu, X, ArrowLeft, Home, FileText, Box, Settings, Users, Notebook, LogOut, ChevronRight, BookOpen, Calculator, Globe } from 'lucide-react';
+import { Menu, X, ArrowLeft, Home, FileText, Box, Settings, Users, Notebook, LogOut, ChevronRight, BookOpen, Calculator, Globe, ChevronDown } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
 import toast from 'react-hot-toast';
@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [partiesOpen, setPartiesOpen] = useState(false);
   const location = useLocation();
   const { user, logout } = useAuthStore();
 
@@ -22,17 +23,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Brokerage Bills', icon: Calculator, path: '/brokerage-bills' },
     { name: 'Party Ledger', icon: BookOpen, path: '/party-ledger' },
     { name: 'Notes', icon: Notebook, path: '/notes' },
-    { name: 'Gulf Food', icon: Globe, path: '/gulf-food-directory' },
     { name: 'Settings', icon: Settings, path: '/settings' },
-  ];
-
-  const navigationItems = [
-    { name: 'Parties', icon: Users, path: '/parties' },
   ];
 
   useEffect(() => {
     setShowMobileMenu(false);
   }, [location]);
+
+  // Check if parties section is active
+  const isPartiesActive = location.pathname === '/parties' || location.pathname === '/gulf-food-directory';
 
   return (
     <div className="min-h-screen flex">
@@ -41,8 +40,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         collapsed ? 'w-16 items-center px-2 py-4' : 'w-64 px-4 py-5'
       } transition-all duration-300 ease-in-out hidden md:flex`}>
         <div className="flex items-center justify-between mb-8">
-          <div className={`flex items-center gap-3 overflow-hidden ${collapsed ? "" : ""}`}>
-            <div className={`w-8 h-8 rounded-lg bg-rose-600 flex items-center justify-center flex-shrink-0 ${collapsed ? "" : ""}`}>
+          <div className={`flex items-center gap-3 overflow-hidden`}>
+            <div className={`w-8 h-8 rounded-lg bg-rose-600 flex items-center justify-center flex-shrink-0`}>
               <span className="text-white font-bold text-xl">M</span>
             </div>
             {!collapsed && (
@@ -58,7 +57,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <nav className="space-y-2">
+          <nav className="space-y-1">
             {menuItems.map((item) => (
               <Link
                 key={item.name}
@@ -71,23 +70,58 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 {!collapsed && <span>{item.name}</span>}
               </Link>
             ))}
-          </nav>
 
-          <div className="border-t border-gray-200 mt-4 pt-4">
-            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-2">Navigation</p>
-            <nav className="space-y-1">
-              {navigationItems.map((item) => (
-                <Link
-                  key={item.name}
-                  to={item.path}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${ location.pathname === item.path ? 'bg-rose-50 text-rose-600' : 'text-gray-700 hover:bg-rose-50 hover:text-rose-600' }`}
+            {/* Parties Collapsible Section */}
+            {!collapsed && (
+              <div className="mt-2">
+                <button
+                  onClick={() => setPartiesOpen(!partiesOpen)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+                    isPartiesActive ? 'bg-rose-50 text-rose-600' : 'text-gray-700 hover:bg-rose-50 hover:text-rose-600'
+                  }`}
                 >
-                  <item.icon size={collapsed ? 20 : 18} />
-                  {!collapsed && <span>{item.name}</span>}
-                </Link>
-              ))}
-            </nav>
-          </div>
+                  <div className="flex items-center gap-3">
+                    <Users size={18} />
+                    <span>Parties</span>
+                  </div>
+                  <ChevronDown size={16} className={`transition-transform ${partiesOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {partiesOpen && (
+                  <div className="ml-4 mt-1 space-y-1">
+                    <Link
+                      to="/parties"
+                      className={`flex items-center gap-3 px-4 py-2 rounded-xl text-sm transition-colors ${
+                        location.pathname === '/parties' ? 'bg-rose-50 text-rose-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                      }`}
+                    >
+                      <span>Party Directory</span>
+                    </Link>
+                    <Link
+                      to="/gulf-food-directory"
+                      className={`flex items-center gap-3 px-4 py-2 rounded-xl text-sm transition-colors ${
+                        location.pathname === '/gulf-food-directory' ? 'bg-rose-50 text-rose-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                      }`}
+                    >
+                      <Globe size={14} />
+                      <span>Gulfood Directory</span>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {collapsed && (
+              <Link
+                to="/parties"
+                className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+                  isPartiesActive ? 'bg-rose-50 text-rose-600' : 'text-gray-700 hover:bg-rose-50 hover:text-rose-600'
+                }`}
+              >
+                <Users size={20} />
+              </Link>
+            )}
+          </nav>
         </div>
 
         <div className="border-t border-gray-200 pt-4 mt-auto">
@@ -128,7 +162,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               <nav className="space-y-1">
-                {[...menuItems, ...navigationItems].map((item) => (
+                {menuItems.map((item) => (
                   <Link
                     key={item.name}
                     to={item.path}
@@ -141,6 +175,46 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     </div>
                   </Link>
                 ))}
+
+                {/* Mobile Parties Section */}
+                <div className="mt-2">
+                  <button
+                    onClick={() => setPartiesOpen(!partiesOpen)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                      isPartiesActive ? 'bg-rose-50 text-rose-600' : 'text-gray-700 hover:bg-rose-50 hover:text-rose-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Users size={18} />
+                      <span>Parties</span>
+                    </div>
+                    <ChevronDown size={16} className={`transition-transform ${partiesOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {partiesOpen && (
+                    <div className="ml-4 mt-1 space-y-1">
+                      <Link
+                        to="/parties"
+                        className={`block px-4 py-2 rounded-xl text-sm transition-colors ${
+                          location.pathname === '/parties' ? 'bg-rose-50 text-rose-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                        }`}
+                        onClick={() => setShowMobileMenu(false)}
+                      >
+                        Party Directory
+                      </Link>
+                      <Link
+                        to="/gulf-food-directory"
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-colors ${
+                          location.pathname === '/gulf-food-directory' ? 'bg-rose-50 text-rose-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                        }`}
+                        onClick={() => setShowMobileMenu(false)}
+                      >
+                        <Globe size={14} />
+                        Gulfood Directory
+                      </Link>
+                    </div>
+                  )}
+                </div>
               </nav>
               <div className="border-t border-gray-200 pt-4 mt-4">
                 <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600">
