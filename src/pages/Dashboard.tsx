@@ -2,14 +2,14 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
 import {
-  FileText, Users, Package, IndianRupee, TrendingUp,
+  FileText, Users, Package,
   AlertTriangle, Clock, ArrowRight
 } from 'lucide-react';
 import { format, isPast, parseISO, isTomorrow } from 'date-fns';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { contracts, parties, products, settings, currentFinancialYear, loadContracts, loadParties, loadProducts, loadSettingsFromFirebase } = useAppStore();
+  const { contracts, parties, products, currentFinancialYear, loadContracts, loadParties, loadProducts, loadSettingsFromFirebase } = useAppStore();
 
   useEffect(() => {
     loadContracts();
@@ -19,18 +19,6 @@ export default function Dashboard() {
   }, []);
 
   const fyContracts = contracts.filter(c => c.financialYear === currentFinancialYear || (!c.financialYear && c.year === parseInt(currentFinancialYear.split('-')[0])));
-
-  // Monthly brokerage summary
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-
-  const monthContracts = fyContracts.filter(c => {
-    const d = new Date(c.date);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-  });
-
-  const monthBrokerage = monthContracts.reduce((sum, c) => sum + (c.brokerageAmount || 0), 0);
 
   // Loading deadline alerts
   const overdueContracts = fyContracts.filter(c => {
@@ -50,34 +38,13 @@ export default function Dashboard() {
     { label: 'Contracts', value: fyContracts.length, icon: FileText, color: 'bg-blue-50 text-blue-600', path: '/contracts' },
     { label: 'Parties', value: parties.length, icon: Users, color: 'bg-purple-50 text-purple-600', path: '/parties' },
     { label: 'Products', value: products.length, icon: Package, color: 'bg-amber-50 text-amber-600', path: '/products' },
-    { label: 'This Month Brokerage', value: `Rs. ${monthBrokerage.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'bg-rose-50 text-rose-600', path: '/bills' },
   ];
 
   return (
-    <div>
+    <div className="pt-16 lg:pt-8 px-4 lg:px-8 pb-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <p className="text-sm text-gray-500">Financial Year: {currentFinancialYear}</p>
-      </div>
-
-      {/* Brokerage Summary Widget */}
-      <div className="bg-gradient-to-r from-rose-600 to-rose-700 rounded-2xl p-6 text-white mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-rose-100 text-sm font-medium">This Month's Brokerage</p>
-            <p className="text-3xl font-bold mt-1">Rs. {monthBrokerage.toLocaleString('en-IN')}</p>
-            <p className="text-rose-100 text-sm mt-1">from {monthContracts.length} contract{monthContracts.length !== 1 ? 's' : ''}</p>
-          </div>
-          <div className="bg-white/20 rounded-xl p-3">
-            <TrendingUp className="w-8 h-8" />
-          </div>
-        </div>
-        <button
-          onClick={() => navigate('/bills')}
-          className="mt-4 inline-flex items-center gap-2 text-sm text-rose-100 hover:text-white"
-        >
-          View Brokerage Bills <ArrowRight className="w-4 h-4" />
-        </button>
       </div>
 
       {/* Loading Deadline Alerts */}
@@ -115,7 +82,7 @@ export default function Dashboard() {
       )}
 
       {/* Stats Grid - CLICKABLE */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
         {stats.map((stat, i) => {
           const Icon = stat.icon;
           return (
