@@ -1,59 +1,72 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useAuthStore } from './hooks/useAuthStore';
-import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
+import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import ContractList from './pages/ContractList';
 import ContractForm from './pages/ContractForm';
 import ContractView from './pages/ContractView';
+import ProductList from './pages/ProductList';
+import ProductForm from './pages/ProductForm';
 import PartyDirectory from './pages/PartyDirectory';
 import PartyForm from './pages/PartyForm';
-import ProductManager from './pages/ProductManager';
+import SettingsPage from './pages/SettingsPage';
 import BrokerageBills from './pages/BrokerageBills';
-import Settings from './pages/Settings';
-import Login from './pages/Login';
-import LoadingScreen from './components/LoadingScreen';
-import Notes from './pages/Notes';
+import BillDetail from './pages/BillDetail';
 import PartyLedger from './pages/PartyLedger';
-import AllContracts from './pages/AllContracts';
+import NotesPage from './pages/NotesPage';
 import GulfFoodDirectory from './pages/GulfFoodDirectory';
 
 function App() {
-  const { user, loading } = useAuthStore();
+  const { user, loading, loadParties, loadProducts, loadContracts, loadSettings, loadNotes, loadBrokerageBills } = useAuthStore();
 
-  if (loading) return <LoadingScreen />;
+  useEffect(() => {
+    if (user) {
+      loadParties();
+      loadProducts();
+      loadContracts();
+      loadSettings();
+      loadNotes();
+      loadBrokerageBills();
+    }
+  }, [user]);
 
-  if (!user) {
+  if (loading) {
     return (
-      <>
-        <Login />
-        <Toaster position="top-right" />
-      </>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-600"></div>
+      </div>
     );
   }
 
+  if (!user) {
+    return <Login />;
+  }
+
   return (
-    <BrowserRouter>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/contracts" element={<AllContracts />} />
-          <Route path="/contracts/new" element={<ContractForm />} />
-          <Route path="/contracts/edit/:id" element={<ContractForm />} />
-          <Route path="/contracts/:id" element={<ContractView />} />
-          <Route path="/parties" element={<PartyDirectory />} />
-          <Route path="/parties/new" element={<PartyForm />} />
-          <Route path="/parties/edit/:id" element={<PartyForm />} />
-          <Route path="/gulfood" element={<GulfFoodDirectory />} />
-          <Route path="/products" element={<ProductManager />} />
-          <Route path="/brokerage" element={<BrokerageBills />} />
-          <Route path="/ledger" element={<PartyLedger />} />
-          <Route path="/notes" element={<Notes />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </Layout>
-      <Toaster position="top-right" />
-    </BrowserRouter>
+    <Routes>
+      <Route element={<Layout />}>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/contracts" element={<ContractList />} />
+        <Route path="/contracts/new" element={<ContractForm />} />
+        <Route path="/contracts/edit/:id" element={<ContractForm />} />
+        <Route path="/contracts/:id" element={<ContractView />} />
+        <Route path="/products" element={<ProductList />} />
+        <Route path="/products/new" element={<ProductForm />} />
+        <Route path="/products/edit/:id" element={<ProductForm />} />
+        <Route path="/parties" element={<PartyDirectory />} />
+        <Route path="/parties/new" element={<PartyForm />} />
+        <Route path="/parties/edit/:id" element={<PartyForm />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/brokerage-bills" element={<BrokerageBills />} />
+        <Route path="/brokerage-bills/:id" element={<BillDetail />} />
+        <Route path="/party-ledger" element={<PartyLedger />} />
+        <Route path="/notes" element={<NotesPage />} />
+        <Route path="/gulf-food-directory" element={<GulfFoodDirectory />} />
+      </Route>
+    </Routes>
   );
 }
 
