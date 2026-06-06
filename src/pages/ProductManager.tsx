@@ -139,7 +139,7 @@ export default function ProductManager() {
   );
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto pt-16 lg:pt-8 px-4 lg:px-8 pb-8">
       <h1 className="text-2xl font-bold mb-6">Products</h1>
 
       <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-6">
