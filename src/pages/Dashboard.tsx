@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
 import {
@@ -9,14 +8,7 @@ import { format, isPast, parseISO, isTomorrow } from 'date-fns';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { contracts, parties, products, currentFinancialYear, loadContracts, loadParties, loadProducts, loadSettingsFromFirebase } = useAppStore();
-
-  useEffect(() => {
-    loadContracts();
-    loadParties();
-    loadProducts();
-    loadSettingsFromFirebase();
-  }, []);
+  const { contracts, parties, products, currentFinancialYear } = useAppStore();
 
   const fyContracts = contracts.filter(c => c.financialYear === currentFinancialYear || (!c.financialYear && c.year === parseInt(currentFinancialYear.split('-')[0])));
 
