@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuthStore } from './hooks/useAuthStore';
+import { useEffect } from 'react';
+import { useAuthStore, useAppStore } from './hooks/useAuthStore';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -19,6 +20,18 @@ import GulfFoodDirectory from './pages/GulfFoodDirectory';
 
 function App() {
   const { user, loading } = useAuthStore();
+  const { loadContracts, loadParties, loadProducts, loadSettingsFromFirebase, loadNotes } = useAppStore();
+
+  // Load all data globally once user is logged in
+  useEffect(() => {
+    if (user) {
+      loadContracts();
+      loadParties();
+      loadProducts();
+      loadSettingsFromFirebase();
+      loadNotes();
+    }
+  }, [user]);
 
   if (loading) return <LoadingScreen />;
 
