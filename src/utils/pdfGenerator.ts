@@ -39,11 +39,22 @@ export const generateContractPDF = (
   const PH = 297;
   const M = 10;
   const W = PW - M * 2;
-  const FOOTER_Y = 270; // Hard reserve footer area from here
+  const FOOTER_Y = 270;
 
-  let y = settings.letterhead ? 32 : 14;
+  // === LETTERHEAD AREA: 50mm reserved at top ===
+  let y = 50;
 
-  // === HEADER ===
+  // If letterhead image exists, draw it
+  if (settings.letterhead) {
+    try {
+      // Draw letterhead image: full width, 45mm height, centered
+      doc.addImage(settings.letterhead, 'PNG', M, 2, W, 45);
+    } catch (e) {
+      // If image fails, just leave the space empty
+    }
+  }
+
+  // === CONTRACT TITLE ===
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(...RED);
@@ -171,7 +182,6 @@ export const generateContractPDF = (
         doc.text(rightSpecs[i].label, M + W / 2 + 2, rowY + 3);
         doc.text(`${rightSpecs[i].value} ${rightSpecs[i].unit}`, M + W / 2 + 35, rowY + 3);
       }
-      // Horizontal line
       if (i < maxRows - 1) {
         doc.setDrawColor(...BORDER);
         doc.setLineWidth(0.15);
@@ -251,7 +261,6 @@ export const generateContractPDF = (
   doc.setFontSize(6.5);
   doc.setTextColor(...DARK);
 
-  // Fit terms within available space before footer
   const maxTermsY = FOOTER_Y - 8;
 
   terms.forEach((term, index) => {
@@ -261,7 +270,6 @@ export const generateContractPDF = (
     const lineHeight = 2.6;
     const termHeight = splitText.length * lineHeight;
 
-    // If running out of space, auto-shrink font
     if (y + termHeight > maxTermsY) {
       doc.setFontSize(6);
     }
@@ -273,19 +281,16 @@ export const generateContractPDF = (
   // === FOOTER (Fixed position, never overlaps) ===
   y = FOOTER_Y;
 
-  // Red separator line
   doc.setDrawColor(...RED);
   doc.setLineWidth(0.35);
   doc.line(M, y, PW - M, y);
   y += 4.5;
 
-  // Company name left
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(...BLACK);
   doc.text(settings.legalName, M, y);
 
-  // Signature right
   if (settings.signature) {
     try {
       doc.addImage(settings.signature, 'PNG', PW - M - 32, y - 4, 28, 10);
