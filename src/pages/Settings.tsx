@@ -81,6 +81,18 @@ export default function Settings() {
     setFormData(prev => ({ ...prev, financialYears: (prev.financialYears || []).filter(y => y !== fy) }));
   };
 
+  const handleUpdateNow = async () => {
+    markVersionSeen();
+    setUpdateAvailable(false);
+    await clearAppCache();
+  };
+
+  const handleClearCache = async () => {
+    if (confirm('This will clear the app cache and reload the page. Your data is safe. Continue?')) {
+      await clearAppCache();
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
@@ -346,10 +358,7 @@ export default function Settings() {
                   A new version of the app is available.
                 </p>
                 <button
-                  onClick={() => {
-                    markVersionSeen();
-                    clearAppCache();
-                  }}
+                  onClick={handleUpdateNow}
                   className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700"
                 >
                   <RefreshCw className="w-4 h-4" />
@@ -368,11 +377,7 @@ export default function Settings() {
                 </p>
               </div>
               <button
-                onClick={() => {
-                  if (confirm('This will clear the app cache and reload the page. Your data is safe. Continue?')) {
-                    clearAppCache();
-                  }
-                }}
+                onClick={handleClearCache}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-700 bg-white border border-red-200 rounded-md hover:bg-red-50 flex-shrink-0"
               >
                 <Trash2 className="w-4 h-4" />
