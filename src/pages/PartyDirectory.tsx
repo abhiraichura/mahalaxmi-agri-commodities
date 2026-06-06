@@ -1,17 +1,33 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Party } from '../types';
-import { Search, Plus, Phone, Mail, MapPin, Edit2, Trash2, Download, Upload, X, ChevronRight, User, Users } from 'lucide-react';
+import { Search, Plus, Phone, Mail, MapPin, Edit2, Trash2, Download, Upload, X, ChevronRight, User, Users, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function PartyDirectory() {
   const navigate = useNavigate();
-  const { parties, products, deleteParty, loadParties } = useAppStore();
+  const { parties, products, deleteParty, loadParties, loading } = useAppStore();
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'buyer' | 'seller' | 'both'>('all');
   const [viewingParty, setViewingParty] = useState<Party | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasLoaded = useRef(false);
+
+  // Load parties on mount if empty
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!hasLoaded.current) {
+        hasLoaded.current = true;
+        if (parties.length === 0) {
+          await loadParties();
+        }
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [loadParties, parties.length]);
 
   // Search includes: name, city, phone, contact person, products
   const filtered = useMemo(() => {
@@ -236,89 +252,99 @@ export default function PartyDirectory() {
           )}
         </div>
 
+        {/* Loading State */}
+        {(isLoading || loading) && (
+          <div className="bg-white rounded-2xl p-12 border border-gray-200 text-center">
+            <Loader2 size={48} className="mx-auto text-gray-300 mb-4 animate-spin" />
+            <p className="text-gray-500">Loading parties...</p>
+          </div>
+        )}
+
         {/* Party Cards */}
-        {filtered.length === 0 ? (
+        {!isLoading && !loading && filtered.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 border border-gray-200 text-center">
             <Users size={48} className="mx-auto text-gray-300 mb-4" />
             <p className="text-gray-500">No parties found</p>
             {search && <p className="text-sm text-gray-400 mt-1">Try a different search term</p>}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(party => {
-              const phones = parsePhones(party.phone);
-              const partyProducts = (party.productIds || [])
-                .map(pid => products.find(prod => prod.id === pid))
-                .filter(Boolean);
+          !isLoading && !loading && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filtered.map(party => {
+                const phones = parsePhones(party.phone);
+                const partyProducts = (party.productIds || [])
+                  .map(pid => products.find(prod => prod.id === pid))
+                  .filter(Boolean);
 
-              return (
-                <div
-                  key={party.id}
-                  onClick={() => setViewingParty(party)}
-                  className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md hover:border-rose-200 transition-all cursor-pointer group"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-semibold text-gray-900 group-hover:text-rose-700 transition-colors">
-                        {party.legalName}
-                      </h3>
-                      {party.name !== party.legalName && (
-                        <p className="text-xs text-gray-500">{party.name}</p>
-                      )}
+                return (
+                  <div
+                    key={party.id}
+                    onClick={() => setViewingParty(party)}
+                    className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md hover:border-rose-200 transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="font-semibold text-gray-900 group-hover:text-rose-700 transition-colors">
+                          {party.legalName}
+                        </h3>
+                        {party.name !== party.legalName && (
+                          <p className="text-xs text-gray-500">{party.name}</p>
+                        )}
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                        party.type === 'buyer' ? 'bg-blue-50 text-blue-600' :
+                        party.type === 'seller' ? 'bg-green-50 text-green-600' :
+                        'bg-purple-50 text-purple-600'
+                      }`}>
+                        {party.type}
+                      </span>
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      party.type === 'buyer' ? 'bg-blue-50 text-blue-600' :
-                      party.type === 'seller' ? 'bg-green-50 text-green-600' :
-                      'bg-purple-50 text-purple-600'
-                    }`}>
-                      {party.type}
-                    </span>
+
+                    {/* Contact Person (NEW - replaces GSTIN on card) */}
+                    {party.contactPerson && (
+                      <div className="flex items-center gap-1.5 text-sm text-gray-700 mb-2">
+                        <User size={14} className="text-gray-400" />
+                        <span className="font-medium">{party.contactPerson}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
+                      <MapPin size={14} />
+                      {party.city}, {party.state}
+                    </div>
+
+                    {/* Clickable phone numbers */}
+                    {phones.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {phones.map((phone, idx) => (
+                          <a
+                            key={idx}
+                            href={`tel:${phone.replace(/\s/g, '')}`}
+                            onClick={e => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 text-sm text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-1 rounded-lg"
+                          >
+                            <Phone size={12} />
+                            {phone}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Product tags */}
+                    {partyProducts.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        {partyProducts.map(prod => (
+                          <span key={prod!.id} className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-lg">
+                            {prod!.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-
-                  {/* Contact Person (NEW - replaces GSTIN on card) */}
-                  {party.contactPerson && (
-                    <div className="flex items-center gap-1.5 text-sm text-gray-700 mb-2">
-                      <User size={14} className="text-gray-400" />
-                      <span className="font-medium">{party.contactPerson}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
-                    <MapPin size={14} />
-                    {party.city}, {party.state}
-                  </div>
-
-                  {/* Clickable phone numbers */}
-                  {phones.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {phones.map((phone, idx) => (
-                        <a
-                          key={idx}
-                          href={`tel:${phone.replace(/\s/g, '')}`}
-                          onClick={e => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 text-sm text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-1 rounded-lg"
-                        >
-                          <Phone size={12} />
-                          {phone}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Product tags */}
-                  {partyProducts.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-3">
-                      {partyProducts.map(prod => (
-                        <span key={prod!.id} className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-lg">
-                          {prod!.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )
         )}
 
         {/* View Party Modal */}
