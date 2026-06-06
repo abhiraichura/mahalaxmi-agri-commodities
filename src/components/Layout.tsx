@@ -37,6 +37,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => { document.body.style.overflow = ''; };
   }, [mobileMenuOpen]);
 
+  const handleUpdateNow = async () => {
+    markVersionSeen();
+    setShowUpdateBanner(false);
+    await clearAppCache();
+  };
+
+  const handleDismiss = () => {
+    markVersionSeen();
+    setShowUpdateBanner(false);
+  };
+
   const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/contracts', icon: FileText, label: 'Contracts' },
@@ -58,16 +69,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => {
-                markVersionSeen();
-                setShowUpdateBanner(false);
-              }}
+              onClick={handleDismiss}
               className="text-xs underline opacity-90 hover:opacity-100"
             >
               Dismiss
             </button>
             <button
-              onClick={() => clearAppCache()}
+              onClick={handleUpdateNow}
               className="px-3 py-1 text-xs font-semibold bg-white text-amber-600 rounded hover:bg-gray-100"
             >
               Update Now
