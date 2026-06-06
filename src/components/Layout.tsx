@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Outlet, Menu, X, ArrowLeft, Home, FileSign, Products, Settings, Users, Notebook, LogOut, ChevronRight, BookOpen, Calculator } from 'lucide-react';
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Menu, X, ArrowLeft, Home, FileText, Box, Settings, Users, Notebook, LogOut, ChevronRight, BookOpen, Calculator } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
 import toast from 'react-hot-toast';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [showMobileMenu, setShowMobileMenu] = useState(false); // FIXED: was true
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const location = useLocation();
   const { user, logout } = useAuthStore();
 
@@ -17,8 +17,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const menuItems = [
     { name: 'Dashboard', icon: Home, path: '/dashboard' },
-    { name: 'Contracts', icon: FileSign, path: '/contracts' },
-    { name: 'Products', icon: Products, path: '/products' },
+    { name: 'Contracts', icon: FileText, path: '/contracts' },
+    { name: 'Products', icon: Box, path: '/products' },
     { name: 'Brokerage Bills', icon: Calculator, path: '/brokerage-bills' },
     { name: 'Party Ledger', icon: BookOpen, path: '/party-ledger' },
     { name: 'Notes', icon: Notebook, path: '/notes' },
@@ -30,7 +30,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   useEffect(() => {
-    // Close mobile menu when route changes
     setShowMobileMenu(false);
   }, [location]);
 
