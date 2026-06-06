@@ -35,8 +35,14 @@ export async function clearAppCache(): Promise<void> {
   // 4. Clear sessionStorage
   sessionStorage.clear();
 
-  // 5. Hard reload with cache bust
-  window.location.href = window.location.href.split('?')[0] + '?_cb=' + Date.now();
+  // 5. Hard reload from server (forces fresh fetch, no cache)
+  // Use reload() with cache-bust header via no-cache fetch first
+  try {
+    await fetch(window.location.href, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+  } catch (e) {
+    // ignore
+  }
+  window.location.reload();
 }
 
 /**
