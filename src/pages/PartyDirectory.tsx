@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Party } from '../types';
-import { Search, Plus, Phone, Mail, MapPin, Edit2, Trash2, Download, Upload, X, ChevronRight, User, Users, Loader2 } from 'lucide-react';
+import { Search, Plus, Phone, Mail, MapPin, Edit2, Trash2, Download, Upload, X, ChevronRight, User, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function PartyDirectory() {
