@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Menu, X, ArrowLeft, Home, FileText, Box, Settings, Users, Notebook, LogOut, ChevronRight, BookOpen, Calculator, Globe, ChevronDown } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
 import toast from 'react-hot-toast';
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [partiesOpen, setPartiesOpen] = useState(false);
@@ -231,10 +232,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Main Content */}
+      {/* Main Content - Outlet for nested routes */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="overflow-y-auto p-4 md:p-6">
-          {children}
+          <Outlet />
         </div>
       </div>
     </div>
