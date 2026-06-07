@@ -16,11 +16,8 @@ export default function ContractForm() {
   const navigate = useNavigate();
   const { parties, products, contracts, addContract, updateContract, settings, currentFinancialYear, setCurrentFinancialYear, loadParties } = useAppStore();
 
-  // Ensure we have the latest parties loaded when this component mounts
   useEffect(() => {
-    if (loadParties) {
-      loadParties();
-    }
+    if (loadParties) loadParties();
   }, [loadParties]);
 
   const [form, setForm] = useState({
@@ -58,12 +55,14 @@ export default function ContractForm() {
   const [buyerDropdownOpen, setBuyerDropdownOpen] = useState(false);
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [qualityDropdownOpen, setQualityDropdownOpen] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState<number>(-1);
 
   const sellerRef = useRef<HTMLDivElement>(null);
   const buyerRef = useRef<HTMLDivElement>(null);
   const productRef = useRef<HTMLDivElement>(null);
   const qualityRef = useRef<HTMLDivElement>(null);
 
+  // Close dropdowns on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (sellerRef.current && !sellerRef.current.contains(e.target as Node)) setSellerDropdownOpen(false);
@@ -74,6 +73,16 @@ export default function ContractForm() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Smart scrolling for keyboard navigation inside dropdowns
+  useEffect(() => {
+    if (highlightIndex >= 0) {
+      const element = document.getElementById(`dropdown-item-${highlightIndex}`);
+      if (element) {
+        element.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightIndex]);
 
   const existing = id ? contracts.find(c => c.id === id) : null;
 
@@ -129,24 +138,73 @@ export default function ContractForm() {
   const selectedBuyer = parties.find(p => p.id === form.buyerId);
   const selectedProduct = products.find(p => p.id === form.productId);
 
-  // Alphabetically sorted options with null checks
+  // Alphabetically sorted arrays
   const sortedSellers = useMemo(() => 
-    parties
-      .filter(p => p.type === 'seller' || p.type === 'both')
-      .sort((a, b) => (a.legalName || '').localeCompare(b.legalName || '')),
+    parties.filter(p => p.type === 'seller' || p.type === 'both').sort((a, b) => (a.legalName || '').localeCompare(b.legalName || '')),
   [parties]);
 
   const sortedBuyers = useMemo(() => 
-    parties
-      .filter(p => p.type === 'buyer' || p.type === 'both')
-      .sort((a, b) => (a.legalName || '').localeCompare(b.legalName || '')),
+    parties.filter(p => p.type === 'buyer' || p.type === 'both').sort((a, b) => (a.legalName || '').localeCompare(b.legalName || '')),
   [parties]);
 
   const sortedProducts = useMemo(() => 
     [...products].sort((a, b) => (a.name || '').localeCompare(b.name || '')),
   [products]);
 
-  // Initialize quality & specs when product changes (for new contracts)
+  const sortedQualities = useMemo(() => {
+    if (!selectedProduct || !selectedProduct.qualities) return [];
+    return [...selectedProduct.qualities].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [selectedProduct]);
+
+  // --- Generic Dropdown Logic for Keyboard Support ---
+  const toggleDropdown = (isOpen: boolean, setIsOpen: (val: boolean) => void, items: any[], currentSelectedId: string | null) => {
+    if (!isOpen) {
+      const idx = items.findIndex(item => item.id === currentSelectedId);
+      setHighlightIndex(idx >= 0 ? idx : 0);
+    } else {
+      setHighlightIndex(-1);
+    }
+    setIsOpen(!isOpen);
+  };
+
+  const handleDropdownKeyDown = (e: React.KeyboardEvent, isOpen: boolean, setIsOpen: (val: boolean) => void, items: any[], onSelect: (item: any) => void, currentSelectedId: string | null) => {
+    if (!isOpen) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        const idx = items.findIndex(item => item.id === currentSelectedId);
+        setHighlightIndex(idx >= 0 ? idx : 0);
+        setIsOpen(true);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightIndex(prev => (prev < items.length - 1 ? prev + 1 : prev));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightIndex(prev => (prev > 0 ? prev - 1 : 0));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (highlightIndex >= 0 && highlightIndex < items.length) {
+          onSelect(items[highlightIndex]);
+          setIsOpen(false);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setIsOpen(false);
+        break;
+      case 'Tab':
+        setIsOpen(false);
+        break;
+    }
+  };
+
+  // Rest of calculations
   useEffect(() => {
     if (!existing && selectedProduct) {
       if (selectedProduct.qualities && selectedProduct.qualities.length > 0) {
@@ -236,7 +294,6 @@ export default function ContractForm() {
     const seller = parties.find(p => p.id === form.sellerId)!;
     const buyer = parties.find(p => p.id === form.buyerId)!;
     const product = products.find(p => p.id === form.productId)!;
-
     const year = parseInt(form.financialYear.split('-')[0]);
 
     const payload = {
@@ -271,7 +328,7 @@ export default function ContractForm() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto pb-20">
       <div className="flex items-center gap-3 mb-6">
         <button onClick={() => navigate('/contracts')} className="p-2 hover:bg-gray-100 rounded-lg">
           <ArrowLeft className="w-5 h-5" />
@@ -359,13 +416,16 @@ export default function ContractForm() {
           </div>
         </div>
 
-        {/* Parties */}
+        {/* Parties Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          {/* SELLER DROPDOWN */}
           <div className="relative" ref={sellerRef}>
             <label className="block text-sm font-medium text-gray-700 mb-1">Seller *</label>
             <button
               type="button"
-              onClick={() => setSellerDropdownOpen(!sellerDropdownOpen)}
+              onClick={() => toggleDropdown(sellerDropdownOpen, setSellerDropdownOpen, sortedSellers, form.sellerId)}
+              onKeyDown={(e) => handleDropdownKeyDown(e, sellerDropdownOpen, setSellerDropdownOpen, sortedSellers, (item) => setForm({ ...form, sellerId: item.id }), form.sellerId)}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between transition-colors focus:ring-2 focus:ring-rose-100"
             >
               <span className={form.sellerId ? 'text-gray-900 font-medium line-clamp-1 text-left' : 'text-gray-500'}>
@@ -376,14 +436,17 @@ export default function ContractForm() {
 
             {sellerDropdownOpen && (
               <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto py-1">
-                {sortedSellers.map(p => {
+                {sortedSellers.map((p, index) => {
                   const isSelected = form.sellerId === p.id;
+                  const isHighlighted = highlightIndex === index;
                   return (
                     <button
                       key={p.id}
+                      id={`dropdown-item-${index}`}
                       type="button"
+                      onMouseEnter={() => setHighlightIndex(index)}
                       onClick={() => { setForm({ ...form, sellerId: p.id }); setSellerDropdownOpen(false); }}
-                      className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${isSelected ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                      className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between transition-colors ${isSelected ? 'bg-rose-50 text-rose-700 font-medium' : isHighlighted ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}
                     >
                       <span className="truncate pr-2">{p.legalName}</span>
                       {isSelected && <Check size={14} className="text-rose-600 flex-shrink-0" />}
@@ -401,11 +464,13 @@ export default function ContractForm() {
             )}
           </div>
           
+          {/* BUYER DROPDOWN */}
           <div className="relative" ref={buyerRef}>
             <label className="block text-sm font-medium text-gray-700 mb-1">Buyer *</label>
             <button
               type="button"
-              onClick={() => setBuyerDropdownOpen(!buyerDropdownOpen)}
+              onClick={() => toggleDropdown(buyerDropdownOpen, setBuyerDropdownOpen, sortedBuyers, form.buyerId)}
+              onKeyDown={(e) => handleDropdownKeyDown(e, buyerDropdownOpen, setBuyerDropdownOpen, sortedBuyers, (item) => setForm({ ...form, buyerId: item.id }), form.buyerId)}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between transition-colors focus:ring-2 focus:ring-rose-100"
             >
               <span className={form.buyerId ? 'text-gray-900 font-medium line-clamp-1 text-left' : 'text-gray-500'}>
@@ -416,14 +481,17 @@ export default function ContractForm() {
 
             {buyerDropdownOpen && (
               <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto py-1">
-                {sortedBuyers.map(p => {
+                {sortedBuyers.map((p, index) => {
                   const isSelected = form.buyerId === p.id;
+                  const isHighlighted = highlightIndex === index;
                   return (
                     <button
                       key={p.id}
+                      id={`dropdown-item-${index}`}
                       type="button"
+                      onMouseEnter={() => setHighlightIndex(index)}
                       onClick={() => { setForm({ ...form, buyerId: p.id }); setBuyerDropdownOpen(false); }}
-                      className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${isSelected ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                      className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between transition-colors ${isSelected ? 'bg-rose-50 text-rose-700 font-medium' : isHighlighted ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}
                     >
                       <span className="truncate pr-2">{p.legalName}</span>
                       {isSelected && <Check size={14} className="text-rose-600 flex-shrink-0" />}
@@ -442,12 +510,13 @@ export default function ContractForm() {
           </div>
         </div>
 
-        {/* Product */}
+        {/* PRODUCT DROPDOWN */}
         <div className="relative" ref={productRef}>
           <label className="block text-sm font-medium text-gray-700 mb-1">Product *</label>
           <button
             type="button"
-            onClick={() => setProductDropdownOpen(!productDropdownOpen)}
+            onClick={() => toggleDropdown(productDropdownOpen, setProductDropdownOpen, sortedProducts, form.productId)}
+            onKeyDown={(e) => handleDropdownKeyDown(e, productDropdownOpen, setProductDropdownOpen, sortedProducts, (item) => setForm({ ...form, productId: item.id }), form.productId)}
             className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between transition-colors focus:ring-2 focus:ring-rose-100"
           >
             <span className={form.productId ? 'text-gray-900 font-medium line-clamp-1 text-left' : 'text-gray-500'}>
@@ -458,14 +527,17 @@ export default function ContractForm() {
 
           {productDropdownOpen && (
             <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto py-1">
-              {sortedProducts.map(p => {
+              {sortedProducts.map((p, index) => {
                 const isSelected = form.productId === p.id;
+                const isHighlighted = highlightIndex === index;
                 return (
                   <button
                     key={p.id}
+                    id={`dropdown-item-${index}`}
                     type="button"
+                    onMouseEnter={() => setHighlightIndex(index)}
                     onClick={() => { setForm({ ...form, productId: p.id }); setProductDropdownOpen(false); }}
-                    className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${isSelected ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                    className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between transition-colors ${isSelected ? 'bg-rose-50 text-rose-700 font-medium' : isHighlighted ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}
                   >
                     <span className="truncate pr-2">{p.name}</span>
                     {isSelected && <Check size={14} className="text-rose-600 flex-shrink-0" />}
@@ -482,13 +554,14 @@ export default function ContractForm() {
           )}
         </div>
 
-        {/* Quality Selection */}
+        {/* QUALITY DROPDOWN */}
         {selectedProduct && selectedProduct.qualities && selectedProduct.qualities.length > 0 && (
           <div className="relative" ref={qualityRef}>
             <label className="block text-sm font-medium text-gray-700 mb-1">Quality</label>
             <button
               type="button"
-              onClick={() => setQualityDropdownOpen(!qualityDropdownOpen)}
+              onClick={() => toggleDropdown(qualityDropdownOpen, setQualityDropdownOpen, sortedQualities, selectedQualityId)}
+              onKeyDown={(e) => handleDropdownKeyDown(e, qualityDropdownOpen, setQualityDropdownOpen, sortedQualities, (item) => handleQualityChange(item.id), selectedQualityId)}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between transition-colors focus:ring-2 focus:ring-rose-100"
             >
               <span className={selectedQualityId ? 'text-gray-900 font-medium line-clamp-1 text-left' : 'text-gray-500'}>
@@ -499,14 +572,17 @@ export default function ContractForm() {
 
             {qualityDropdownOpen && (
               <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto py-1">
-                {[...selectedProduct.qualities].sort((a, b) => a.name.localeCompare(b.name)).map(q => {
+                {sortedQualities.map((q, index) => {
                   const isSelected = selectedQualityId === q.id;
+                  const isHighlighted = highlightIndex === index;
                   return (
                     <button
                       key={q.id}
+                      id={`dropdown-item-${index}`}
                       type="button"
+                      onMouseEnter={() => setHighlightIndex(index)}
                       onClick={() => { handleQualityChange(q.id); setQualityDropdownOpen(false); }}
-                      className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${isSelected ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                      className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between transition-colors ${isSelected ? 'bg-rose-50 text-rose-700 font-medium' : isHighlighted ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}
                     >
                       <span className="truncate pr-2">{q.name}</span>
                       {isSelected && <Check size={14} className="text-rose-600 flex-shrink-0" />}
