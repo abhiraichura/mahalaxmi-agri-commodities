@@ -500,8 +500,6 @@ export default function PartyDirectory() {
         {/* View Party Modal */}
         {viewingParty && !isSelectionMode && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setViewingParty(null)}>
-             {/* Modal contents same as before */}
-             {/* ... Omitted for brevity, paste the same exact modal from previous step here ... */}
              <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-gray-900">{viewingParty.legalName}</h2>
@@ -522,6 +520,37 @@ export default function PartyDirectory() {
                       <p className="font-medium text-gray-900">{viewingParty.contactPerson}</p>
                       <p className="text-xs text-gray-500">Primary Contact Person</p>
                     </div>
+                  </div>
+                )}
+
+                {viewingParty.otherContacts && viewingParty.otherContacts.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-gray-500">Other Contacts:</p>
+                    {viewingParty.otherContacts.map((contact, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                            <Users size={14} className="text-gray-500" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{contact.name}</p>
+                            {contact.role && <p className="text-xs text-gray-500">{contact.role}</p>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {contact.phone && (
+                            <a href={`tel:${contact.phone.replace(/\s/g, '')}`} className="p-1.5 bg-white rounded-lg text-rose-600 hover:bg-rose-50 shadow-sm border border-gray-100">
+                              <Phone size={14} />
+                            </a>
+                          )}
+                          {contact.email && (
+                            <a href={`mailto:${contact.email}`} className="p-1.5 bg-white rounded-lg text-blue-600 hover:bg-blue-50 shadow-sm border border-gray-100">
+                              <Mail size={14} />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
 
