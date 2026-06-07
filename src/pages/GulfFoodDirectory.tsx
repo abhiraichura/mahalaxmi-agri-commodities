@@ -51,9 +51,10 @@ export default function GulfFoodDirectory() {
   });
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return members;
+  let result = members;
+  if (search.trim()) {
     const q = search.toLowerCase();
-    return members.filter(m =>
+    result = members.filter(m =>
       m.companyName.toLowerCase().includes(q) ||
       m.cityState.toLowerCase().includes(q) ||
       m.contactPerson.toLowerCase().includes(q) ||
@@ -61,7 +62,10 @@ export default function GulfFoodDirectory() {
       m.email.toLowerCase().includes(q) ||
       m.profile.toLowerCase().includes(q)
     );
-  }, [members, search]);
+  }
+  result.sort((a, b) => a.companyName.localeCompare(b.companyName));
+  return result;
+}, [members, search]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
