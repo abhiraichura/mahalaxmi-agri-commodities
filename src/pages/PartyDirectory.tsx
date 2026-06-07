@@ -77,7 +77,13 @@ export default function PartyDirectory() {
   };
 
   const exportCSV = () => {
-    const headers = ['ID', 'Legal Name', 'Display Name', 'Contact Person', 'Type', 'Address', 'City', 'State', 'Pincode', 'Phone', 'Alternate Phones', 'Email', 'Alternate Emails', 'PAN', 'Products', 'Other Contacts'];
+    // Removed 'ID' from headers
+    const headers = [
+      'Legal Name', 'Display Name', 'Contact Person', 'Type', 'Address', 
+      'City', 'State', 'Pincode', 'Phone', 'Alternate Phones', 
+      'Email', 'Alternate Emails', 'PAN', 'Products', 'Other Contacts'
+    ];
+    
     const rows = parties.map(p => {
       const partyProducts = (p.productIds || [])
         .map(pid => products.find(prod => prod.id === pid)?.name || pid)
@@ -85,8 +91,9 @@ export default function PartyDirectory() {
       const otherContacts = (p.otherContacts || [])
         .map(c => `${c.name} (${c.role}): ${c.phone}`)
         .join('; ');
+      
+      // Removed p.id from the mapped row array
       return [
-        p.id,
         p.legalName,
         p.name,
         p.contactPerson || '',
@@ -105,7 +112,10 @@ export default function PartyDirectory() {
       ];
     });
 
-    const csv = [headers.join(','), ...rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))].join("\n");
+    const csv = [headers.join(','), ...rows.map(r => 
+      r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+    )].join("\n");
+    
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
