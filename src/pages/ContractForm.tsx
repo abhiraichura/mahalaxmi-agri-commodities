@@ -14,7 +14,14 @@ const QUANTITY_UNITS = [
 export default function ContractForm() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { parties, products, contracts, addContract, updateContract, settings, currentFinancialYear, setCurrentFinancialYear } = useAppStore();
+  const { parties, products, contracts, addContract, updateContract, settings, currentFinancialYear, setCurrentFinancialYear, loadParties } = useAppStore();
+
+  // Ensure we have the latest parties loaded when this component mounts
+  useEffect(() => {
+    if (loadParties) {
+      loadParties();
+    }
+  }, [loadParties]);
 
   const [form, setForm] = useState({
     contractNo: '',
@@ -122,17 +129,21 @@ export default function ContractForm() {
   const selectedBuyer = parties.find(p => p.id === form.buyerId);
   const selectedProduct = products.find(p => p.id === form.productId);
 
-  // Alphabetically sorted options
+  // Alphabetically sorted options with null checks
   const sortedSellers = useMemo(() => 
-    parties.filter(p => p.type === 'seller' || p.type === 'both').sort((a, b) => a.legalName.localeCompare(b.legalName)),
+    parties
+      .filter(p => p.type === 'seller' || p.type === 'both')
+      .sort((a, b) => (a.legalName || '').localeCompare(b.legalName || '')),
   [parties]);
 
   const sortedBuyers = useMemo(() => 
-    parties.filter(p => p.type === 'buyer' || p.type === 'both').sort((a, b) => a.legalName.localeCompare(b.legalName)),
+    parties
+      .filter(p => p.type === 'buyer' || p.type === 'both')
+      .sort((a, b) => (a.legalName || '').localeCompare(b.legalName || '')),
   [parties]);
 
   const sortedProducts = useMemo(() => 
-    [...products].sort((a, b) => a.name.localeCompare(b.name)),
+    [...products].sort((a, b) => (a.name || '').localeCompare(b.name || '')),
   [products]);
 
   // Initialize quality & specs when product changes (for new contracts)
