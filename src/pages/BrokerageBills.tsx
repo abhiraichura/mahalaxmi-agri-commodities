@@ -15,16 +15,16 @@ interface BillGroup {
   paidAmount: number;
   balanceAmount: number;
   payments: BillPayment[];
-  billType: 'buyer' | 'seller'; // NEW: distinguish bill type
+  billType: 'buyer' | 'seller';
 }
 
 export default function BrokerageBills() {
   const { contracts, parties, settings } = useAppStore();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [viewingBill, setViewingBill] = useState<BillGroup | null>(null);
+  const [viewingBill, setViewingBill] = useState<<BillGroup | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentForm, setPaymentForm] = useState<Partial<BillPayment>>({
+  const [paymentForm, setPaymentForm] = useState<<Partial<<BillPayment>>({
     date: format(new Date(), 'yyyy-MM-dd'),
     amount: 0,
     mode: 'bank_transfer',
@@ -32,7 +32,6 @@ export default function BrokerageBills() {
     notes: ''
   });
 
-  // Date range filter for custom bill generation
   const [dateRange, setDateRange] = useState({
     from: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     to: format(endOfMonth(new Date()), 'yyyy-MM-dd')
@@ -50,55 +49,55 @@ export default function BrokerageBills() {
     return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
   });
 
-  // Load saved payment status from localStorage
-  const getSavedPayments = (partyId: string, billType: 'buyer' | 'seller', month: number, year: number): BillPayment[] => {
-    const key = `bill_payments_${partyId}_${billType}_${month}_${year}`;
+  const getSavedPayments = (partyId: string, month: number, year: number, billType: 'buyer' | 'seller'): BillPayment[] => {
+    const key = `bill_payments_${partyId}_${month}_${year}_${billType}`;
     try {
       const saved = localStorage.getItem(key);
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   };
 
-  const savePayments = (partyId: string, billType: 'buyer' | 'seller', month: number, year: number, payments: BillPayment[]) => {
-    const key = `bill_payments_${partyId}_${billType}_${month}_${year}`;
+  const savePayments = (partyId: string, month: number, year: number, billType: 'buyer' | 'seller', payments: BillPayment[]) => {
+    const key = `bill_payments_${partyId}_${month}_${year}_${billType}`;
     localStorage.setItem(key, JSON.stringify(payments));
   };
 
-  // Generate BOTH buyer and seller bills
   const bills = useMemo(() => {
     const byParty: Record<string, BillGroup> = {};
 
     monthContracts.forEach(c => {
-      // SELLER BILL
-      if (c.sellerBrokerageAmount > 0) {
-        const sellerKey = `${c.sellerId}_seller`;
-        if (!byParty[sellerKey]) {
-          const savedPayments = getSavedPayments(c.sellerId, 'seller', selectedMonth, selectedYear);
+      // Seller brokerage bill
+      const sellerBrokerage = c.sellerBrokerageAmount || 0;
+      if (sellerBrokerage > 0) {
+        const key = `${c.sellerId}_seller`;
+        if (!byParty[key]) {
+          const savedPayments = getSavedPayments(c.sellerId, selectedMonth, selectedYear, 'seller');
           const paidAmount = savedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-          byParty[sellerKey] = {
+          byParty[key] = {
             party: c.seller,
             contracts: [],
             totalBrokerage: 0,
             totalQuantity: 0,
-            status: paidAmount >= 0 ? 'pending' : 'pending',
+            status: 'pending',
             paidAmount,
             balanceAmount: 0,
             payments: savedPayments,
             billType: 'seller'
           };
         }
-        byParty[sellerKey].contracts.push(c);
-        byParty[sellerKey].totalBrokerage += c.sellerBrokerageAmount || 0;
-        byParty[sellerKey].totalQuantity += c.quantity || 0;
+        byParty[key].contracts.push(c);
+        byParty[key].totalBrokerage += sellerBrokerage;
+        byParty[key].totalQuantity += c.quantity || 0;
       }
 
-      // BUYER BILL
-      if (c.buyerBrokerageAmount > 0) {
-        const buyerKey = `${c.buyerId}_buyer`;
-        if (!byParty[buyerKey]) {
-          const savedPayments = getSavedPayments(c.buyerId, 'buyer', selectedMonth, selectedYear);
+      // Buyer brokerage bill
+      const buyerBrokerage = c.buyerBrokerageAmount || 0;
+      if (buyerBrokerage > 0) {
+        const key = `${c.buyerId}_buyer`;
+        if (!byParty[key]) {
+          const savedPayments = getSavedPayments(c.buyerId, selectedMonth, selectedYear, 'buyer');
           const paidAmount = savedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-          byParty[buyerKey] = {
+          byParty[key] = {
             party: c.buyer,
             contracts: [],
             totalBrokerage: 0,
@@ -110,13 +109,12 @@ export default function BrokerageBills() {
             billType: 'buyer'
           };
         }
-        byParty[buyerKey].contracts.push(c);
-        byParty[buyerKey].totalBrokerage += c.buyerBrokerageAmount || 0;
-        byParty[buyerKey].totalQuantity += c.quantity || 0;
+        byParty[key].contracts.push(c);
+        byParty[key].totalBrokerage += buyerBrokerage;
+        byParty[key].totalQuantity += c.quantity || 0;
       }
     });
 
-    // Recalculate status and balance
     Object.values(byParty).forEach(bill => {
       bill.balanceAmount = Math.max(0, bill.totalBrokerage - bill.paidAmount);
       bill.status = bill.paidAmount >= bill.totalBrokerage ? 'paid' : bill.paidAmount > 0 ? 'partial' : 'pending';
@@ -137,12 +135,11 @@ export default function BrokerageBills() {
         balanceAmount: bill.balanceAmount,
         payments: bill.payments
       },
-      settings,
-      bill.billType // pass bill type to PDF generator
+      settings
     );
     const typeLabel = bill.billType === 'buyer' ? 'Buyer' : 'Seller';
     downloadPDF(doc, `Brokerage_Bill_${typeLabel}_${bill.party.legalName}_${months[selectedMonth]}_${selectedYear}.pdf`);
-    toast.success('Bill downloaded');
+    toast.success(`${typeLabel} bill downloaded`);
   };
 
   const handleAddPayment = () => {
@@ -163,9 +160,8 @@ export default function BrokerageBills() {
     };
 
     const updatedPayments = [...viewingBill.payments, newPayment];
-    savePayments(viewingBill.party.id, viewingBill.billType, selectedMonth, selectedYear, updatedPayments);
+    savePayments(viewingBill.party.id, selectedMonth, selectedYear, viewingBill.billType, updatedPayments);
 
-    // Update the bill in view
     const updatedBill = { ...viewingBill };
     updatedBill.payments = updatedPayments;
     updatedBill.paidAmount = updatedPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -178,7 +174,6 @@ export default function BrokerageBills() {
     toast.success('Payment recorded');
   };
 
-  // Custom date range bill generation - also generates BOTH types
   const handleCustomRangeDownload = () => {
     const fromDate = parseISO(dateRange.from);
     const toDate = parseISO(dateRange.to);
@@ -195,10 +190,10 @@ export default function BrokerageBills() {
 
     const byParty: Record<string, BillGroup> = {};
     rangeContracts.forEach(c => {
-      // SELLER
       if (c.sellerBrokerageAmount > 0) {
-        const key = `${c.sellerId}_seller`;
-        if (selectedPartyForRange !== 'all' && key !== `${selectedPartyForRange}_seller`) return;
+        const partyId = c.sellerId;
+        if (selectedPartyForRange !== 'all' && partyId !== selectedPartyForRange) return;
+        const key = `${partyId}_seller`;
         if (!byParty[key]) {
           byParty[key] = {
             party: c.seller,
@@ -213,14 +208,14 @@ export default function BrokerageBills() {
           };
         }
         byParty[key].contracts.push(c);
-        byParty[key].totalBrokerage += c.sellerBrokerageAmount || 0;
+        byParty[key].totalBrokerage += c.sellerBrokerageAmount;
         byParty[key].totalQuantity += c.quantity || 0;
       }
 
-      // BUYER
       if (c.buyerBrokerageAmount > 0) {
-        const key = `${c.buyerId}_buyer`;
-        if (selectedPartyForRange !== 'all' && key !== `${selectedPartyForRange}_buyer`) return;
+        const partyId = c.buyerId;
+        if (selectedPartyForRange !== 'all' && partyId !== selectedPartyForRange) return;
+        const key = `${partyId}_buyer`;
         if (!byParty[key]) {
           byParty[key] = {
             party: c.buyer,
@@ -235,7 +230,7 @@ export default function BrokerageBills() {
           };
         }
         byParty[key].contracts.push(c);
-        byParty[key].totalBrokerage += c.buyerBrokerageAmount || 0;
+        byParty[key].totalBrokerage += c.buyerBrokerageAmount;
         byParty[key].totalQuantity += c.quantity || 0;
       }
     });
@@ -257,8 +252,7 @@ export default function BrokerageBills() {
           balanceAmount: bill.balanceAmount,
           payments: bill.payments
         },
-        settings,
-        bill.billType
+        settings
       );
       const fromStr = format(fromDate, 'ddMMM');
       const toStr = format(toDate, 'ddMMM');
@@ -330,34 +324,54 @@ export default function BrokerageBills() {
           </div>
         </div>
 
-        {/* Custom Date Range Download */}
         <div className="bg-white rounded-2xl p-4 border border-gray-200 mb-6">
           <button
             onClick={() => setShowDateRange(!showDateRange)}
             className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-rose-600"
           >
             <Filter size={16} />
-            {showDateRange ? 'Hide' : 'Show'} Custom Date Range Download
+            {showDateRange ? 'Hide' : 'Custom Date Range Download'}
           </button>
+
           {showDateRange && (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">From</label>
-                <input type="date" value={dateRange.from} onChange={e => setDateRange({...dateRange, from: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+                <label className="block text-xs text-gray-500 mb-1">From Date</label>
+                <input
+                  type="date"
+                  value={dateRange.from}
+                  onChange={e => setDateRange({ ...dateRange, from: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">To</label>
-                <input type="date" value={dateRange.to} onChange={e => setDateRange({...dateRange, to: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+                <label className="block text-xs text-gray-500 mb-1">To Date</label>
+                <input
+                  type="date"
+                  value={dateRange.to}
+                  onChange={e => setDateRange({ ...dateRange, to: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Party</label>
-                <select value={selectedPartyForRange} onChange={e => setSelectedPartyForRange(e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm">
+                <label className="block text-xs text-gray-500 mb-1">Party (optional)</label>
+                <select
+                  value={selectedPartyForRange}
+                  onChange={e => setSelectedPartyForRange(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                >
                   <option value="all">All Parties</option>
-                  {parties.map(p => <option key={p.id} value={p.id}>{p.legalName}</option>)}
+                  {parties.map(p => (
+                    <option key={p.id} value={p.id}>{p.legalName}</option>
+                  ))}
                 </select>
               </div>
               <div className="flex items-end">
-                <button onClick={handleCustomRangeDownload} className="w-full py-2 bg-rose-600 text-white rounded-lg text-sm font-medium hover:bg-rose-700">
+                <button
+                  onClick={handleCustomRangeDownload}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-medium hover:bg-rose-700"
+                >
+                  <Download size={16} />
                   Download Bills
                 </button>
               </div>
@@ -365,182 +379,312 @@ export default function BrokerageBills() {
           )}
         </div>
 
-        {/* Bills List */}
+        <div className="bg-white rounded-2xl p-4 border border-gray-200 mb-6">
+          <p className="text-sm text-gray-600">
+            {monthContracts.length} contracts this month • {bills.length} bill{bills.length !== 1 ? 's' : ''} generated
+          </p>
+        </div>
+
         {bills.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
+          <div className="bg-white rounded-2xl p-12 border border-gray-200 text-center">
             <DollarSign size={48} className="mx-auto text-gray-300 mb-4" />
             <p className="text-gray-500">No brokerage bills for {months[selectedMonth]} {selectedYear}</p>
+            <p className="text-sm text-gray-400 mt-1">Create contracts to generate bills</p>
           </div>
         ) : (
-          <div className="grid gap-4">
-            {bills.map(bill => (
-              <div key={`${bill.party.id}_${bill.billType}`} className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getStatusColor(bill.status)}`}>
-                        {bill.status.toUpperCase()}
+          <div className="space-y-4">
+            {bills.map((bill, idx) => (
+              <div key={idx} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
+                        <span className="text-sm font-bold text-rose-700">{bill.party.legalName.charAt(0)}</span>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{bill.party.legalName}</h3>
+                        <p className="text-xs text-gray-500">{bill.contracts.length} Contracts</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                        bill.billType === 'seller' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
+                      }`}>
+                        {bill.billType === 'seller' ? 'Seller Brokerage' : 'Buyer Brokerage'}
                       </span>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium border ${bill.billType === 'buyer' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-purple-50 text-purple-700 border-purple-200'}`}>
-                        {bill.billType === 'buyer' ? 'BUYER BILL' : 'SELLER BILL'}
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${getStatusColor(bill.status)}`}>
+                        {getStatusIcon(bill.status)}
+                        {bill.status === 'paid' ? 'Paid' : bill.status === 'partial' ? 'Partial' : 'Pending'}
                       </span>
                     </div>
-                    <h3 className="font-semibold text-lg">{bill.party.legalName}</h3>
-                    <p className="text-sm text-gray-500">{bill.contracts.length} contract(s) | {bill.totalQuantity.toFixed(2)} MT total</p>
                   </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500">Total Brokerage</p>
-                      <p className="text-lg font-bold text-gray-900">₹{bill.totalBrokerage.toFixed(2)}</p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <p className="text-xs text-gray-500 mb-1">Total Brokerage</p>
+                      <p className="text-lg font-bold text-gray-900">Rs. {bill.totalBrokerage.toLocaleString('en-IN')}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500">Balance</p>
-                      <p className="text-lg font-bold text-rose-600">₹{bill.balanceAmount.toFixed(2)}</p>
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <p className="text-xs text-gray-500 mb-1">Paid Amount</p>
+                      <p className="text-lg font-bold text-green-600">Rs. {bill.paidAmount.toLocaleString('en-IN')}</p>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setViewingBill(bill)}
-                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                      >
-                        <Eye size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDownloadBill(bill)}
-                        className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg"
-                      >
-                        <Download size={18} />
-                      </button>
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <p className="text-xs text-gray-500 mb-1">Balance</p>
+                      <p className="text-lg font-bold text-red-600">Rs. {bill.balanceAmount.toLocaleString('en-IN')}</p>
                     </div>
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <p className="text-xs text-gray-500 mb-1">Total Qty</p>
+                      <p className="text-lg font-bold text-gray-900">{bill.totalQuantity} MT</p>
+                    </div>
+                  </div>
+
+                  {bill.payments.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-xs font-medium text-gray-700 mb-2">Payment History:</p>
+                      <div className="space-y-1.5">
+                        {bill.payments.map(payment => (
+                          <div key={payment.id} className="flex items-center justify-between text-sm bg-green-50 px-3 py-2 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle size={14} className="text-green-600" />
+                              <span>{format(new Date(payment.date), 'dd MMM yyyy')}</span>
+                              <span className="text-gray-500">• {payment.mode.replace('_', ' ')}</span>
+                              {payment.reference && <span className="text-gray-400">• Ref: {payment.reference}</span>}
+                            </div>
+                            <span className="font-medium text-green-700">Rs. {payment.amount.toLocaleString('en-IN')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setViewingBill(bill)}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200"
+                    >
+                      <Eye size={16} />
+                      View Details
+                    </button>
+                    <button
+                      onClick={() => {
+                        setViewingBill(bill);
+                        setShowPaymentModal(true);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-green-50 text-green-700 rounded-xl text-sm font-medium hover:bg-green-100"
+                    >
+                      <DollarSign size={16} />
+                      Add Payment
+                    </button>
+                    <button
+                      onClick={() => handleDownloadBill(bill)}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 text-rose-700 rounded-xl text-sm font-medium hover:bg-rose-100"
+                    >
+                      <Download size={16} />
+                      Download Bill
+                    </button>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
 
-      {/* Bill Detail Modal */}
-      {viewingBill && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
+        {viewingBill && !showPaymentModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setViewingBill(null)}>
+            <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-xl font-bold">{viewingBill.party.legalName}</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{viewingBill.party.legalName}</h2>
                   <p className="text-sm text-gray-500">
-                    {months[selectedMonth]} {selectedYear} | 
-                    <span className={viewingBill.billType === 'buyer' ? 'text-blue-600' : 'text-purple-600'}>
-                      {viewingBill.billType === 'buyer' ? ' Buyer Bill' : ' Seller Bill'}
-                    </span>
+                    {viewingBill.billType === 'seller' ? 'Seller Brokerage' : 'Buyer Brokerage'} Bill Details
                   </p>
                 </div>
                 <button onClick={() => setViewingBill(null)} className="p-2 hover:bg-gray-100 rounded-lg">
                   <X size={20} />
                 </button>
               </div>
-            </div>
-            <div className="p-6 space-y-4">
-              {/* Contracts */}
-              <div>
-                <h3 className="font-medium text-sm text-gray-700 mb-2">Contracts</h3>
-                <div className="space-y-2">
-                  {viewingBill.contracts.map(c => (
-                    <div key={c.id} className="p-3 bg-gray-50 rounded-lg text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium">{c.contractNo}</span>
-                        <span>₹{viewingBill.billType === 'buyer' ? c.buyerBrokerageAmount.toFixed(2) : c.sellerBrokerageAmount.toFixed(2)}</span>
-                      </div>
-                      <p className="text-gray-500">{c.product?.name} | {c.quantity} {c.quantityUnit}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
-              {/* Payments */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium text-sm text-gray-700">Payments</h3>
-                  <button onClick={() => setShowPaymentModal(true)} className="text-sm text-rose-600 hover:text-rose-700 font-medium">
-                    + Add Payment
-                  </button>
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-gray-50 rounded-xl p-3 text-center">
+                    <p className="text-xs text-gray-500">Total</p>
+                    <p className="text-lg font-bold text-gray-900">Rs. {viewingBill.totalBrokerage.toLocaleString('en-IN')}</p>
+                  </div>
+                  <div className="bg-green-50 rounded-xl p-3 text-center">
+                    <p className="text-xs text-gray-500">Paid</p>
+                    <p className="text-lg font-bold text-green-600">Rs. {viewingBill.paidAmount.toLocaleString('en-IN')}</p>
+                  </div>
+                  <div className="bg-red-50 rounded-xl p-3 text-center">
+                    <p className="text-xs text-gray-500">Balance</p>
+                    <p className="text-lg font-bold text-red-600">Rs. {viewingBill.balanceAmount.toLocaleString('en-IN')}</p>
+                  </div>
                 </div>
-                {viewingBill.payments.length === 0 ? (
-                  <p className="text-sm text-gray-400">No payments recorded</p>
-                ) : (
-                  <div className="space-y-2">
-                    {viewingBill.payments.map(p => (
-                      <div key={p.id} className="flex justify-between p-3 bg-green-50 rounded-lg text-sm">
-                        <div>
-                          <span className="font-medium">₹{p.amount}</span>
-                          <span className="text-gray-500 ml-2">{p.mode} | {p.date}</span>
+
+                <div className="border rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Contract#</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Product</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Qty</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">
+                          {viewingBill.billType === 'seller' ? 'Seller Brokerage' : 'Buyer Brokerage'}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {viewingBill.contracts.map((c: any) => (
+                        <tr key={c.id}>
+                          <td className="px-4 py-2 font-medium">#{c.contractNo}</td>
+                          <td className="px-4 py-2 text-gray-500">{c.date}</td>
+                          <td className="px-4 py-2">{c.product?.name || 'N/A'}</td>
+                          <td className="px-4 py-2 text-right">{c.quantity} {c.quantityUnit}</td>
+                          <td className="px-4 py-2 text-right font-medium">
+                            Rs. {(viewingBill.billType === 'seller' ? c.sellerBrokerageAmount : c.buyerBrokerageAmount)?.toLocaleString('en-IN') || '0'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {viewingBill.payments.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Payment History</h3>
+                    <div className="space-y-2">
+                      {viewingBill.payments.map(payment => (
+                        <div key={payment.id} className="flex items-center justify-between p-3 bg-green-50 rounded-xl">
+                          <div>
+                            <p className="text-sm font-medium">Rs. {payment.amount.toLocaleString('en-IN')}</p>
+                            <p className="text-xs text-gray-500">
+                              {format(new Date(payment.date), 'dd MMM yyyy')} • {payment.mode.replace('_', ' ')}
+                              {payment.reference && ` • Ref: ${payment.reference}`}
+                            </p>
+                            {payment.notes && <p className="text-xs text-gray-400 mt-1">{payment.notes}</p>}
+                          </div>
+                          <CheckCircle size={18} className="text-green-600" />
                         </div>
-                        {p.reference && <span className="text-gray-400">Ref: {p.reference}</span>}
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Summary */}
-              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Total Brokerage</span>
-                  <span className="font-medium">₹{viewingBill.totalBrokerage.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Paid Amount</span>
-                  <span className="font-medium text-green-600">₹{viewingBill.paidAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
-                  <span className="text-gray-600">Balance</span>
-                  <span className="font-bold text-rose-600">₹{viewingBill.balanceAmount.toFixed(2)}</span>
-                </div>
+              <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => setShowPaymentModal(true)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700"
+                >
+                  <DollarSign size={16} />
+                  Add Payment
+                </button>
+                <button
+                  onClick={() => handleDownloadBill(viewingBill)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700"
+                >
+                  <Download size={16} />
+                  Download PDF
+                </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Payment Modal */}
-      {showPaymentModal && viewingBill && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-4">Add Payment</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                <input type="number" value={paymentForm.amount} onChange={e => setPaymentForm({...paymentForm, amount: parseFloat(e.target.value) || 0})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+        {showPaymentModal && viewingBill && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowPaymentModal(false)}>
+            <div className="bg-white rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-900">Record Payment</h2>
+                <button onClick={() => setShowPaymentModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                  <X size={20} />
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                <input type="date" value={paymentForm.date} onChange={e => setPaymentForm({...paymentForm, date: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+
+              <div className="mb-4 p-3 bg-gray-50 rounded-xl">
+                <p className="text-sm text-gray-600">Party: <span className="font-medium text-gray-900">{viewingBill.party.legalName}</span></p>
+                <p className="text-sm text-gray-600">Type: <span className="font-medium text-gray-900">{viewingBill.billType === 'seller' ? 'Seller Brokerage' : 'Buyer Brokerage'}</span></p>
+                <p className="text-sm text-gray-600">Balance: <span className="font-medium text-red-600">Rs. {viewingBill.balanceAmount.toLocaleString('en-IN')}</span></p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mode</label>
-                <select value={paymentForm.mode} onChange={e => setPaymentForm({...paymentForm, mode: e.target.value as any})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm">
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="cheque">Cheque</option>
-                  <option value="cash">Cash</option>
-                  <option value="upi">UPI</option>
-                  <option value="other">Other</option>
-                </select>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date *</label>
+                  <input
+                    type="date"
+                    value={paymentForm.date}
+                    onChange={e => setPaymentForm({ ...paymentForm, date: e.target.value })}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
+                  <input
+                    type="number"
+                    value={paymentForm.amount || ''}
+                    onChange={e => setPaymentForm({ ...paymentForm, amount: parseFloat(e.target.value) || 0 })}
+                    placeholder="Enter amount"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
+                  <select
+                    value={paymentForm.mode}
+                    onChange={e => setPaymentForm({ ...paymentForm, mode: e.target.value as any })}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="upi">UPI</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reference / Cheque No / UTR</label>
+                  <input
+                    type="text"
+                    value={paymentForm.reference || ''}
+                    onChange={e => setPaymentForm({ ...paymentForm, reference: e.target.value })}
+                    placeholder="Reference number"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    value={paymentForm.notes || ''}
+                    onChange={e => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                    placeholder="Any notes about this payment"
+                    rows={2}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reference</label>
-                <input value={paymentForm.reference} onChange={e => setPaymentForm({...paymentForm, reference: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddPayment}
+                  className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700"
+                >
+                  Record Payment
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                <input value={paymentForm.notes} onChange={e => setPaymentForm({...paymentForm, notes: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button onClick={handleAddPayment} className="flex-1 py-2 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700">Add</button>
-              <button onClick={() => setShowPaymentModal(false)} className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200">Cancel</button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
