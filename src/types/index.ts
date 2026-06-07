@@ -38,6 +38,13 @@ export interface SpecField {
   order: number;
 }
 
+export interface Quality {
+  id: string;
+  name: string;
+  specs: SpecField[];
+  order: number;
+}
+
 export interface BrokerageConfig {
   type: 'percent' | 'fixed';
   value: number;
@@ -56,10 +63,16 @@ export interface ProductBrokerage {
 export interface ProductSpec {
   id: string;
   name: string;
-  specs: SpecField[];
+  qualities: Quality[];
   defaultBrokerage: number; // kept for backward compatibility
   brokerage: ProductBrokerage;
   createdAt: any;
+}
+
+export interface ContractQuality {
+  qualityId: string;
+  qualityName: string;
+  specs: { specId: string; label: string; value: string; unit: string }[];
 }
 
 export interface Contract {
@@ -74,6 +87,7 @@ export interface Contract {
   buyer: Party;
   productId: string;
   product: ProductSpec;
+  quality: ContractQuality | null;
   quantity: number;
   quantityUnit: string;
   price: number;
@@ -88,7 +102,9 @@ export interface Contract {
   otherTerms: string;
   notes: string;
   status: 'draft' | 'confirmed' | 'cancelled' | 'completed';
-  brokerageAmount: number;
+  buyerBrokerageAmount: number;
+  sellerBrokerageAmount: number;
+  brokerageAmount: number; // total = buyer + seller (backward compat)
   payments: Payment[];
   createdAt: any;
   updatedAt: any;
