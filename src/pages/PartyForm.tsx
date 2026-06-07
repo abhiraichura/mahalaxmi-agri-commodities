@@ -18,7 +18,7 @@ export default function PartyForm() {
   const navigate = useNavigate();
   const { parties, products, addParty, updateParty, loadParties } = useAppStore();
 
-  const [form, setForm] = useState<<Partial<<Party>>({
+  const [form, setForm] = useState<Partial<Party>>({
     legalName: '',
     name: '',
     gstin: '',
@@ -41,9 +41,9 @@ export default function PartyForm() {
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [altPhoneInput, setAltPhoneInput] = useState('');
   const [altEmailInput, setAltEmailInput] = useState('');
-  const [otherContacts, setOtherContacts] = useState<<ContactPerson[]>([]);
+  const [otherContacts, setOtherContacts] = useState<ContactPerson[]>([]);
   const [pincodeLoading, setPincodeLoading] = useState(false);
-  const productDropdownRef = useRef<<HTMLDivElement>(null);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (id) {
