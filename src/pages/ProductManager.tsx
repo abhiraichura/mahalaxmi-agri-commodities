@@ -1,38 +1,21 @@
 import { useState } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Plus, Trash2, Edit2, Save, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
+import { Quality, SpecField } from '../types';
 
 export default function ProductManager() {
   const { products, addProduct, updateProduct, deleteProduct } = useAppStore();
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState('');
 
-  // Brokerage state: each has type (percent/fixed) and value
   const [brokerage, setBrokerage] = useState({
     buyer: { type: 'percent' as 'percent' | 'fixed', value: 0 },
     seller: { type: 'percent' as 'percent' | 'fixed', value: 0 }
   });
 
-  // Qualities state - each quality has multiple specs
-  const [qualities, setQualities] = useState<QualityForm[]>([]);
-  const [expandedQuality, setExpandedQuality] = useState<string | null>(null);
-
-  interface SpecForm {
-    id: string;
-    label: string;
-    value: string;
-    unit: string;
-    order: number;
-  }
-
-  interface QualityForm {
-    id: string;
-    name: string;
-    specs: SpecForm[];
-    order: number;
-  }
+  const [qualities, setQualities] = useState<<Quality[]>([]);
 
   const resetForm = () => {
     setName('');
@@ -41,7 +24,6 @@ export default function ProductManager() {
       seller: { type: 'percent', value: 0 }
     });
     setQualities([]);
-    setExpandedQuality(null);
     setEditing(null);
   };
 
@@ -56,38 +38,32 @@ export default function ProductManager() {
       buyer: { type: b.buyer?.type || 'percent', value: b.buyer?.value || b.buyerPercent || 0 },
       seller: { type: b.seller?.type || 'percent', value: b.seller?.value || b.sellerPercent || 0 }
     });
-    // Migrate old specs to default quality if no qualities exist
+
+    // Backward compat: if no qualities but has specs, create default quality
     if (product.qualities && product.qualities.length > 0) {
       setQualities(product.qualities);
     } else if (product.specs && product.specs.length > 0) {
-      setQualities([{
-        id: uuidv4(),
-        name: 'Default',
-        specs: product.specs.map((s: any, i: number) => ({ ...s, order: i })),
-        order: 0
-      }]);
+      setQualities([{ id: uuidv4(), name: 'Standard', specs: product.specs }]);
     } else {
       setQualities([]);
     }
   };
 
   const addQuality = () => {
-    const newQuality: QualityForm = {
+    const newQuality: Quality = {
       id: uuidv4(),
       name: '',
-      specs: [{ id: uuidv4(), label: '', value: '', unit: '', order: 0 }],
-      order: qualities.length
+      specs: [{ id: uuidv4(), label: '', value: '', unit: '', order: 0 }]
     };
     setQualities([...qualities, newQuality]);
-    setExpandedQuality(newQuality.id);
   };
 
-  const updateQualityName = (qualityId: string, name: string) => {
-    setQualities(qualities.map(q => q.id === qualityId ? { ...q, name } : q));
+  const updateQualityName = (id: string, name: string) => {
+    setQualities(qualities.map(q => q.id === id ? { ...q, name } : q));
   };
 
-  const removeQuality = (qualityId: string) => {
-    setQualities(qualities.filter(q => q.id !== qualityId));
+  const removeQuality = (id: string) => {
+    setQualities(qualities.filter(q => q.id !== id));
   };
 
   const addSpecToQuality = (qualityId: string) => {
@@ -100,16 +76,16 @@ export default function ProductManager() {
     }));
   };
 
-  const updateSpec = (qualityId: string, specIdx: number, field: string, value: string) => {
+  const updateSpecInQuality = (qualityId: string, specIdx: number, field: keyof SpecField, value: string) => {
     setQualities(qualities.map(q => {
       if (q.id !== qualityId) return q;
-      const updatedSpecs = [...q.specs];
-      (updatedSpecs[specIdx] as any)[field] = value;
-      return { ...q, specs: updatedSpecs };
+      const newSpecs = [...q.specs];
+      newSpecs[specIdx] = { ...newSpecs[specIdx], [field]: value };
+      return { ...q, specs: newSpecs };
     }));
   };
 
-  const removeSpec = (qualityId: string, specIdx: number) => {
+  const removeSpecFromQuality = (qualityId: string, specIdx: number) => {
     setQualities(qualities.map(q => {
       if (q.id !== qualityId) return q;
       return { ...q, specs: q.specs.filter((_, i) => i !== specIdx) };
@@ -131,25 +107,16 @@ export default function ProductManager() {
       sellerFixed: brokerage.seller.type === 'fixed' ? brokerage.seller.value : 0,
     };
 
-    // Filter out empty qualities and specs
-    const cleanedQualities = qualities
-      .filter(q => q.name.trim())
-      .map(q => ({
-        ...q,
-        specs: q.specs.filter(s => s.label.trim())
-      }))
-      .filter(q => q.specs.length > 0);
-
-    // Also keep backward-compat specs array (flatten first quality specs)
-    const backwardSpecs = cleanedQualities.length > 0 ? cleanedQualities[0].specs : [];
-
     const payload = {
       id: editing || uuidv4(),
       name,
-      defaultBrokerage: brokerage.buyer.type === 'percent' ? brokerage.buyer.value : 0, // backward compat
+      qualities: qualities.filter(q => q.name.trim()).map(q => ({
+        ...q,
+        specs: q.specs.filter(s => s.label.trim())
+      })),
+      specs: [], // deprecated, kept for backward compat
+      defaultBrokerage: brokerage.buyer.type === 'percent' ? brokerage.buyer.value : 0,
       brokerage: brokerageData,
-      qualities: cleanedQualities,
-      specs: backwardSpecs, // backward compat for old code
       createdAt: editing ? products.find(p => p.id === editing)?.createdAt : new Date().toISOString()
     };
 
@@ -229,7 +196,6 @@ export default function ProductManager() {
             />
           </div>
 
-          {/* Brokerage Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <BrokerageField
               label="Buyer Brokerage"
@@ -248,76 +214,80 @@ export default function ProductManager() {
           </div>
 
           {/* Qualities Section */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700">Qualities & Specifications</label>
-              <button onClick={addQuality} className="text-sm text-rose-600 hover:text-rose-700 font-medium flex items-center gap-1">
-                <Plus className="w-4 h-4" /> Add Quality
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-gray-700">Qualities</label>
+              <button
+                type="button"
+                onClick={addQuality}
+                className="flex items-center gap-1 text-sm text-rose-600 hover:text-rose-700 font-medium"
+              >
+                <Plus size={16} /> Add Quality
               </button>
             </div>
 
             {qualities.length === 0 && (
-              <p className="text-sm text-gray-400 italic">No qualities added yet. Click "Add Quality" to start.</p>
+              <p className="text-sm text-gray-500">No qualities added. Add a quality to define specifications.</p>
             )}
 
             <div className="space-y-3">
-              {qualities.map((quality, qIdx) => (
-                <div key={quality.id} className="border border-gray-200 rounded-xl overflow-hidden">
-                  {/* Quality Header */}
-                  <div 
-                    className="flex items-center gap-2 p-3 bg-gray-50 cursor-pointer"
-                    onClick={() => setExpandedQuality(expandedQuality === quality.id ? null : quality.id)}
-                  >
-                    {expandedQuality === quality.id ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+              {qualities.map((quality) => (
+                <div key={quality.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center gap-2">
                     <input
                       value={quality.name}
                       onChange={e => updateQualityName(quality.id, e.target.value)}
-                      placeholder={`Quality Name (e.g. Z-Black, Semi)`}
-                      className="flex-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm"
-                      onClick={e => e.stopPropagation()}
+                      placeholder="Quality Name (e.g. Z-black, Semi)"
+                      className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium"
                     />
-                    <span className="text-xs text-gray-400">{quality.specs.length} spec(s)</span>
-                    <button 
-                      onClick={e => { e.stopPropagation(); removeQuality(quality.id); }}
-                      className="p-1 text-gray-400 hover:text-red-600"
+                    <button
+                      type="button"
+                      onClick={() => removeQuality(quality.id)}
+                      className="p-2 text-gray-400 hover:text-red-600"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 size={16} />
                     </button>
                   </div>
 
-                  {/* Quality Specs */}
-                  {expandedQuality === quality.id && (
-                    <div className="p-3 space-y-2">
-                      {quality.specs.map((s, sIdx) => (
-                        <div key={s.id} className="flex gap-2">
-                          <input
-                            value={s.label}
-                            onChange={e => updateSpec(quality.id, sIdx, 'label', e.target.value)}
-                            placeholder="Label (e.g. FFA)"
-                            className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
-                          />
-                          <input
-                            value={s.value}
-                            onChange={e => updateSpec(quality.id, sIdx, 'value', e.target.value)}
-                            placeholder="Value"
-                            className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
-                          />
-                          <input
-                            value={s.unit}
-                            onChange={e => updateSpec(quality.id, sIdx, 'unit', e.target.value)}
-                            placeholder="Unit"
-                            className="w-24 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
-                          />
-                          <button onClick={() => removeSpec(quality.id, sIdx)} className="p-2 text-gray-400 hover:text-red-600">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                      <button onClick={() => addSpecToQuality(quality.id)} className="text-sm text-rose-600 hover:text-rose-700 font-medium">
-                        + Add Specification
-                      </button>
-                    </div>
-                  )}
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-gray-500">Specifications</p>
+                    {quality.specs.map((spec, idx) => (
+                      <div key={spec.id} className="flex gap-2">
+                        <input
+                          value={spec.label}
+                          onChange={e => updateSpecInQuality(quality.id, idx, 'label', e.target.value)}
+                          placeholder="Label (e.g. FFA)"
+                          className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                        />
+                        <input
+                          value={spec.value}
+                          onChange={e => updateSpecInQuality(quality.id, idx, 'value', e.target.value)}
+                          placeholder="Value"
+                          className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                        />
+                        <input
+                          value={spec.unit}
+                          onChange={e => updateSpecInQuality(quality.id, idx, 'unit', e.target.value)}
+                          placeholder="Unit"
+                          className="w-20 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeSpecFromQuality(quality.id, idx)}
+                          className="p-2 text-gray-400 hover:text-red-600"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => addSpecToQuality(quality.id)}
+                      className="text-xs text-rose-600 hover:text-rose-700 font-medium"
+                    >
+                      + Add Specification
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -346,9 +316,6 @@ export default function ProductManager() {
             seller: { type: 'percent', value: product.defaultBrokerage || 0 }
           };
           const qualityCount = product.qualities?.length || 0;
-          const specCount = product.qualities 
-            ? product.qualities.reduce((sum: number, q: any) => sum + (q.specs?.length || 0), 0)
-            : (product.specs?.length || 0);
           return (
             <div key={product.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between">
               <div>
@@ -359,7 +326,8 @@ export default function ProductManager() {
                   Seller: {b.seller?.value || b.sellerPercent || 0}{b.seller?.type === 'fixed' || b.sellerFixed ? ' Rs.' : '%'}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  {qualityCount > 0 ? `${qualityCount} quality(ies), ${specCount} total spec(s)` : `${specCount} specification(s)`}
+                  {qualityCount > 0 ? `${qualityCount} quality(ies)` : 'No qualities'}
+                  {product.specs?.length > 0 && !qualityCount ? ` | ${product.specs.length} spec(s) (legacy)` : ''}
                 </p>
               </div>
               <div className="flex gap-2">
