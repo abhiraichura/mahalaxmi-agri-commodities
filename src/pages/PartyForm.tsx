@@ -233,7 +233,7 @@ export default function PartyForm() {
     <div className="min-h-screen bg-gray-50 pb-20">
       <div className="max-w-3xl mx-auto px-4 py-6">
         <button
-          onClick={() => navigate('/parties')}
+          onClick={() => navigate('-1')}
           className="flex items-center gap-2 text-gray-600 hover:text-rose-600 mb-4 transition-colors"
         >
           <ArrowLeft size={18} />
@@ -590,7 +590,7 @@ export default function PartyForm() {
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={() => navigate('/parties')}
+              onClick={() => navigate('-1')}
               className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
             >
               Cancel
