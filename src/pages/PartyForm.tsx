@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Party, ContactPerson } from '../types';
@@ -224,6 +224,11 @@ export default function PartyForm() {
   const removeOtherContact = (index: number) => {
     setOtherContacts(otherContacts.filter((_, i) => i !== index));
   };
+
+  // Alphabetically sort products for the dropdown mapping
+  const sortedProducts = useMemo(() => {
+    return [...products].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [products]);
 
   const selectedProductNames = (form.productIds || [])
     .map(pid => products.find(p => p.id === pid)?.name)
@@ -533,10 +538,10 @@ export default function PartyForm() {
 
               {productDropdownOpen && (
                 <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto">
-                  {products.length === 0 ? (
+                  {sortedProducts.length === 0 ? (
                     <div className="px-4 py-3 text-sm text-gray-500">No products available</div>
                   ) : (
-                    products.map(product => {
+                    sortedProducts.map(product => {
                       const isSelected = (form.productIds || []).includes(product.id);
                       return (
                         <button
