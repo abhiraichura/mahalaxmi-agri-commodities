@@ -1,8 +1,8 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Party } from '../types';
-import { Search, Plus, Phone, Mail, MapPin, Edit2, Trash2, Download, Upload, X, ChevronRight, User, Users } from 'lucide-react';
+import { Search, Plus, Phone, Mail, MapPin, Edit2, Trash2, Download, Upload, X, ChevronRight, ChevronDown, Check, User, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function PartyDirectory() {
@@ -11,8 +11,21 @@ export default function PartyDirectory() {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'buyer' | 'seller' | 'both'>('all');
   const [productFilter, setProductFilter] = useState<string>('all');
+  const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [viewingParty, setViewingParty] = useState<Party | null>(null);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (productDropdownRef.current && !productDropdownRef.current.contains(e.target as Node)) {
+        setProductDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const filtered = useMemo(() => {
     let result = parties.filter(p => {
@@ -215,34 +228,60 @@ export default function PartyDirectory() {
             />
           </div>
 
-          {/* Type Filter Buttons */}
-          <div className="flex gap-2 flex-wrap">
-            {(['all', 'buyer', 'seller', 'both'] as const).map(type => (
-              <button
-                key={type}
-                onClick={() => setFilterType(type)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-colors ${
-                  filterType === type 
-                    ? 'bg-rose-600 text-white' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {type === 'all' ? 'All' : type === 'both' ? 'Both' : `${type}s`}
-              </button>
-            ))}
-          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* Type Filter Buttons */}
+            <div className="flex gap-2 flex-wrap">
+              {(['all', 'buyer', 'seller', 'both'] as const).map(type => (
+                <button
+                  key={type}
+                  onClick={() => setFilterType(type)}
+                  className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-colors ${
+                    filterType === type 
+                      ? 'bg-rose-600 text-white' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {type === 'all' ? 'All' : type === 'both' ? 'Both' : `${type}s`}
+                </button>
+              ))}
+            </div>
 
-          {/* Product Filter Dropdown */}
-          <select
-            value={productFilter}
-            onChange={e => setProductFilter(e.target.value)}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-          >
-            <option value="all">All Products</option>
-            {products.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+            {/* Custom Product Filter Dropdown */}
+            <div className="relative w-full sm:max-w-xs" ref={productDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setProductDropdownOpen(!productDropdownOpen)}
+                className="w-full px-4 py-2.5 h-[36px] sm:h-auto bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between text-left transition-colors hover:bg-gray-100"
+              >
+                <span className={productFilter !== 'all' ? 'text-gray-900 font-medium truncate pr-2' : 'text-gray-600'}>
+                  {productFilter === 'all' ? 'All Products' : products.find(p => p.id === productFilter)?.name}
+                </span>
+                <ChevronDown size={16} className={`text-gray-400 transition-transform ${productDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {productDropdownOpen && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto py-1">
+                  <button
+                    onClick={() => { setProductFilter('all'); setProductDropdownOpen(false); }}
+                    className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${productFilter === 'all' ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                  >
+                    <span>All Products</span>
+                    {productFilter === 'all' && <Check size={14} className="text-rose-600" />}
+                  </button>
+                  {products.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setProductFilter(p.id); setProductDropdownOpen(false); }}
+                      className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${productFilter === p.id ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                    >
+                      <span className="truncate pr-2">{p.name}</span>
+                      {productFilter === p.id && <Check size={14} className="text-rose-600 flex-shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
           {search && (
             <p className="text-xs text-gray-500">
@@ -273,14 +312,14 @@ export default function PartyDirectory() {
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-semibold text-gray-900 group-hover:text-rose-700 transition-colors">
+                      <h3 className="font-semibold text-gray-900 group-hover:text-rose-700 transition-colors line-clamp-1">
                         {party.legalName}
                       </h3>
                       {party.name !== party.legalName && (
-                        <p className="text-xs text-gray-500">{party.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{party.name}</p>
                       )}
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 ${
                       party.type === 'buyer' ? 'bg-blue-50 text-blue-600' :
                       party.type === 'seller' ? 'bg-green-50 text-green-600' :
                       'bg-purple-50 text-purple-600'
@@ -292,13 +331,13 @@ export default function PartyDirectory() {
                   {party.contactPerson && (
                     <div className="flex items-center gap-1.5 text-sm text-gray-700 mb-2">
                       <User size={14} className="text-gray-400" />
-                      <span className="font-medium">{party.contactPerson}</span>
+                      <span className="font-medium truncate">{party.contactPerson}</span>
                     </div>
                   )}
 
                   <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
-                    <MapPin size={14} />
-                    {party.city}, {party.state}
+                    <MapPin size={14} className="flex-shrink-0" />
+                    <span className="truncate">{party.city}, {party.state}</span>
                   </div>
 
                   {phones.length > 0 && (
@@ -320,7 +359,7 @@ export default function PartyDirectory() {
                   {partyProducts.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-3">
                       {partyProducts.map(prod => (
-                        <span key={prod!.id} className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-lg">
+                        <span key={prod!.id} className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">
                           {prod!.name}
                         </span>
                       ))}
@@ -365,7 +404,7 @@ export default function PartyDirectory() {
                 )}
 
                 <div className="grid grid-cols-2 gap-2">
-                  <p><span className="text-gray-500">Type:</span> {viewingParty.type}</p>
+                  <p><span className="text-gray-500">Type:</span> <span className="capitalize">{viewingParty.type}</span></p>
                   <p><span className="text-gray-500">City:</span> {viewingParty.city}, {viewingParty.state}</p>
                 </div>
                 <p className="text-gray-600">Address: {viewingParty.address}</p>
@@ -431,20 +470,20 @@ export default function PartyDirectory() {
                     </p>
                     <div className="space-y-2">
                       {viewingParty.otherContacts.map((contact, idx) => (
-                        <div key={idx} className="flex items-center justify-between text-sm">
+                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between text-sm gap-1 sm:gap-4 border-b border-amber-100/50 pb-2 last:border-0 last:pb-0">
                           <div>
                             <span className="font-medium text-gray-800">{contact.name}</span>
                             {contact.role && <span className="text-gray-500 ml-1">({contact.role})</span>}
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-3">
                             {contact.phone && (
-                              <a href={`tel:${contact.phone.replace(/\s/g, '')}`} className="text-rose-600 hover:underline">
-                                {contact.phone}
+                              <a href={`tel:${contact.phone.replace(/\s/g, '')}`} className="text-rose-600 hover:underline flex items-center gap-1">
+                                <Phone size={12} /> {contact.phone}
                               </a>
                             )}
                             {contact.email && (
-                              <a href={`mailto:${contact.email}`} className="text-rose-600 hover:underline text-xs">
-                                Email
+                              <a href={`mailto:${contact.email}`} className="text-rose-600 hover:underline flex items-center gap-1 text-xs">
+                                <Mail size={12} /> Email
                               </a>
                             )}
                           </div>
