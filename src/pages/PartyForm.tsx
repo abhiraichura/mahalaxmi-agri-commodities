@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Party, ContactPerson } from '../types';
-import { ArrowLeft, Plus, Trash2, X, ChevronDown, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, X, ChevronDown, Check, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const emptyContact: ContactPerson = {
@@ -43,6 +43,14 @@ export default function PartyForm() {
   const [altEmailInput, setAltEmailInput] = useState('');
   const [otherContacts, setOtherContacts] = useState<ContactPerson[]>([]);
   const [pincodeLoading, setPincodeLoading] = useState(false);
+  
+  // Duplicate Check State
+  const [duplicateWarning, setDuplicateWarning] = useState<{
+    show: boolean;
+    matchedName: string;
+    reason: string;
+  } | null>(null);
+
   const productDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -96,18 +104,43 @@ export default function PartyForm() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleInitialSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.legalName) {
       toast.error('Legal name is required');
       return;
     }
 
+    const cleanPhone = form.phone?.replace(/\s/g, '');
+    const cleanGst = form.gstin?.replace(/\s/g, '')?.toUpperCase();
+
+    let dupPhoneParty = null;
+    let dupGstParty = null;
+
+    if (cleanPhone) {
+      dupPhoneParty = parties.find(p => p.id !== id && p.phone?.replace(/\s/g, '') === cleanPhone);
+    }
+    
+    if (cleanGst) {
+      dupGstParty = parties.find(p => p.id !== id && p.gstin?.replace(/\s/g, '')?.toUpperCase() === cleanGst);
+    }
+
+    if (dupPhoneParty || dupGstParty) {
+      const matchedName = dupPhoneParty ? dupPhoneParty.legalName : dupGstParty!.legalName;
+      const reason = dupPhoneParty ? 'contact number' : 'GST number';
+      setDuplicateWarning({ show: true, matchedName, reason });
+      return;
+    }
+
+    executeSave();
+  };
+
+  const executeSave = async () => {
     const partyData: Party = {
       id: id || crypto.randomUUID(),
       name: form.name || form.legalName!,
       legalName: form.legalName!,
-      gstin: form.gstin || '',
+      gstin: form.gstin?.toUpperCase() || '',
       address: form.address || '',
       city: form.city || '',
       state: form.state || 'Gujarat',
@@ -138,6 +171,8 @@ export default function PartyForm() {
     } catch (err) {
       toast.error('Failed to save');
       console.error(err);
+    } finally {
+      setDuplicateWarning(null);
     }
   };
 
@@ -209,7 +244,7 @@ export default function PartyForm() {
           {id ? 'Edit Party' : 'Add New Party'}
         </h1>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleInitialSubmit} className="space-y-6">
           <div className="bg-white rounded-2xl p-6 border border-gray-200 space-y-4">
             <h2 className="text-lg font-semibold text-gray-800">Basic Information</h2>
 
@@ -568,6 +603,35 @@ export default function PartyForm() {
             </button>
           </div>
         </form>
+
+        {/* Duplicate Warning Modal */}
+        {duplicateWarning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-xl">
+              <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle size={32} className="text-amber-500" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Duplicate Found</h3>
+              <p className="text-gray-600 mb-6">
+                This {duplicateWarning.reason} already exists with <strong>{duplicateWarning.matchedName}</strong>. Are you sure you want to proceed?
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <button
+                  onClick={() => setDuplicateWarning(null)}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                >
+                  Cancel / Edit
+                </button>
+                <button
+                  onClick={executeSave}
+                  className="flex-1 px-4 py-2.5 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 transition-colors"
+                >
+                  {id ? 'Update Anyhow' : 'Create New Party Anyhow'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
