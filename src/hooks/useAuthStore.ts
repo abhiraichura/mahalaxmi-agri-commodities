@@ -44,7 +44,7 @@ interface AppState {
   setUser: (user: any) => void;
 
   settings: CompanySettings;
-  updateSettings: (settings: Partial<FCompanySettings>) => void;
+  updateSettings: (settings: Partial<CompanySettings>) => void;
   saveSettingsToFirebase: () => Promise<void>;
   loadSettingsFromFirebase: () => Promise<void>;
 
