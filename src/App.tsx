@@ -6,6 +6,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import ContractForm from './pages/ContractForm';
 import ContractView from './pages/ContractView';
+import Parties from './pages/Parties';
 import PartyDirectory from './pages/PartyDirectory';
 import PartyForm from './pages/PartyForm';
 import ProductManager from './pages/ProductManager';
@@ -53,10 +54,15 @@ function App() {
           <Route path="/contracts/new" element={<ContractForm />} />
           <Route path="/contracts/edit/:id" element={<ContractForm />} />
           <Route path="/contracts/:id" element={<ContractView />} />
-          <Route path="/parties" element={<PartyDirectory />} />
+          
+          {/* Parties & Directories Routing */}
+          <Route path="/parties" element={<Parties />} />
+          <Route path="/parties/directory" element={<PartyDirectory />} />
           <Route path="/parties/new" element={<PartyForm />} />
           <Route path="/parties/edit/:id" element={<PartyForm />} />
-          <Route path="/gulfood" element={<GulfFoodDirectory />} />
+          <Route path="/parties/gulfood" element={<GulfFoodDirectory />} />
+          <Route path="/gulfood" element={<Navigate to="/parties/gulfood" replace />} />
+
           <Route path="/products" element={<ProductManager />} />
           <Route path="/brokerage" element={<BrokerageBills />} />
           <Route path="/ledger" element={<PartyLedger />} />
