@@ -44,7 +44,7 @@ export default function ContractForm() {
   const [showAddFy, setShowAddFy] = useState(false);
 
   const [selectedQualityId, setSelectedQualityId] = useState('');
-  const [contractSpecs, setContractSpecs] = useState<<SpecField[]>([]);
+  const [contractSpecs, setContractSpecs] = useState<SpecField[]>([]);
 
   const existing = id ? contracts.find(c => c.id === id) : null;
 
