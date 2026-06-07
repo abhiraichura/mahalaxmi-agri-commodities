@@ -1,7 +1,8 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Phone, Mail, MapPin, Globe, User, X, Download, Upload, FileText, Trash2, Edit2, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getColData, addDoc, updateDocData, deleteDocData } from '../utils/firebase';
 
 interface GulfFoodMember {
   id: string;
@@ -17,6 +18,7 @@ interface GulfFoodMember {
 }
 
 const STORAGE_KEY = 'gulfood_directory_members';
+const COLLECTION_NAME = 'gulfood_members';
 
 function getStoredMembers(): GulfFoodMember[] {
   try {
@@ -27,13 +29,10 @@ function getStoredMembers(): GulfFoodMember[] {
   }
 }
 
-function saveMembers(members: GulfFoodMember[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(members));
-}
-
 export default function GulfFoodDirectory() {
   const navigate = useNavigate();
-  const [members, setMembers] = useState<GulfFoodMember[]>(getStoredMembers);
+  const [members, setMembers] = useState<GulfFoodMember[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [viewingMember, setViewingMember] = useState<GulfFoodMember | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -50,24 +49,58 @@ export default function GulfFoodDirectory() {
     profile: ''
   });
 
-  const filtered = useMemo(() => {
-  let result = members;
-  if (search.trim()) {
-    const q = search.toLowerCase();
-    result = members.filter(m =>
-      m.companyName.toLowerCase().includes(q) ||
-      m.cityState.toLowerCase().includes(q) ||
-      m.contactPerson.toLowerCase().includes(q) ||
-      m.contactNumber.toLowerCase().includes(q) ||
-      m.email.toLowerCase().includes(q) ||
-      m.profile.toLowerCase().includes(q)
-    );
-  }
-  result.sort((a, b) => a.companyName.localeCompare(b.companyName));
-  return result;
-}, [members, search]);
+  // Fetch from Firebase and Migrate if needed
+  useEffect(() => {
+    const fetchMembers = async () => {
+      try {
+        const fbData = await getColData(COLLECTION_NAME);
+        
+        if (fbData.length === 0) {
+          // If Firebase is empty, check localStorage to migrate existing data
+          const localData = getStoredMembers();
+          if (localData.length > 0) {
+            toast.loading('Migrating data to cloud...');
+            for (const member of localData) {
+              await addDoc(COLLECTION_NAME, member.id, member);
+            }
+            setMembers(localData);
+            toast.dismiss();
+            toast.success('Data successfully migrated to cloud!');
+          } else {
+            setMembers([]);
+          }
+        } else {
+          setMembers(fbData as GulfFoodMember[]);
+        }
+      } catch (error) {
+        console.error('Error fetching Gulfood members:', error);
+        toast.error('Failed to load directory');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchMembers();
+  }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const filtered = useMemo(() => {
+    let result = members;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = members.filter(m =>
+        m.companyName.toLowerCase().includes(q) ||
+        m.cityState.toLowerCase().includes(q) ||
+        m.contactPerson.toLowerCase().includes(q) ||
+        m.contactNumber.toLowerCase().includes(q) ||
+        m.email.toLowerCase().includes(q) ||
+        m.profile.toLowerCase().includes(q)
+      );
+    }
+    result.sort((a, b) => a.companyName.localeCompare(b.companyName));
+    return result;
+  }, [members, search]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.companyName.trim()) {
       toast.error('Company name is required');
@@ -75,40 +108,46 @@ export default function GulfFoodDirectory() {
     }
 
     const now = new Date().toISOString();
-    if (editingMember) {
-      const updated = members.map(m =>
-        m.id === editingMember.id
-          ? { ...m, ...form, updatedAt: now }
-          : m
-      );
-      setMembers(updated);
-      saveMembers(updated);
-      toast.success('Member updated');
-    } else {
-      const newMember: GulfFoodMember = {
-        id: crypto.randomUUID(),
-        ...form,
-        createdAt: now,
-        updatedAt: now
-      };
-      const updated = [newMember, ...members];
-      setMembers(updated);
-      saveMembers(updated);
-      toast.success('Member added');
-    }
+    
+    try {
+      if (editingMember) {
+        const updatedMember = { ...editingMember, ...form, updatedAt: now };
+        await updateDocData(COLLECTION_NAME, editingMember.id, updatedMember);
+        
+        setMembers(members.map(m => m.id === editingMember.id ? updatedMember : m));
+        toast.success('Member updated');
+      } else {
+        const newMember: GulfFoodMember = {
+          id: crypto.randomUUID(),
+          ...form,
+          createdAt: now,
+          updatedAt: now
+        };
+        await addDoc(COLLECTION_NAME, newMember.id, newMember);
+        
+        setMembers([newMember, ...members]);
+        toast.success('Member added');
+      }
 
-    setForm({ companyName: '', cityState: '', contactPerson: '', contactNumber: '', email: '', website: '', profile: '' });
-    setShowAddModal(false);
-    setEditingMember(null);
+      setForm({ companyName: '', cityState: '', contactPerson: '', contactNumber: '', email: '', website: '', profile: '' });
+      setShowAddModal(false);
+      setEditingMember(null);
+    } catch (error) {
+      toast.error('Failed to save member');
+      console.error(error);
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Delete this member?')) return;
-    const updated = members.filter(m => m.id !== id);
-    setMembers(updated);
-    saveMembers(updated);
-    toast.success('Deleted');
-    setViewingMember(null);
+    try {
+      await deleteDocData(COLLECTION_NAME, id);
+      setMembers(members.filter(m => m.id !== id));
+      toast.success('Deleted');
+      setViewingMember(null);
+    } catch (error) {
+      toast.error('Failed to delete');
+    }
   };
 
   const handleEdit = (member: GulfFoodMember) => {
@@ -152,12 +191,12 @@ export default function GulfFoodDirectory() {
     toast.success('Exported to CSV');
   };
 
-  const importCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const importCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       const text = ev.target?.result as string;
       const lines = text.split("\n").filter(l => l.trim());
       if (lines.length < 2) {
@@ -168,6 +207,10 @@ export default function GulfFoodDirectory() {
       const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
       const now = new Date().toISOString();
       let count = 0;
+      
+      toast.loading('Importing members...');
+
+      const newMembersList = [...members];
 
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
@@ -191,17 +234,33 @@ export default function GulfFoodDirectory() {
           updatedAt: now
         };
 
-        members.push(newMember);
-        count++;
+        try {
+          await addDoc(COLLECTION_NAME, newMember.id, newMember);
+          newMembersList.push(newMember);
+          count++;
+        } catch (error) {
+          console.error('Error importing row:', error);
+        }
       }
 
-      saveMembers(members);
-      setMembers([...members]);
+      setMembers(newMembersList);
+      toast.dismiss();
       toast.success(`Imported ${count} members`);
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-rose-200 border-t-rose-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading Directory...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
