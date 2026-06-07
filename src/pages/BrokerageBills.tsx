@@ -22,9 +22,9 @@ export default function BrokerageBills() {
   const { contracts, parties, settings } = useAppStore();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [viewingBill, setViewingBill] = useState<<BillGroup | null>(null);
+  const [viewingBill, setViewingBill] = useState<BillGroup | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentForm, setPaymentForm] = useState<<Partial<<BillPayment>>({
+  const [paymentForm, setPaymentForm] = useState<Partial<BillPayment>>({
     date: format(new Date(), 'yyyy-MM-dd'),
     amount: 0,
     mode: 'bank_transfer',
