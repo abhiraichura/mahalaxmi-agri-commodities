@@ -2,7 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
 import {
   LayoutDashboard, FileText, Users, Package, Receipt, Settings, LogOut,
-  BookOpen, StickyNote, ChevronDown, ChevronRight, FolderOpen, Menu, X, RefreshCw
+  BookOpen, StickyNote, ChevronDown, ChevronRight, FolderOpen, Menu, X, RefreshCw, Search
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { checkForUpdate, markVersionSeen, clearAppCache } from '../utils/cacheManager';
@@ -154,9 +154,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <div className="ml-4 mt-1 space-y-1">
                 <NavLink
                   to="/parties"
+                  end
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-colors ${
-                      isActive && location.pathname === '/parties'
+                      isActive
+                        ? 'bg-rose-50 text-rose-700'
+                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                    }`
+                  }
+                >
+                  <Search size={16} />
+                  Global Search
+                </NavLink>
+                <NavLink
+                  to="/parties/directory"
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-colors ${
+                      isActive
                         ? 'bg-rose-50 text-rose-700'
                         : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                     }`
@@ -166,7 +180,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   Party Directory
                 </NavLink>
                 <NavLink
-                  to="/gulfood"
+                  to="/parties/gulfood"
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-colors ${
                       isActive
