@@ -167,7 +167,7 @@ export default function PartyForm() {
         toast.success('Party added');
       }
       await loadParties();
-      navigate('/parties');
+      navigate(-1);
     } catch (err) {
       toast.error('Failed to save');
       console.error(err);
