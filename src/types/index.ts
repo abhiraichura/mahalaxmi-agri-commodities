@@ -1,7 +1,7 @@
 export interface ContactPerson {
   id: string;
   name: string;
-  role: string; // e.g., "Manager", "Logistic Manager", "Director"
+  role: string;
   phone: string;
   email: string;
 }
@@ -19,13 +19,11 @@ export interface Party {
   email: string;
   pan: string;
   type: 'buyer' | 'seller' | 'both';
-  // REMOVED: brokeragePercent, brokerageFixed (moved to product level)
   productIds: string[];
-  // NEW: Internal directory fields (NOT for contracts/bills)
-  contactPerson: string; // Primary contact person name
+  contactPerson: string;
   alternatePhones: string[];
   alternateEmails: string[];
-  otherContacts: ContactPerson[]; // Manager, logistic manager, etc.
+  otherContacts: ContactPerson[];
   createdAt: any;
   updatedAt: any;
 }
@@ -42,7 +40,6 @@ export interface Quality {
   id: string;
   name: string;
   specs: SpecField[];
-  order: number;
 }
 
 export interface BrokerageConfig {
@@ -53,7 +50,6 @@ export interface BrokerageConfig {
 export interface ProductBrokerage {
   buyer: BrokerageConfig;
   seller: BrokerageConfig;
-  // backward compat fields
   buyerPercent?: number;
   buyerFixed?: number;
   sellerPercent?: number;
@@ -64,15 +60,10 @@ export interface ProductSpec {
   id: string;
   name: string;
   qualities: Quality[];
-  defaultBrokerage: number; // kept for backward compatibility
+  specs: SpecField[];
+  defaultBrokerage: number;
   brokerage: ProductBrokerage;
   createdAt: any;
-}
-
-export interface ContractQuality {
-  qualityId: string;
-  qualityName: string;
-  specs: { specId: string; label: string; value: string; unit: string }[];
 }
 
 export interface Contract {
@@ -87,7 +78,6 @@ export interface Contract {
   buyer: Party;
   productId: string;
   product: ProductSpec;
-  quality: ContractQuality | null;
   quantity: number;
   quantityUnit: string;
   price: number;
@@ -102,9 +92,12 @@ export interface Contract {
   otherTerms: string;
   notes: string;
   status: 'draft' | 'confirmed' | 'cancelled' | 'completed';
+  brokerageAmount: number;
   buyerBrokerageAmount: number;
   sellerBrokerageAmount: number;
-  brokerageAmount: number; // total = buyer + seller (backward compat)
+  qualityId?: string;
+  qualityName?: string;
+  contractSpecs?: SpecField[];
   payments: Payment[];
   createdAt: any;
   updatedAt: any;
@@ -144,6 +137,7 @@ export interface BrokerageBill {
   payments: BillPayment[];
   paidAmount: number;
   balanceAmount: number;
+  billType: 'buyer' | 'seller';
 }
 
 export interface CompanySettings {
