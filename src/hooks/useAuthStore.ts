@@ -44,14 +44,14 @@ interface AppState {
   setUser: (user: any) => void;
 
   settings: CompanySettings;
-  updateSettings: (settings: Partial<<CompanySettings>) => void;
+  updateSettings: (settings: Partial<FCompanySettings>) => void;
   saveSettingsToFirebase: () => Promise<void>;
   loadSettingsFromFirebase: () => Promise<void>;
 
   parties: Party[];
   setParties: (parties: Party[]) => void;
   addParty: (party: Party) => Promise<void>;
-  updateParty: (id: string, party: Partial<<Party>) => Promise<void>;
+  updateParty: (id: string, party: Partial<Party>) => Promise<void>;
   deleteParty: (id: string) => Promise<void>;
   loadParties: () => Promise<void>;
 
@@ -65,14 +65,14 @@ interface AppState {
   contracts: Contract[];
   setContracts: (contracts: Contract[]) => void;
   addContract: (contract: Contract) => Promise<void>;
-  updateContract: (id: string, contract: Partial<<Contract>) => Promise<void>;
+  updateContract: (id: string, contract: Partial<Contract>) => Promise<void>;
   deleteContract: (id: string) => Promise<void>;
   loadContracts: () => Promise<void>;
 
   notes: Note[];
   setNotes: (notes: Note[]) => void;
   addNote: (note: Note) => Promise<void>;
-  updateNote: (id: string, note: Partial<<Note>) => Promise<void>;
+  updateNote: (id: string, note: Partial<Note>) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
   loadNotes: () => Promise<void>;
 
@@ -83,7 +83,7 @@ interface AppState {
   setLoading: (loading: boolean) => void;
 }
 
-export const useAppStore = create<<AppState>()(
+export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       user: null,
@@ -245,7 +245,7 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-export const useAuthStore = create<<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   loading: true,
   signIn: async (email, password) => {
