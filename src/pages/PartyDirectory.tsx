@@ -11,8 +11,8 @@ export default function PartyDirectory() {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'buyer' | 'seller' | 'both'>('all');
   const [productFilter, setProductFilter] = useState<string>('all');
-  const [viewingParty, setViewingParty] = useState<<Party | null>(null);
-  const fileInputRef = useRef<<HTMLInputElement>(null);
+  const [viewingParty, setViewingParty] = useState<Party | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
     let result = parties.filter(p => {
@@ -103,7 +103,7 @@ export default function PartyDirectory() {
     toast.success('Exported to CSV');
   };
 
-  const importCSV = (e: React.ChangeEvent<<HTMLInputElement>) => {
+  const importCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
