@@ -78,15 +78,13 @@ export default function ContractView() {
     }
   };
 
-  // Parse phone numbers
   const parsePhones = (phoneStr: string): string[] => {
     if (!phoneStr) return [];
     return phoneStr.split(/[/,]/).map(s => s.trim()).filter(Boolean);
   };
 
-  // Loading deadline alert
   const deadlineAlert = () => {
-    if (!contract.loadingDeadline) return null;
+    if (!contract.loadingDeadline || contract.status === 'completed' || contract.status === 'cancelled') return null;
     const deadline = parseISO(contract.loadingDeadline);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -115,19 +113,6 @@ export default function ContractView() {
     );
   };
 
-  // Get brokerage info for display
-  const getBrokerageInfo = () => {
-    const b = contract.product?.brokerage;
-    if (!b) return null;
-    return {
-      buyer: b.buyer?.type === 'fixed' ? `${b.buyer.value} Rs.` : `${b.buyer?.value || b.buyerPercent || 0}%`,
-      seller: b.seller?.type === 'fixed' ? `${b.seller.value} Rs.` : `${b.seller?.value || b.sellerPercent || 0}%`,
-      total: contract.brokerageAmount || 0
-    };
-  };
-
-  const brokerageInfo = getBrokerageInfo();
-
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
@@ -150,10 +135,8 @@ export default function ContractView() {
         </span>
       </div>
 
-      {/* Loading Deadline Alert */}
       {deadlineAlert() && <div className="mb-4">{deadlineAlert()}</div>}
 
-      {/* WhatsApp Reminder Button (1 day before) */}
       {contract.loadingDeadline && isTomorrow(parseISO(contract.loadingDeadline)) && (
         <div className="mb-4">
           <a
@@ -167,7 +150,6 @@ export default function ContractView() {
         </div>
       )}
 
-      {/* Print / Download / Share Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Buyer Copy</h3>
@@ -212,9 +194,7 @@ export default function ContractView() {
         </div>
       </div>
 
-      {/* Contract Details */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-        {/* Parties */}
         <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
           <div className="p-6">
             <h3 className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-3">Seller</h3>
@@ -253,7 +233,24 @@ export default function ContractView() {
         <div className="border-t border-gray-100 p-6">
           <h3 className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-3">Product</h3>
           <p className="font-semibold text-gray-900">{contract.product.name}</p>
-          {contract.product.specs && contract.product.specs.length > 0 && (
+          {contract.qualityName && (
+            <p className="text-sm text-rose-600 mt-1 font-medium">Quality: {contract.qualityName}</p>
+          )}
+          
+          {/* New contract specs */}
+          {contract.contractSpecs && contract.contractSpecs.length > 0 && (
+            <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3">
+              {contract.contractSpecs.sort((a, b) => (a.order || 0) - (b.order || 0)).map(spec => (
+                <div key={spec.id} className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">{spec.label}</p>
+                  <p className="text-sm font-medium text-gray-900">{spec.value} {spec.unit}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Fallback for old contracts */}
+          {!contract.contractSpecs && contract.product.specs && contract.product.specs.length > 0 && (
             <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3">
               {contract.product.specs.sort((a, b) => (a.order || 0) - (b.order || 0)).map(spec => (
                 <div key={spec.id} className="bg-gray-50 rounded-lg p-3">
@@ -263,13 +260,12 @@ export default function ContractView() {
               ))}
             </div>
           )}
-          {brokerageInfo && (
-            <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-600">
-              <span className="px-2 py-1 bg-amber-50 rounded-md">Buyer Brokerage: {brokerageInfo.buyer}</span>
-              <span className="px-2 py-1 bg-amber-50 rounded-md">Seller Brokerage: {brokerageInfo.seller}</span>
-              <span className="px-2 py-1 bg-rose-50 text-rose-700 rounded-md font-medium">Total: Rs. {brokerageInfo.total.toLocaleString('en-IN')}</span>
-            </div>
-          )}
+          
+          <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-600">
+            <span className="px-2 py-1 bg-amber-50 rounded-md">Buyer Brokerage: Rs. {(contract.buyerBrokerageAmount || 0).toLocaleString('en-IN')}</span>
+            <span className="px-2 py-1 bg-amber-50 rounded-md">Seller Brokerage: Rs. {(contract.sellerBrokerageAmount || 0).toLocaleString('en-IN')}</span>
+            <span className="px-2 py-1 bg-rose-50 text-rose-700 rounded-md font-medium">Total: Rs. {(contract.brokerageAmount || 0).toLocaleString('en-IN')}</span>
+          </div>
         </div>
 
         <div className="border-t border-gray-100 p-6">
