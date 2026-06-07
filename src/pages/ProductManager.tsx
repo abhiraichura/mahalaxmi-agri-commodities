@@ -15,7 +15,7 @@ export default function ProductManager() {
     seller: { type: 'percent' as 'percent' | 'fixed', value: 0 }
   });
 
-  const [qualities, setQualities] = useState<<Quality[]>([]);
+  const [qualities, setQualities] = useState<Quality[]>([]);
 
   const resetForm = () => {
     setName('');
