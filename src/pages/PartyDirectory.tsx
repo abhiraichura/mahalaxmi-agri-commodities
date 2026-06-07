@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Party } from '../types';
-import { Search, Plus, Phone, Mail, MapPin, Edit2, Trash2, Download, Upload, X, ChevronRight, ChevronDown, Check, User, Users } from 'lucide-react';
+import { Search, Plus, Phone, Mail, MapPin, Edit2, Trash2, Download, Upload, X, ChevronRight, ChevronDown, Check, User, Users, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function PartyDirectory() {
@@ -14,6 +14,10 @@ export default function PartyDirectory() {
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [viewingParty, setViewingParty] = useState<Party | null>(null);
   
+  // Bulk Selection States
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const productDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -60,12 +64,43 @@ export default function PartyDirectory() {
       return matchesSearch && matchesType && matchesProduct;
     });
 
-    // Sort alphabetically by legalName
     result.sort((a, b) => a.legalName.localeCompare(b.legalName));
     return result;
   }, [parties, products, search, filterType, productFilter]);
 
-  const handleDelete = async (id: string) => {
+  // Bulk Selection Logic
+  const handleSelectAll = () => {
+    if (selectedIds.length === filtered.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filtered.map(p => p.id));
+    }
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(selectedId => selectedId !== id) : [...prev, id]
+    );
+  };
+
+  const executeBulkDelete = async () => {
+    toast.loading('Deleting parties...');
+    try {
+      for (const id of selectedIds) {
+        await deleteParty(id);
+      }
+      toast.dismiss();
+      toast.success(`Successfully deleted ${selectedIds.length} parties`);
+      setSelectedIds([]);
+      setDeleteStep(0);
+    } catch (error) {
+      toast.dismiss();
+      toast.error('Error deleting parties');
+      setDeleteStep(0);
+    }
+  };
+
+  const handleDeleteSingle = async (id: string) => {
     if (!confirm('Delete this party?')) return;
     await deleteParty(id);
     toast.success('Deleted');
@@ -77,7 +112,6 @@ export default function PartyDirectory() {
   };
 
   const exportCSV = () => {
-    // Removed 'ID' from headers
     const headers = [
       'Legal Name', 'Display Name', 'Contact Person', 'Type', 'Address', 
       'City', 'State', 'Pincode', 'Phone', 'Alternate Phones', 
@@ -92,7 +126,6 @@ export default function PartyDirectory() {
         .map(c => `${c.name} (${c.role}): ${c.phone}`)
         .join('; ');
       
-      // Removed p.id from the mapped row array
       return [
         p.legalName,
         p.name,
@@ -188,12 +221,12 @@ export default function PartyDirectory() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <div className="max-w-6xl mx-auto px-4 py-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Party Directory</h1>
             <p className="text-sm text-gray-500 mt-1">{parties.length} parties registered</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <input
               type="file"
               ref={fileInputRef}
@@ -201,19 +234,28 @@ export default function PartyDirectory() {
               onChange={importCSV}
               className="hidden"
             />
+            {selectedIds.length > 0 && (
+              <button
+                onClick={() => setDeleteStep(1)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors"
+              >
+                <Trash2 size={16} />
+                Delete Selected ({selectedIds.length})
+              </button>
+            )}
             <button
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <Upload size={16} />
-              Import CSV
+              Import
             </button>
             <button
               onClick={exportCSV}
               className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <Download size={16} />
-              Export CSV
+              Export
             </button>
             <button
               onClick={() => navigate('/parties/new')}
@@ -238,59 +280,74 @@ export default function PartyDirectory() {
             />
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3">
-            {/* Type Filter Buttons */}
-            <div className="flex gap-2 flex-wrap">
-              {(['all', 'buyer', 'seller', 'both'] as const).map(type => (
-                <button
-                  key={type}
-                  onClick={() => setFilterType(type)}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-colors ${
-                    filterType === type 
-                      ? 'bg-rose-600 text-white' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {type === 'all' ? 'All' : type === 'both' ? 'Both' : `${type}s`}
-                </button>
-              ))}
-            </div>
-
-            {/* Custom Product Filter Dropdown */}
-            <div className="relative w-full sm:max-w-xs" ref={productDropdownRef}>
-              <button
-                type="button"
-                onClick={() => setProductDropdownOpen(!productDropdownOpen)}
-                className="w-full px-4 py-2.5 h-[36px] sm:h-auto bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between text-left transition-colors hover:bg-gray-100"
-              >
-                <span className={productFilter !== 'all' ? 'text-gray-900 font-medium truncate pr-2' : 'text-gray-600'}>
-                  {productFilter === 'all' ? 'All Products' : products.find(p => p.id === productFilter)?.name}
-                </span>
-                <ChevronDown size={16} className={`text-gray-400 transition-transform ${productDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {productDropdownOpen && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto py-1">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row gap-3 w-full">
+              {/* Type Filter Buttons */}
+              <div className="flex gap-2 flex-wrap">
+                {(['all', 'buyer', 'seller', 'both'] as const).map(type => (
                   <button
-                    onClick={() => { setProductFilter('all'); setProductDropdownOpen(false); }}
-                    className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${productFilter === 'all' ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                    key={type}
+                    onClick={() => setFilterType(type)}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-colors ${
+                      filterType === type 
+                        ? 'bg-rose-600 text-white' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
                   >
-                    <span>All Products</span>
-                    {productFilter === 'all' && <Check size={14} className="text-rose-600" />}
+                    {type === 'all' ? 'All' : type === 'both' ? 'Both' : `${type}s`}
                   </button>
-                  {products.map(p => (
+                ))}
+              </div>
+
+              {/* Custom Product Filter Dropdown */}
+              <div className="relative w-full sm:max-w-xs" ref={productDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setProductDropdownOpen(!productDropdownOpen)}
+                  className="w-full px-4 py-2.5 h-[36px] sm:h-auto bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between text-left transition-colors hover:bg-gray-100"
+                >
+                  <span className={productFilter !== 'all' ? 'text-gray-900 font-medium truncate pr-2' : 'text-gray-600'}>
+                    {productFilter === 'all' ? 'All Products' : products.find(p => p.id === productFilter)?.name}
+                  </span>
+                  <ChevronDown size={16} className={`text-gray-400 transition-transform ${productDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {productDropdownOpen && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto py-1">
                     <button
-                      key={p.id}
-                      onClick={() => { setProductFilter(p.id); setProductDropdownOpen(false); }}
-                      className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${productFilter === p.id ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                      onClick={() => { setProductFilter('all'); setProductDropdownOpen(false); }}
+                      className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${productFilter === 'all' ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
                     >
-                      <span className="truncate pr-2">{p.name}</span>
-                      {productFilter === p.id && <Check size={14} className="text-rose-600 flex-shrink-0" />}
+                      <span>All Products</span>
+                      {productFilter === 'all' && <Check size={14} className="text-rose-600" />}
                     </button>
-                  ))}
-                </div>
-              )}
+                    {products.map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => { setProductFilter(p.id); setProductDropdownOpen(false); }}
+                        className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${productFilter === p.id ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                      >
+                        <span className="truncate pr-2">{p.name}</span>
+                        {productFilter === p.id && <Check size={14} className="text-rose-600 flex-shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Select All Toggle */}
+            {filtered.length > 0 && (
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer whitespace-nowrap bg-gray-50 px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.length === filtered.length && filtered.length > 0}
+                  onChange={handleSelectAll}
+                  className="w-4 h-4 text-rose-600 rounded border-gray-300 focus:ring-rose-500"
+                />
+                <span className="font-medium">Select All</span>
+              </label>
+            )}
           </div>
 
           {search && (
@@ -314,20 +371,34 @@ export default function PartyDirectory() {
                 .map(pid => products.find(prod => prod.id === pid))
                 .filter(Boolean);
 
+              const isSelected = selectedIds.includes(party.id);
+
               return (
                 <div
                   key={party.id}
                   onClick={() => setViewingParty(party)}
-                  className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md hover:border-rose-200 transition-all cursor-pointer group"
+                  className={`bg-white border rounded-2xl p-5 transition-all cursor-pointer group ${
+                    isSelected ? 'border-rose-500 shadow-sm bg-rose-50/30' : 'border-gray-200 hover:shadow-md hover:border-rose-200'
+                  }`}
                 >
                   <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-semibold text-gray-900 group-hover:text-rose-700 transition-colors line-clamp-1">
-                        {party.legalName}
-                      </h3>
-                      {party.name !== party.legalName && (
-                        <p className="text-xs text-gray-500 truncate">{party.name}</p>
-                      )}
+                    <div className="flex gap-3 items-start">
+                      <div onClick={(e) => e.stopPropagation()} className="pt-1">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelection(party.id)}
+                          className="w-4 h-4 text-rose-600 rounded border-gray-300 focus:ring-rose-500 cursor-pointer"
+                        />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900 group-hover:text-rose-700 transition-colors line-clamp-1">
+                          {party.legalName}
+                        </h3>
+                        {party.name !== party.legalName && (
+                          <p className="text-xs text-gray-500 truncate">{party.name}</p>
+                        )}
+                      </div>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 ${
                       party.type === 'buyer' ? 'bg-blue-50 text-blue-600' :
@@ -339,19 +410,19 @@ export default function PartyDirectory() {
                   </div>
 
                   {party.contactPerson && (
-                    <div className="flex items-center gap-1.5 text-sm text-gray-700 mb-2">
+                    <div className="flex items-center gap-1.5 text-sm text-gray-700 mb-2 pl-7">
                       <User size={14} className="text-gray-400" />
                       <span className="font-medium truncate">{party.contactPerson}</span>
                     </div>
                   )}
 
-                  <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
+                  <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-2 pl-7">
                     <MapPin size={14} className="flex-shrink-0" />
                     <span className="truncate">{party.city}, {party.state}</span>
                   </div>
 
                   {phones.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-2">
+                    <div className="flex flex-wrap gap-2 mb-2 pl-7">
                       {phones.map((phone, idx) => (
                         <a
                           key={idx}
@@ -367,7 +438,7 @@ export default function PartyDirectory() {
                   )}
 
                   {partyProducts.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-3">
+                    <div className="flex flex-wrap gap-1.5 mt-3 pl-7">
                       {partyProducts.map(prod => (
                         <span key={prod!.id} className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">
                           {prod!.name}
@@ -381,6 +452,7 @@ export default function PartyDirectory() {
           </div>
         )}
 
+        {/* View Party Modal */}
         {viewingParty && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setViewingParty(null)}>
             <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
@@ -533,7 +605,7 @@ export default function PartyDirectory() {
                 </button>
                 <button
                   onClick={() => {
-                    handleDelete(viewingParty.id);
+                    handleDeleteSingle(viewingParty.id);
                     setViewingParty(null);
                   }}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100"
@@ -545,6 +617,62 @@ export default function PartyDirectory() {
             </div>
           </div>
         )}
+
+        {/* Double Confirmation Bulk Delete Modal */}
+        {deleteStep > 0 && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-xl">
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle size={32} className="text-red-600" />
+              </div>
+              
+              {deleteStep === 1 ? (
+                <>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Delete {selectedIds.length} Parties?</h3>
+                  <p className="text-gray-500 mb-6">
+                    Are you sure you want to delete the selected parties from your directory?
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setDeleteStep(0)}
+                      className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => setDeleteStep(2)}
+                      className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700"
+                    >
+                      Yes, Proceed
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-xl font-bold text-red-600 mb-2">Final Confirmation</h3>
+                  <p className="text-gray-600 mb-6">
+                    This action is <strong>irreversible</strong>. You are about to permanently delete {selectedIds.length} records. Please confirm again.
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setDeleteStep(0)}
+                      className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={executeBulkDelete}
+                      className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700"
+                    >
+                      Permanently Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
