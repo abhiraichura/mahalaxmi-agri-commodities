@@ -94,7 +94,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto pt-16 lg:pt-8 px-4 lg:px-8 pb-8">
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
       <div className="space-y-6">
