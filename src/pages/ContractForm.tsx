@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { ArrowLeft, Save, ChevronDown, Plus } from 'lucide-react';
+import { ArrowLeft, Save, ChevronDown, Plus, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { SpecField } from '../types';
@@ -45,6 +45,28 @@ export default function ContractForm() {
 
   const [selectedQualityId, setSelectedQualityId] = useState('');
   const [contractSpecs, setContractSpecs] = useState<SpecField[]>([]);
+
+  // Custom Dropdown States
+  const [sellerDropdownOpen, setSellerDropdownOpen] = useState(false);
+  const [buyerDropdownOpen, setBuyerDropdownOpen] = useState(false);
+  const [productDropdownOpen, setProductDropdownOpen] = useState(false);
+  const [qualityDropdownOpen, setQualityDropdownOpen] = useState(false);
+
+  const sellerRef = useRef<HTMLDivElement>(null);
+  const buyerRef = useRef<HTMLDivElement>(null);
+  const productRef = useRef<HTMLDivElement>(null);
+  const qualityRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sellerRef.current && !sellerRef.current.contains(e.target as Node)) setSellerDropdownOpen(false);
+      if (buyerRef.current && !buyerRef.current.contains(e.target as Node)) setBuyerDropdownOpen(false);
+      if (productRef.current && !productRef.current.contains(e.target as Node)) setProductDropdownOpen(false);
+      if (qualityRef.current && !qualityRef.current.contains(e.target as Node)) setQualityDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const existing = id ? contracts.find(c => c.id === id) : null;
 
@@ -99,6 +121,19 @@ export default function ContractForm() {
   const selectedSeller = parties.find(p => p.id === form.sellerId);
   const selectedBuyer = parties.find(p => p.id === form.buyerId);
   const selectedProduct = products.find(p => p.id === form.productId);
+
+  // Alphabetically sorted options
+  const sortedSellers = useMemo(() => 
+    parties.filter(p => p.type === 'seller' || p.type === 'both').sort((a, b) => a.legalName.localeCompare(b.legalName)),
+  [parties]);
+
+  const sortedBuyers = useMemo(() => 
+    parties.filter(p => p.type === 'buyer' || p.type === 'both').sort((a, b) => a.legalName.localeCompare(b.legalName)),
+  [parties]);
+
+  const sortedProducts = useMemo(() => 
+    [...products].sort((a, b) => a.name.localeCompare(b.name)),
+  [products]);
 
   // Initialize quality & specs when product changes (for new contracts)
   useEffect(() => {
@@ -315,40 +350,79 @@ export default function ContractForm() {
 
         {/* Parties */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+          <div className="relative" ref={sellerRef}>
             <label className="block text-sm font-medium text-gray-700 mb-1">Seller *</label>
-            <select
-              value={form.sellerId}
-              onChange={e => setForm({ ...form, sellerId: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+            <button
+              type="button"
+              onClick={() => setSellerDropdownOpen(!sellerDropdownOpen)}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between transition-colors focus:ring-2 focus:ring-rose-100"
             >
-              <option value="">Select Seller</option>
-              {parties.filter(p => p.type === 'seller' || p.type === 'both').map(p => (
-                <option key={p.id} value={p.id}>{p.legalName}</option>
-              ))}
-            </select>
+              <span className={form.sellerId ? 'text-gray-900 font-medium line-clamp-1 text-left' : 'text-gray-500'}>
+                {sortedSellers.find(p => p.id === form.sellerId)?.legalName || 'Select Seller'}
+              </span>
+              <ChevronDown size={16} className={`text-gray-400 flex-shrink-0 transition-transform ${sellerDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {sellerDropdownOpen && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto py-1">
+                {sortedSellers.map(p => {
+                  const isSelected = form.sellerId === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => { setForm({ ...form, sellerId: p.id }); setSellerDropdownOpen(false); }}
+                      className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${isSelected ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                    >
+                      <span className="truncate pr-2">{p.legalName}</span>
+                      {isSelected && <Check size={14} className="text-rose-600 flex-shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {selectedSeller && (
-              <div className="mt-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600 space-y-1">
+              <div className="mt-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600 space-y-1 border border-gray-100">
                 <p>{selectedSeller.address}</p>
                 <p>{selectedSeller.city}, {selectedSeller.state}</p>
                 {selectedSeller.gstin && <p>GSTIN: {selectedSeller.gstin}</p>}
               </div>
             )}
           </div>
-          <div>
+          
+          <div className="relative" ref={buyerRef}>
             <label className="block text-sm font-medium text-gray-700 mb-1">Buyer *</label>
-            <select
-              value={form.buyerId}
-              onChange={e => setForm({ ...form, buyerId: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+            <button
+              type="button"
+              onClick={() => setBuyerDropdownOpen(!buyerDropdownOpen)}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between transition-colors focus:ring-2 focus:ring-rose-100"
             >
-              <option value="">Select Buyer</option>
-              {parties.filter(p => p.type === 'buyer' || p.type === 'both').map(p => (
-                <option key={p.id} value={p.id}>{p.legalName}</option>
-              ))}
-            </select>
+              <span className={form.buyerId ? 'text-gray-900 font-medium line-clamp-1 text-left' : 'text-gray-500'}>
+                {sortedBuyers.find(p => p.id === form.buyerId)?.legalName || 'Select Buyer'}
+              </span>
+              <ChevronDown size={16} className={`text-gray-400 flex-shrink-0 transition-transform ${buyerDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {buyerDropdownOpen && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto py-1">
+                {sortedBuyers.map(p => {
+                  const isSelected = form.buyerId === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => { setForm({ ...form, buyerId: p.id }); setBuyerDropdownOpen(false); }}
+                      className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${isSelected ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                    >
+                      <span className="truncate pr-2">{p.legalName}</span>
+                      {isSelected && <Check size={14} className="text-rose-600 flex-shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {selectedBuyer && (
-              <div className="mt-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600 space-y-1">
+              <div className="mt-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600 space-y-1 border border-gray-100">
                 <p>{selectedBuyer.address}</p>
                 <p>{selectedBuyer.city}, {selectedBuyer.state}</p>
                 {selectedBuyer.gstin && <p>GSTIN: {selectedBuyer.gstin}</p>}
@@ -358,20 +432,39 @@ export default function ContractForm() {
         </div>
 
         {/* Product */}
-        <div>
+        <div className="relative" ref={productRef}>
           <label className="block text-sm font-medium text-gray-700 mb-1">Product *</label>
-          <select
-            value={form.productId}
-            onChange={e => setForm({ ...form, productId: e.target.value })}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+          <button
+            type="button"
+            onClick={() => setProductDropdownOpen(!productDropdownOpen)}
+            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between transition-colors focus:ring-2 focus:ring-rose-100"
           >
-            <option value="">Select Product</option>
-            {products.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+            <span className={form.productId ? 'text-gray-900 font-medium line-clamp-1 text-left' : 'text-gray-500'}>
+              {sortedProducts.find(p => p.id === form.productId)?.name || 'Select Product'}
+            </span>
+            <ChevronDown size={16} className={`text-gray-400 flex-shrink-0 transition-transform ${productDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {productDropdownOpen && (
+            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto py-1">
+              {sortedProducts.map(p => {
+                const isSelected = form.productId === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => { setForm({ ...form, productId: p.id }); setProductDropdownOpen(false); }}
+                    className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${isSelected ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                  >
+                    <span className="truncate pr-2">{p.name}</span>
+                    {isSelected && <Check size={14} className="text-rose-600 flex-shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {selectedProduct && (
-            <div className="mt-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600">
+            <div className="mt-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600 border border-gray-100">
               <p>Buyer Brokerage: {selectedProduct.brokerage?.buyer?.value || selectedProduct.brokerage?.buyerPercent || selectedProduct.defaultBrokerage || 0}{selectedProduct.brokerage?.buyer?.type === 'fixed' || selectedProduct.brokerage?.buyerFixed ? ' Rs.' : '%'}</p>
               <p>Seller Brokerage: {selectedProduct.brokerage?.seller?.value || selectedProduct.brokerage?.sellerPercent || selectedProduct.defaultBrokerage || 0}{selectedProduct.brokerage?.seller?.type === 'fixed' || selectedProduct.brokerage?.sellerFixed ? ' Rs.' : '%'}</p>
             </div>
@@ -380,18 +473,37 @@ export default function ContractForm() {
 
         {/* Quality Selection */}
         {selectedProduct && selectedProduct.qualities && selectedProduct.qualities.length > 0 && (
-          <div>
+          <div className="relative" ref={qualityRef}>
             <label className="block text-sm font-medium text-gray-700 mb-1">Quality</label>
-            <select
-              value={selectedQualityId}
-              onChange={e => handleQualityChange(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+            <button
+              type="button"
+              onClick={() => setQualityDropdownOpen(!qualityDropdownOpen)}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between transition-colors focus:ring-2 focus:ring-rose-100"
             >
-              <option value="">Select Quality</option>
-              {selectedProduct.qualities.map(q => (
-                <option key={q.id} value={q.id}>{q.name}</option>
-              ))}
-            </select>
+              <span className={selectedQualityId ? 'text-gray-900 font-medium line-clamp-1 text-left' : 'text-gray-500'}>
+                {selectedProduct.qualities.find(q => q.id === selectedQualityId)?.name || 'Select Quality'}
+              </span>
+              <ChevronDown size={16} className={`text-gray-400 flex-shrink-0 transition-transform ${qualityDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {qualityDropdownOpen && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto py-1">
+                {[...selectedProduct.qualities].sort((a, b) => a.name.localeCompare(b.name)).map(q => {
+                  const isSelected = selectedQualityId === q.id;
+                  return (
+                    <button
+                      key={q.id}
+                      type="button"
+                      onClick={() => { handleQualityChange(q.id); setQualityDropdownOpen(false); }}
+                      className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${isSelected ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                    >
+                      <span className="truncate pr-2">{q.name}</span>
+                      {isSelected && <Check size={14} className="text-rose-600 flex-shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
