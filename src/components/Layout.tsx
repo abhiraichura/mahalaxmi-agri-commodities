@@ -48,8 +48,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setShowUpdateBanner(false);
   };
 
+  // Dashboard is handled manually at the top, the rest go below the "Parties" group
   const navItems = [
-    { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/contracts', icon: FileText, label: 'Contracts' },
     { to: '/products', icon: Package, label: 'Products' },
     { to: '/brokerage', icon: Receipt, label: 'Brokerage Bills' },
@@ -118,23 +118,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {/* Regular nav items */}
-          {navItems.map(item => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-rose-50 text-rose-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`
-              }
-            >
-              <item.icon size={18} />
-              {item.label}
-            </NavLink>
-          ))}
+          {/* Dashboard Item */}
+          <NavLink
+            to="/"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-rose-50 text-rose-700'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`
+            }
+          >
+            <LayoutDashboard size={18} />
+            Dashboard
+          </NavLink>
 
           {/* Parties with submenu */}
           <div>
@@ -184,6 +181,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             )}
           </div>
+
+          {/* Regular nav items */}
+          {navItems.map(item => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-rose-50 text-rose-700'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`
+              }
+            >
+              <item.icon size={18} />
+              {item.label}
+            </NavLink>
+          ))}
         </nav>
 
         <div className="p-4 border-t border-gray-100">
