@@ -533,7 +533,12 @@ export default function PartyDirectory() {
                             <Users size={14} className="text-gray-500" />
                           </div>
                           <div>
-                            <p className="font-medium text-gray-900">{contact.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-gray-900">{contact.name}</p>
+                              {contact.phone && (
+                                <span className="text-sm text-gray-600">{contact.phone}</span>
+                              )}
+                            </div>
                             {contact.role && <p className="text-xs text-gray-500">{contact.role}</p>}
                           </div>
                         </div>
