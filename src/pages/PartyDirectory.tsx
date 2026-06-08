@@ -47,8 +47,8 @@ export default function PartyDirectory() {
         .map(pid => products.find(prod => prod.id === pid)?.name?.toLowerCase() || '')
         .filter(Boolean);
 
-      const otherContactNames = (p.otherContacts || [])
-        .map(c => `${c.name} ${c.role}`.toLowerCase());
+      const otherContactDetails = (p.otherContacts || [])
+        .map(c => `${c.name || ''} ${c.role || ''} ${c.phone || ''} ${c.email || ''}`.toLowerCase());
 
       const searchableText = [
         p.legalName?.toLowerCase() || '',
@@ -57,7 +57,7 @@ export default function PartyDirectory() {
         p.phone?.toLowerCase() || '',
         p.contactPerson?.toLowerCase() || '',
         ...partyProducts,
-        ...otherContactNames,
+        ...otherContactDetails,
         p.gstin?.toLowerCase() || ''
       ].join(' ');
 
