@@ -10,7 +10,7 @@ export default function PartyDirectory() {
   const navigate = useNavigate();
   const { parties, products, deleteParty, loadParties, addParty } = useAppStore();
   const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'buyer' | 'seller' | 'both'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'buyer' | 'seller' | 'bothtransformedPartiesForExport'>('all');
   const [productFilter, setProductFilter] = useState<string>('all');
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [viewingParty, setViewingParty] = useState<Party | null>(null);
@@ -131,13 +131,14 @@ export default function PartyDirectory() {
   };
 
   // Transform parties data with string array product names to match ExportPartyModal schema expectations
+  // Transform parties data to match ExportPartyModal schema expectations
   const transformedPartiesForExport = useMemo(() => {
     return parties.map(p => ({
       id: p.id,
       name: p.legalName || p.name,
       type: p.type as 'buyer' | 'seller' | 'both',
       phone: p.phone,
-      email: p.email,
+      contactPerson: p.contactPerson || '', // Changed from email to contactPerson
       city: p.city,
       products: (p.productIds || [])
         .map(pid => products.find(prod => prod.id === pid)?.name || '')
