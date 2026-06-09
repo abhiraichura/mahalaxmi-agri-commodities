@@ -7,7 +7,6 @@ export interface Party {
   name: string;
   type: 'buyer' | 'seller' | 'both';
   phone?: string;
-  email?: string;
   city?: string;
   products: string[]; // Array of product names handled by the party
 }
@@ -52,14 +51,13 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
       return;
     }
 
-    const headers = ['Party Name', 'Type', 'Phone', 'Email', 'City', 'Associated Products'];
+    const headers = ['Party Name', 'Type', 'Phone', 'City', 'Associated Products'];
 
     const csvRows = filteredParties.map((party) => {
       const rowData = [
         party.name,
         party.type.toUpperCase(),
         party.phone || '',
-        party.email || '',
         party.city || '',
         Array.isArray(party.products) ? party.products.join(', ') : '',
       ];
@@ -108,13 +106,12 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
     doc.setTextColor(107, 114, 128); // Muted Gray
     doc.text(`Product Selection: ${selectedProduct}  |  Type Selection: ${selectedType === 'All' ? 'All Types' : selectedType.toUpperCase()}`, 14, 21);
 
-    const tableHeaders = [['Party Name', 'Type', 'Phone', 'Email', 'City', 'Associated Products']];
+    const tableHeaders = [['Party Name', 'Type', 'Phone', 'City', 'Associated Products']];
     
     const tableRows = filteredParties.map((party) => [
       party.name,
       party.type.toUpperCase(),
       party.phone || '',
-      party.email || '',
       party.city || '',
       Array.isArray(party.products) ? party.products.join(', ') : '',
     ]);
@@ -131,9 +128,8 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
         0: { cellWidth: 65 },  // Name
         1: { cellWidth: 20 },  // Type
         2: { cellWidth: 40 },  // Phone
-        3: { cellWidth: 50 },  // Email
-        4: { cellWidth: 30 },  // City
-        5: { cellWidth: 'auto' } // Associated Products wrap automatically cleanly
+        3: { cellWidth: 30 },  // City
+        4: { cellWidth: 'auto' } // Associated Products wrap automatically cleanly
       },
     });
 
