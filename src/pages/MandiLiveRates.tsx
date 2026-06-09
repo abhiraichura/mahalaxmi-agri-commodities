@@ -1,5 +1,3 @@
-// src/pages/MandiLiveRates.tsx
-
 import React, { useState, useMemo } from 'react';
 import { useMandiRates } from '../hooks/useMandiRates';
 import { MandiRecord } from '../types/mandi';
@@ -10,19 +8,19 @@ export default function MandiLiveRates() {
   const [selectedMarket, setSelectedMarket] = useState<string>('All');
   const [selectedCommodity, setSelectedCommodity] = useState<string>('All');
 
-  const markets = useMemo(() => {
+  const markets = useMemo<string[]>(() => {
     if (!data?.records) return ['All'];
-    const uniqueMarkets = Array.from(new Set(data.records.map((r) => r.market))).sort();
+    const uniqueMarkets = Array.from(new Set(data.records.map((r: MandiRecord) => r.market))).sort();
     return ['All', ...uniqueMarkets];
   }, [data]);
 
-  const commodities = useMemo(() => {
+  const commodities = useMemo<string[]>(() => {
     if (!data?.records) return ['All'];
-    const uniqueCommodities = Array.from(new Set(data.records.map((r) => r.commodity))).sort();
+    const uniqueCommodities = Array.from(new Set(data.records.map((r: MandiRecord) => r.commodity))).sort();
     return ['All', ...uniqueCommodities];
   }, [data]);
 
-  const filteredRecords = useMemo(() => {
+  const filteredRecords = useMemo<MandiRecord[]>(() => {
     if (!data?.records) return [];
     return data.records.filter((record: MandiRecord) => {
       const marketMatch = selectedMarket === 'All' || record.market === selectedMarket;
@@ -75,9 +73,9 @@ export default function MandiLiveRates() {
             id="market-filter"
             className="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
             value={selectedMarket}
-            onChange={(e) => setSelectedMarket(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedMarket(e.target.value)}
           >
-            {markets.map((market) => (
+            {markets.map((market: string) => (
               <option key={market} value={market}>{market}</option>
             ))}
           </select>
@@ -90,9 +88,9 @@ export default function MandiLiveRates() {
             id="commodity-filter"
             className="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
             value={selectedCommodity}
-            onChange={(e) => setSelectedCommodity(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedCommodity(e.target.value)}
           >
-            {commodities.map((commodity) => (
+            {commodities.map((commodity: string) => (
               <option key={commodity} value={commodity}>{commodity}</option>
             ))}
           </select>
@@ -107,14 +105,14 @@ export default function MandiLiveRates() {
                 <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">APMC Market</th>
                 <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Commodity</th>
                 <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Variety</th>
-                <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Min Price (₹/Quintal)</th>
-                <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Max Price (₹/Quintal)</th>
-                <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-indigo-600">Modal Price (₹)</th>
+                <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Min Price (装/Quintal)</th>
+                <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Max Price (装/Quintal)</th>
+                <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-indigo-600">Modal Price (装)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
               {filteredRecords.length > 0 ? (
-                filteredRecords.map((record, index) => (
+                filteredRecords.map((record: MandiRecord, index: number) => (
                   <tr key={`${record.market}-${record.commodity}-${index}`} className="hover:bg-gray-50 transition-colors">
                     <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
                       {record.market}
