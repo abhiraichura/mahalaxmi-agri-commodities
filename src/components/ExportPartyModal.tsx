@@ -7,8 +7,9 @@ export interface Party {
   name: string;
   type: 'buyer' | 'seller' | 'both';
   phone?: string;
+  contactPerson?: string;
   city?: string;
-  products: string[]; // Array of product names handled by the party
+  products: string[];
 }
 
 interface ExportPartyModalProps {
@@ -21,7 +22,7 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
   const [selectedProduct, setSelectedProduct] = useState<string>('All');
   const [selectedType, setSelectedType] = useState<string>('All');
 
-  // 1. Extract a unique list of all products from all parties for the filter dropdown
+  // Extract a unique list of all products from all parties for the filter dropdown
   const allProducts = useMemo(() => {
     const productsSet = new Set<string>();
     parties.forEach((party) => {
@@ -32,7 +33,7 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
     return ['All', ...Array.from(productsSet).sort()];
   }, [parties]);
 
-  // 2. Filter the parties based on user selections (shared logic for both exports)
+  // Filter the parties based on user selections
   const filteredParties = useMemo(() => {
     return parties.filter((party) => {
       const typeMatch = selectedType === 'All' || party.type === selectedType || party.type === 'both';
@@ -41,7 +42,6 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
     });
   }, [parties, selectedType, selectedProduct]);
 
-  // SAFE GUARD: Early returns must always sit below all top-level React hooks definitions
   if (!isOpen) return null;
 
   // --- CSV Export Handler ---
@@ -51,13 +51,14 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
       return;
     }
 
-    const headers = ['Party Name', 'Type', 'Phone', 'City', 'Associated Products'];
+    const headers = ['Party Name', 'Type', 'Phone', 'Contact Person', 'City', 'Associated Products'];
 
     const csvRows = filteredParties.map((party) => {
       const rowData = [
         party.name,
         party.type.toUpperCase(),
         party.phone || '',
+        party.contactPerson || '',
         party.city || '',
         Array.isArray(party.products) ? party.products.join(', ') : '',
       ];
@@ -87,49 +88,56 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
     onClose();
   };
 
-  // --- PDF Export Handler ---
+  // --- PDF Export Handler (A4 Print Optimized) ---
   const handleExportPDF = () => {
     if (filteredParties.length === 0) {
       alert('No parties found matching the selected filters.');
       return;
     }
 
-    // Initialize jsPDF with landscape orientation to accommodate multi-column formatting
-    const doc = new jsPDF({ orientation: 'landscape' });
+    // Force strict dimensions configuration to Landscape A4 (297mm width x 210mm height)
+    const doc = new jsPDF({ 
+      orientation: 'landscape', 
+      unit: 'mm', 
+      format: 'a4' 
+    });
 
-    // Document Titles and Info Headers
+    // Document Header Titles
     doc.setFontSize(16);
-    doc.setTextColor(17, 24, 39); // Slate Black
-    doc.text('Mahalaxmi Agri Commodities - Party Directory Report', 14, 15);
+    doc.setTextColor(17, 24, 39); // Slate Gray Black
+    doc.text('Mahalaxmi Agri Commodities - Party Directory', 14, 15);
     
     doc.setFontSize(9);
-    doc.setTextColor(107, 114, 128); // Muted Gray
-    doc.text(`Product Selection: ${selectedProduct}  |  Type Selection: ${selectedType === 'All' ? 'All Types' : selectedType.toUpperCase()}`, 14, 21);
+    doc.setTextColor(107, 114, 128); // Secondary Muted Text
+    doc.text(`Product Selection: ${selectedProduct}  |  Type Selection: ${selectedType === 'All' ? 'All Types' : selectedType.toUpperCase()}  |  Generated: ${new Date().toLocaleDateString()}`, 14, 21);
 
-    const tableHeaders = [['Party Name', 'Type', 'Phone', 'City', 'Associated Products']];
+    const tableHeaders = [['Party Name', 'Type', 'Phone', 'Contact Person', 'City', 'Associated Products']];
     
     const tableRows = filteredParties.map((party) => [
       party.name,
       party.type.toUpperCase(),
       party.phone || '',
+      party.contactPerson || '',
       party.city || '',
       Array.isArray(party.products) ? party.products.join(', ') : '',
     ]);
 
-    // Build striped document table layout
+    // Build structural document grid mapping. Total explicit column widths = 265mm.
+    // Fits inside the 269mm printable area of a standard landscape A4 page cleanly.
     autoTable(doc, {
       head: tableHeaders,
       body: tableRows,
       startY: 26,
       theme: 'striped',
-      headStyles: { fillColor: [225, 29, 72] }, // Matches application's primary rose-600 color
+      headStyles: { fillColor: [225, 29, 72] }, // App brand rose-600 color sync
       styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak' },
       columnStyles: {
-        0: { cellWidth: 65 },  // Name
+        0: { cellWidth: 55 },  // Party Name
         1: { cellWidth: 20 },  // Type
-        2: { cellWidth: 40 },  // Phone
-        3: { cellWidth: 30 },  // City
-        4: { cellWidth: 'auto' } // Associated Products wrap automatically cleanly
+        2: { cellWidth: 35 },  // Phone
+        3: { cellWidth: 45 },  // Contact Person Name
+        4: { cellWidth: 30 },  // City
+        5: { cellWidth: 80 }   // Associated Products block wraps gracefully
       },
     });
 
