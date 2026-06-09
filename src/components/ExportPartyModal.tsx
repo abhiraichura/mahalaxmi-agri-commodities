@@ -27,7 +27,7 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
     const productsSet = new Set<string>();
     parties.forEach((party) => {
       if (Array.isArray(party.products)) {
-        party.products.forEach((product) => productsSet.add(product));
+        party.products.forEach((product) => product && productsSet.add(product));
       }
     });
     return ['All', ...Array.from(productsSet).sort()];
@@ -42,6 +42,7 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
     });
   }, [parties, selectedType, selectedProduct]);
 
+  // Safe Guard: Early returns must sit below all top-level React hook definitions
   if (!isOpen) return null;
 
   // --- CSV Export Handler ---
@@ -95,21 +96,21 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
       return;
     }
 
-    // Force strict dimensions configuration to Landscape A4 (297mm width x 210mm height)
+    // Explicit landscape dimensions configuration targeting Standard ISO A4 printable space
     const doc = new jsPDF({ 
       orientation: 'landscape', 
       unit: 'mm', 
       format: 'a4' 
     });
 
-    // Document Header Titles
+    // Document Headers
     doc.setFontSize(16);
-    doc.setTextColor(17, 24, 39); // Slate Gray Black
+    doc.setTextColor(17, 24, 39); // Gray-900 Slate
     doc.text('Mahalaxmi Agri Commodities - Party Directory', 14, 15);
     
     doc.setFontSize(9);
-    doc.setTextColor(107, 114, 128); // Secondary Muted Text
-    doc.text(`Product Selection: ${selectedProduct}  |  Type Selection: ${selectedType === 'All' ? 'All Types' : selectedType.toUpperCase()}  |  Generated: ${new Date().toLocaleDateString()}`, 14, 21);
+    doc.setTextColor(107, 114, 128); // Gray-500 Muted
+    doc.text(`Product Filter: ${selectedProduct}  |  Type Filter: ${selectedType === 'All' ? 'All Types' : selectedType.toUpperCase()}  |  Printed: ${new Date().toLocaleDateString()}`, 14, 21);
 
     const tableHeaders = [['Party Name', 'Type', 'Phone', 'Contact Person', 'City', 'Associated Products']];
     
@@ -122,14 +123,13 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
       Array.isArray(party.products) ? party.products.join(', ') : '',
     ]);
 
-    // Build structural document grid mapping. Total explicit column widths = 265mm.
-    // Fits inside the 269mm printable area of a standard landscape A4 page cleanly.
+    // Precise explicit column widths mapping totaling 265mm to prevent right-margin page bleed on A4 printers
     autoTable(doc, {
       head: tableHeaders,
       body: tableRows,
       startY: 26,
       theme: 'striped',
-      headStyles: { fillColor: [225, 29, 72] }, // App brand rose-600 color sync
+      headStyles: { fillColor: [225, 29, 72] }, // Rose-600 theme sync
       styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak' },
       columnStyles: {
         0: { cellWidth: 55 },  // Party Name
@@ -137,7 +137,7 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
         2: { cellWidth: 35 },  // Phone
         3: { cellWidth: 45 },  // Contact Person Name
         4: { cellWidth: 30 },  // City
-        5: { cellWidth: 80 }   // Associated Products block wraps gracefully
+        5: { cellWidth: 80 }   // Associated Products auto wrap
       },
     });
 
