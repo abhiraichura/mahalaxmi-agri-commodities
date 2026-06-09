@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export interface Party {
   id: string;
@@ -33,18 +35,24 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
 
   if (!isOpen) return null;
 
-  const handleExport = () => {
-    // 1. Filter the parties based on selection
-    const filteredParties = parties.filter((party) => {
+  // Filter the parties based on user selections (shared logic for both exports)
+  const filteredParties = useMemo(() => {
+    return parties.filter((party) => {
       const typeMatch = selectedType === 'All' || party.type === selectedType || party.type === 'both';
       const productMatch = selectedProduct === 'All' || (Array.isArray(party.products) && party.products.includes(selectedProduct));
       return typeMatch && productMatch;
     });
+  }, [parties, selectedType, selectedProduct]);
 
-    // 2. Define headers for the CSV
+  // --- CSV Export Handler ---
+  const handleExportCSV = () => {
+    if (filteredParties.length === 0) {
+      alert('No parties found matching the selected filters.');
+      return;
+    }
+
     const headers = ['Party Name', 'Type', 'Phone', 'Email', 'City', 'Associated Products'];
 
-    // 3. Map records to CSV rows with proper comma escaping
     const csvRows = filteredParties.map((party) => {
       const rowData = [
         party.name,
@@ -63,10 +71,7 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
         .join(',');
     });
 
-    // 4. Combine headers and rows
     const csvContent = [headers.join(','), ...csvRows].join('\n');
-
-    // 5. Trigger download via browser blob
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -80,6 +85,59 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
     link.click();
     document.body.removeChild(link);
     
+    onClose();
+  };
+
+  // --- PDF Export Handler ---
+  const handleExportPDF = () => {
+    if (filteredParties.length === 0) {
+      alert('No parties found matching the selected filters.');
+      return;
+    }
+
+    // Initialize jsPDF with landscape orientation to accommodate multi-column formatting
+    const doc = new jsPDF({ orientation: 'landscape' });
+
+    // Document Titles and Info Headers
+    doc.setFontSize(16);
+    doc.setTextColor(17, 24, 39); // Slate Black
+    doc.text('Mahalaxmi Agri Commodities - Party Directory Report', 14, 15);
+    
+    doc.setFontSize(9);
+    doc.setTextColor(107, 114, 128); // Muted Gray
+    doc.text(`Product Selection: ${selectedProduct}  |  Type Selection: ${selectedType === 'All' ? 'All Types' : selectedType.toUpperCase()}`, 14, 21);
+
+    const tableHeaders = [['Party Name', 'Type', 'Phone', 'Email', 'City', 'Associated Products']];
+    
+    const tableRows = filteredParties.map((party) => [
+      party.name,
+      party.type.toUpperCase(),
+      party.phone || '',
+      party.email || '',
+      party.city || '',
+      Array.isArray(party.products) ? party.products.join(', ') : '',
+    ]);
+
+    // Build beautiful striped document table layout
+    autoTable(doc, {
+      head: tableHeaders,
+      body: tableRows,
+      startY: 26,
+      theme: 'striped',
+      headStyles: { fillColor: [225, 29, 72] }, // Matches your application's primary rose-600 color
+      styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak' },
+      columnStyles: {
+        0: { cellWidth: 65 },  // Name
+        1: { cellWidth: 20 },  // Type
+        2: { cellWidth: 40 },  // Phone
+        3: { cellWidth: 50 },  // Email
+        4: { cellWidth: 30 },  // City
+        5: { cellWidth: 'auto' } // Associated Products wrap automatically cleanly
+      },
+    });
+
+    const fileName = `Parties_Export_${selectedProduct.replace(/\s+/g, '_')}_${selectedType}.pdf`;
+    doc.save(fileName);
     onClose();
   };
 
@@ -131,7 +189,7 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
           </div>
         </div>
 
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end space-x-3">
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end space-x-2">
           <button
             type="button"
             onClick={onClose}
@@ -141,10 +199,17 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
           </button>
           <button
             type="button"
-            onClick={handleExport}
-            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-lg shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            onClick={handleExportCSV}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none"
           >
             Download CSV
+          </button>
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            className="px-4 py-2 text-sm font-medium text-white bg-rose-600 border border-transparent rounded-lg shadow-sm hover:bg-rose-700 focus:outline-none"
+          >
+            Download PDF
           </button>
         </div>
       </div>
