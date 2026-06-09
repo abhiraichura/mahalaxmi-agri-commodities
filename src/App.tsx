@@ -18,7 +18,6 @@ import Notes from './pages/Notes';
 import PartyLedger from './pages/PartyLedger';
 import AllContracts from './pages/AllContracts';
 import GulfFoodDirectory from './pages/GulfFoodDirectory';
-import MandiLiveRates from './pages/MandiLiveRates';
 
 function App() {
   const { user, loading } = useAuthStore();
@@ -69,7 +68,6 @@ function App() {
           <Route path="/ledger" element={<PartyLedger />} />
           <Route path="/notes" element={<Notes />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/mandi-rates" element={<MandiLiveRates />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Layout>
