@@ -56,6 +56,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/ledger', icon: BookOpen, label: 'Party Ledger' },
     { to: '/notes', icon: StickyNote, label: 'Notes' },
     { to: '/settings', icon: Settings, label: 'Settings' },
+    { to: '/mandi-rates', icon: package, label: 'Mandi Rates'},
   ];
 
   return (
