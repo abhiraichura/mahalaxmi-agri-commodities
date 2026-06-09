@@ -105,9 +105,9 @@ export default function MandiLiveRates() {
                 <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">APMC Market</th>
                 <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Commodity</th>
                 <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Variety</th>
-                <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Min Price (装/Quintal)</th>
-                <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Max Price (装/Quintal)</th>
-                <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-indigo-600">Modal Price (装)</th>
+                <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Min Price (Rs/Quintal)</th>
+                <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Max Price (Rs/Quintal)</th>
+                <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-indigo-600">Modal Price (Rs)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
