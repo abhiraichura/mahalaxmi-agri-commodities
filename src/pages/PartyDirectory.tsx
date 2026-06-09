@@ -10,7 +10,7 @@ export default function PartyDirectory() {
   const navigate = useNavigate();
   const { parties, products, deleteParty, loadParties, addParty } = useAppStore();
   const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'buyer' | 'seller' | 'bothtransformedPartiesForExport'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'buyer' | 'seller' | 'both'>('all');
   const [productFilter, setProductFilter] = useState<string>('all');
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [viewingParty, setViewingParty] = useState<Party | null>(null);
@@ -20,7 +20,7 @@ export default function PartyDirectory() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
 
-  // Export Pop-up Modal State
+  // Export Filter Popup Modal State
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -130,15 +130,14 @@ export default function PartyDirectory() {
     return phoneStr.split(/[\/,]/).map(s => s.trim()).filter(Boolean);
   };
 
-  // Transform parties data with string array product names to match ExportPartyModal schema expectations
-  // Transform parties data to match ExportPartyModal schema expectations
+  // Transform parties data to match specialized ExportPartyModal data mapping schema
   const transformedPartiesForExport = useMemo(() => {
     return parties.map(p => ({
       id: p.id,
       name: p.legalName || p.name,
       type: p.type as 'buyer' | 'seller' | 'both',
       phone: p.phone,
-      contactPerson: p.contactPerson || '', // Changed from email to contactPerson
+      contactPerson: p.contactPerson || '', // Mapped contact person name instead of email
       city: p.city,
       products: (p.productIds || [])
         .map(pid => products.find(prod => prod.id === pid)?.name || '')
@@ -655,7 +654,7 @@ export default function PartyDirectory() {
 
       </div>
 
-      {/* Export Party Pop-up Modal */}
+      {/* Export Party Pop-up Modal Component Link */}
       <ExportPartyModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
