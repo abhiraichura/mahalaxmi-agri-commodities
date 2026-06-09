@@ -4,6 +4,7 @@ import { useAppStore } from '../hooks/useAuthStore';
 import { Party } from '../types';
 import { Search, Plus, Phone, Mail, MapPin, Edit2, Trash2, Download, Upload, X, ChevronRight, ChevronDown, Check, User, Users, AlertTriangle, CheckSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ExportPartyModal from '../components/ExportPartyModal';
 
 export default function PartyDirectory() {
   const navigate = useNavigate();
@@ -18,6 +19,9 @@ export default function PartyDirectory() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
+
+  // Export Pop-up Modal State
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const productDropdownRef = useRef<HTMLDivElement>(null);
@@ -126,53 +130,20 @@ export default function PartyDirectory() {
     return phoneStr.split(/[\/,]/).map(s => s.trim()).filter(Boolean);
   };
 
-  const exportCSV = () => {
-    const headers = [
-      'Legal Name', 'Display Name', 'Contact Person', 'Type', 'Address', 
-      'City', 'State', 'Pincode', 'Phone', 'Alternate Phones', 
-      'Email', 'Alternate Emails', 'PAN', 'Products', 'Other Contacts'
-    ];
-    
-    const rows = parties.map(p => {
-      const partyProducts = (p.productIds || [])
-        .map(pid => products.find(prod => prod.id === pid)?.name || pid)
-        .join('; ');
-      const otherContacts = (p.otherContacts || [])
-        .map(c => `${c.name} (${c.role}): ${c.phone}`)
-        .join('; ');
-      
-      return [
-        p.legalName,
-        p.name,
-        p.contactPerson || '',
-        p.type,
-        p.address,
-        p.city,
-        p.state,
-        p.pincode,
-        p.phone,
-        (p.alternatePhones || []).join('; '),
-        p.email,
-        (p.alternateEmails || []).join('; '),
-        p.pan,
-        partyProducts,
-        otherContacts
-      ];
-    });
-
-    const csv = [headers.join(','), ...rows.map(r => 
-      r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
-    )].join("\n");
-    
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `parties_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Exported to CSV');
-  };
+  // Transform parties data with string array product names to match ExportPartyModal schema expectations
+  const transformedPartiesForExport = useMemo(() => {
+    return parties.map(p => ({
+      id: p.id,
+      name: p.legalName || p.name,
+      type: p.type as 'buyer' | 'seller' | 'both',
+      phone: p.phone,
+      email: p.email,
+      city: p.city,
+      products: (p.productIds || [])
+        .map(pid => products.find(prod => prod.id === pid)?.name || '')
+        .filter(Boolean)
+    }));
+  }, [parties, products]);
 
   const importCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -290,7 +261,7 @@ export default function PartyDirectory() {
                   Import
                 </button>
                 <button
-                  onClick={exportCSV}
+                  onClick={() => setIsExportModalOpen(true)}
                   className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   <Download size={16} />
@@ -682,6 +653,13 @@ export default function PartyDirectory() {
         )}
 
       </div>
+
+      {/* Export Party Pop-up Modal */}
+      <ExportPartyModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        parties={transformedPartiesForExport}
+      />
     </div>
   );
 }
