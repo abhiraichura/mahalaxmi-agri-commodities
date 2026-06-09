@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
- 
+
 export interface Party {
   id: string;
   name: string;
@@ -22,7 +22,7 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
   const [selectedProduct, setSelectedProduct] = useState<string>('All');
   const [selectedType, setSelectedType] = useState<string>('All');
 
-  // Extract a unique list of all products from all parties for the filter dropdown
+  // 1. Extract a unique list of all products from all parties for the filter dropdown
   const allProducts = useMemo(() => {
     const productsSet = new Set<string>();
     parties.forEach((party) => {
@@ -33,9 +33,7 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
     return ['All', ...Array.from(productsSet).sort()];
   }, [parties]);
 
-  if (!isOpen) return null;
-
-  // Filter the parties based on user selections (shared logic for both exports)
+  // 2. Filter the parties based on user selections (shared logic for both exports)
   const filteredParties = useMemo(() => {
     return parties.filter((party) => {
       const typeMatch = selectedType === 'All' || party.type === selectedType || party.type === 'both';
@@ -43,6 +41,9 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
       return typeMatch && productMatch;
     });
   }, [parties, selectedType, selectedProduct]);
+
+  // SAFE GUARD: Early returns must always sit below all top-level React hooks definitions
+  if (!isOpen) return null;
 
   // --- CSV Export Handler ---
   const handleExportCSV = () => {
@@ -118,13 +119,13 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
       Array.isArray(party.products) ? party.products.join(', ') : '',
     ]);
 
-    // Build beautiful striped document table layout
+    // Build striped document table layout
     autoTable(doc, {
       head: tableHeaders,
       body: tableRows,
       startY: 26,
       theme: 'striped',
-      headStyles: { fillColor: [225, 29, 72] }, // Matches your application's primary rose-600 color
+      headStyles: { fillColor: [225, 29, 72] }, // Matches application's primary rose-600 color
       styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak' },
       columnStyles: {
         0: { cellWidth: 65 },  // Name
