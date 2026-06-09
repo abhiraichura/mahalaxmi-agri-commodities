@@ -9,6 +9,10 @@ export interface MandiRecord {
   min_price: string;
   max_price: string;
   modal_price: string;
+  // Added fields to catch the volume data 
+  arrival?: string;
+  arrivals?: string;
+  arrival_qtl?: string;
 }
 
 export interface OGDResponse {
