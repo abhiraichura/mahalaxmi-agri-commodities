@@ -1,13 +1,14 @@
 import React, { useState, useMemo } from 'react';
 
-export interface Party {
-  id: string;
+// Adjust this interface to perfectly match your Party schema in src/types/index.ts
+interface Party {
+  id?: string;
   name: string;
   type: 'buyer' | 'seller' | 'both';
+  products: string[] | string; 
   phone?: string;
   email?: string;
   city?: string;
-  products: string[]; // Array of product names handled by the party
 }
 
 interface ExportPartyModalProps {
@@ -16,133 +17,151 @@ interface ExportPartyModalProps {
   parties: Party[];
 }
 
-export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPartyModalProps) {
-  const [selectedProduct, setSelectedProduct] = useState<string>('All');
-  const [selectedType, setSelectedType] = useState<string>('All');
+export const ExportPartyModal: React.FC<ExportPartyModalProps> = ({ isOpen, onClose, parties }) => {
+  const [selectedType, setSelectedType] = useState<string>('all');
+  const [selectedProduct, setSelectedProduct] = useState<string>('all');
 
-  // Extract a unique list of all products from all parties for the filter dropdown
-  const allProducts = useMemo(() => {
+  // Dynamically extract unique products from the parties list for the dropdown
+  const uniqueProducts = useMemo(() => {
     const productsSet = new Set<string>();
     parties.forEach((party) => {
       if (Array.isArray(party.products)) {
-        party.products.forEach((product) => productsSet.add(product));
+        party.products.forEach((p) => p && productsSet.add(p.trim()));
+      } else if (typeof party.products === 'string') {
+        party.products.split(',').forEach((p) => p && productsSet.add(p.trim()));
       }
     });
-    return ['All', ...Array.from(productsSet).sort()];
+    return Array.from(productsSet).sort();
   }, [parties]);
 
   if (!isOpen) return null;
 
   const handleExport = () => {
-    // 1. Filter the parties based on selection
+    // 1. Filter parties array based on matching type and product
     const filteredParties = parties.filter((party) => {
-      const typeMatch = selectedType === 'All' || party.type === selectedType || party.type === 'both';
-      const productMatch = selectedProduct === 'All' || (Array.isArray(party.products) && party.products.includes(selectedProduct));
-      return typeMatch && productMatch;
+      // Type handling: 'both' satisfies both buyer and seller requirements
+      const matchesType =
+        selectedType === 'all' ||
+        party.type === selectedType ||
+        (party.type === 'both' && (selectedType === 'buyer' || selectedType === 'seller'));
+
+      // Product/Commodity handling
+      let matchesProduct = selectedProduct === 'all';
+      if (!matchesProduct) {
+        if (Array.isArray(party.products)) {
+          matchesProduct = party.products.some(
+            (p) => p.trim().toLowerCase() === selectedProduct.toLowerCase()
+          );
+        } else if (typeof party.products === 'string') {
+          matchesProduct = party.products
+            .toLowerCase()
+            .split(',')
+            .map((p) => p.trim())
+            .includes(selectedProduct.toLowerCase());
+        }
+      }
+
+      return matchesType && matchesProduct;
     });
 
-    // 2. Define headers for the CSV
-    const headers = ['Party Name', 'Type', 'Phone', 'Email', 'City', 'Associated Products'];
+    if (filteredParties.length === 0) {
+      alert('No parties match your selected filters.');
+      return;
+    }
 
-    // 3. Map records to CSV rows with proper comma escaping
-    const csvRows = filteredParties.map((party) => {
-      const rowData = [
-        party.name,
-        party.type.toUpperCase(),
-        party.phone || '',
-        party.email || '',
-        party.city || '',
-        Array.isArray(party.products) ? party.products.join(', ') : '',
+    // 2. Generate and download CSV
+    const headers = ['Name', 'Type', 'Products', 'Phone', 'Email', 'City'];
+    const csvRows = [headers.join(',')];
+
+    filteredParties.forEach((party) => {
+      const formattedProducts = Array.isArray(party.products)
+        ? party.products.join(', ')
+        : party.products;
+
+      const row = [
+        `"${party.name.replace(/"/g, '""')}"`,
+        `"${party.type}"`,
+        `"${formattedProducts.replace(/"/g, '""')}"`,
+        `"${party.phone || ''}"`,
+        `"${party.email || ''}"`,
+        `"${party.city || ''}"`,
       ];
+      csvRows.push(row.join(','));
+    ]);
 
-      return rowData
-        .map((value) => {
-          const escaped = String(value).replace(/"/g, '""');
-          return escaped.includes(',') || escaped.includes('\n') || escaped.includes('"') ? `"${escaped}"` : escaped;
-        })
-        .join(',');
-    });
-
-    // 4. Combine headers and rows
-    const csvContent = [headers.join(','), ...csvRows].join('\n');
-
-    // 5. Trigger download via browser blob
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + csvRows.join('\n');
+    const encodedUri = encodeURI(csvContent);
     
-    const fileName = `Parties_Export_${selectedProduct.replace(/\s+/g, '_')}_${selectedType}.csv`;
-    link.setAttribute('download', fileName);
-    link.style.visibility = 'hidden';
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    
+    // Naming pattern: e.g., parties_seller_cummin_seeds.csv
+    const fileProductPart = selectedProduct === 'all' ? 'all_products' : selectedProduct.toLowerCase().replace(/\s+/g, '_');
+    link.setAttribute('download', `parties_${selectedType}_${fileProductPart}.csv`);
     
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900 bg-opacity-50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-          <h3 className="text-lg font-bold text-gray-900">Export Parties</h3>
-          <button 
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 focus:outline-none text-xl font-semibold"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800 border dark:border-gray-700">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+          Export Party Directory
+        </h3>
+
+        {/* Type Filter */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Party Type
+          </label>
+          <select
+            value={selectedType}
+            onChange={(e) => setSelectedType(e.target.value)}
+            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
           >
-            &times;
-          </button>
+            <option value="all">All Types</option>
+            <option value="buyer">Buyers Only</option>
+            <option value="seller">Sellers Only</option>
+            <option value="both">Both (Buyers & Sellers)</option>
+          </select>
         </div>
 
-        <div className="p-6 space-y-4">
-          <div>
-            <label htmlFor="modal-product" className="block text-sm font-semibold text-gray-700 mb-1">
-              Filter by Product
-            </label>
-            <select
-              id="modal-product"
-              className="block w-full rounded-lg border-gray-300 py-2.5 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm shadow-sm"
-              value={selectedProduct}
-              onChange={(e) => setSelectedProduct(e.target.value)}
-            >
-              {allProducts.map((product) => (
-                <option key={product} value={product}>{product}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="modal-type" className="block text-sm font-semibold text-gray-700 mb-1">
-              Filter by Party Type
-            </label>
-            <select
-              id="modal-type"
-              className="block w-full rounded-lg border-gray-300 py-2.5 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm shadow-sm"
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-            >
-              <option value="All">All Types</option>
-              <option value="buyer">Buyers Only</option>
-              <option value="seller">Sellers Only</option>
-              <option value="both">Both (Buyer & Seller)</option>
-            </select>
-          </div>
+        {/* Product Filter */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Product / Commodity
+          </label>
+          <select
+            value={selectedProduct}
+            onChange={(e) => setSelectedProduct(e.target.value)}
+            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          >
+            <option value="all">All Products</option>
+            {uniqueProducts.map((product) => (
+              <option key={product} value={product}>
+                {product}
+              </option>
+            ))}
+          </select>
         </div>
 
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end space-x-3">
+        {/* Modal Actions */}
+        <div className="flex justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none"
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleExport}
-            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-lg shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none"
           >
             Download CSV
           </button>
@@ -150,4 +169,4 @@ export default function ExportPartyModal({ isOpen, onClose, parties }: ExportPar
       </div>
     </div>
   );
-}
+};
