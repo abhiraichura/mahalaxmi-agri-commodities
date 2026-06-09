@@ -1,5 +1,3 @@
-// src/types/mandi.ts
-
 export interface MandiRecord {
   state: string;
   district: string;
