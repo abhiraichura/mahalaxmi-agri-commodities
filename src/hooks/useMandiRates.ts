@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { OGDResponse } from '../types/mandi';
 
 // Replace 'YOUR_API_KEY' with your actual API key from data.gov.in
-const API_KEY = 'YOUR_API_KEY'; 
+const API_KEY = '579b464db66ec23bdd00000186a23df6177b4d5d44f38edfa3e9b287'; 
 const RESOURCE_ID = '9ef84268-d588-465a-a308-a864a43d0070'; // Current active Agmarknet resource ID
 const LIMIT = '3000'; // Fetches 3000 records per poll to populate filters
 
