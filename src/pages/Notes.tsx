@@ -6,6 +6,14 @@ import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 
+// Helper to safely format dates and avoid RangeError on invalid time values
+const safelyFormatDate = (dateStr: any) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  return format(d, 'MMM dd, yyyy • hh:mm a');
+};
+
 export default function Notes() {
   const { notes, addNote, updateNote, deleteNote } = useAppStore();
   const [search, setSearch] = useState('');
@@ -14,16 +22,23 @@ export default function Notes() {
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   const sortedNotes = useMemo(() => {
-    let result = notes;
+    let result = [...notes]; // create a copy before sorting
     if (search.trim()) {
       const q = search.toLowerCase();
-      result = notes.filter(n => 
+      result = result.filter(n => 
         (n.title || '').toLowerCase().includes(q) ||
         (n.content || '').toLowerCase().includes(q) ||
         (n.tags || []).some(t => t.toLowerCase().includes(q))
       );
     }
-    return result.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    // Safely sort to avoid NaN crashing the sort function
+    return result.sort((a, b) => {
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
+      const validTimeA = isNaN(timeA) ? 0 : timeA;
+      const validTimeB = isNaN(timeB) ? 0 : timeB;
+      return validTimeB - validTimeA;
+    });
   }, [notes, search]);
 
   const handleSave = async () => {
@@ -218,7 +233,7 @@ export default function Notes() {
                     {note.title}
                   </h3>
                   <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">
-                    {format(new Date(note.createdAt || new Date()), 'MMM dd, yyyy • hh:mm a')}
+                    {safelyFormatDate(note.createdAt)}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
