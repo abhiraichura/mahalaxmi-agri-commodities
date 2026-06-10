@@ -1,3 +1,4 @@
+// src/pages/PartyForm.tsx
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
@@ -34,11 +35,13 @@ export default function PartyForm() {
     contactPerson: '',
     alternatePhones: [],
     alternateEmails: [],
-    otherContacts: []
+    otherContacts: [],
+    notes: ''
   });
 
   const [gstVerified, setGstVerified] = useState(false);
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
+  const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
   const [altPhoneInput, setAltPhoneInput] = useState('');
   const [altEmailInput, setAltEmailInput] = useState('');
   const [otherContacts, setOtherContacts] = useState<ContactPerson[]>([]);
@@ -52,6 +55,7 @@ export default function PartyForm() {
   } | null>(null);
 
   const productDropdownRef = useRef<HTMLDivElement>(null);
+  const typeDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (id) {
@@ -63,7 +67,8 @@ export default function PartyForm() {
           alternatePhones: existing.alternatePhones || [],
           alternateEmails: existing.alternateEmails || [],
           otherContacts: existing.otherContacts || [],
-          contactPerson: existing.contactPerson || ''
+          contactPerson: existing.contactPerson || '',
+          notes: existing.notes || ''
         });
         setOtherContacts(existing.otherContacts || []);
       }
@@ -74,6 +79,9 @@ export default function PartyForm() {
     const handleClickOutside = (e: MouseEvent) => {
       if (productDropdownRef.current && !productDropdownRef.current.contains(e.target as Node)) {
         setProductDropdownOpen(false);
+      }
+      if (typeDropdownRef.current && !typeDropdownRef.current.contains(e.target as Node)) {
+        setTypeDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -154,6 +162,7 @@ export default function PartyForm() {
       alternatePhones: form.alternatePhones || [],
       alternateEmails: form.alternateEmails || [],
       otherContacts: otherContacts.filter(c => c.name.trim()),
+      notes: form.notes || '',
       createdAt: id ? (parties.find(p => p.id === id)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -568,15 +577,32 @@ export default function PartyForm() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Party Type</label>
-                <select
-                  value={form.type || 'both'}
-                  onChange={e => setForm({ ...form, type: e.target.value as any })}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-                >
-                  <option value="both">Both Buyer & Seller</option>
-                  <option value="buyer">Buyer Only</option>
-                  <option value="seller">Seller Only</option>
-                </select>
+                <div className="relative" ref={typeDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setTypeDropdownOpen(!typeDropdownOpen)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between"
+                  >
+                    <span className="text-gray-900">
+                      {form.type === 'both' ? 'Both Buyer & Seller' : form.type === 'buyer' ? 'Buyer Only' : 'Seller Only'}
+                    </span>
+                    <ChevronDown size={16} className={`transition-transform ${typeDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {typeDropdownOpen && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg py-1 overflow-hidden">
+                      <button type="button" onClick={() => { setForm({...form, type: 'both'}); setTypeDropdownOpen(false); }} className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${form.type === 'both' ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}>
+                        Both Buyer & Seller {form.type === 'both' && <Check size={14} className="text-rose-600" />}
+                      </button>
+                      <button type="button" onClick={() => { setForm({...form, type: 'buyer'}); setTypeDropdownOpen(false); }} className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${form.type === 'buyer' ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}>
+                        Buyer Only {form.type === 'buyer' && <Check size={14} className="text-rose-600" />}
+                      </button>
+                      <button type="button" onClick={() => { setForm({...form, type: 'seller'}); setTypeDropdownOpen(false); }} className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${form.type === 'seller' ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}>
+                        Seller Only {form.type === 'seller' && <Check size={14} className="text-rose-600" />}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">PAN</label>
@@ -589,6 +615,18 @@ export default function PartyForm() {
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm uppercase"
                 />
               </div>
+            </div>
+            
+            <div className="pt-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Internal Party Notes (Optional)</label>
+              <textarea
+                value={form.notes || ''}
+                onChange={e => setForm({ ...form, notes: e.target.value })}
+                placeholder="Add private notes to remember details about this party..."
+                rows={3}
+                className="w-full px-4 py-3 bg-rose-50/50 border border-rose-100 rounded-xl text-sm resize-none focus:bg-white focus:ring-1 focus:ring-rose-300"
+              />
+              <p className="text-xs text-gray-500 mt-1">These notes are completely private and only visible in your directory view.</p>
             </div>
           </div>
 
