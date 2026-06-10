@@ -1,14 +1,18 @@
+// src/pages/BrokerageBills.tsx
 import { useState, useMemo } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Contract, Party, BillPayment } from '../types';
 import { generateBrokerageBillPDF, downloadPDF } from '../utils/pdfGenerator';
-import { Calendar, Download, ChevronLeft, ChevronRight, Eye, DollarSign, CheckCircle, Clock, AlertCircle, Plus, X, Filter } from 'lucide-react';
+import { Calendar, Download, ChevronLeft, ChevronRight, Eye, DollarSign, CheckCircle, Clock, AlertCircle, Plus, X, Filter, Edit2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 
 interface BillGroup {
   party: Party;
   contracts: Contract[];
+  baseBrokerage: number;
+  adjustmentAmount: number;
+  adjustmentNote: string;
   totalBrokerage: number;
   totalQuantity: number;
   status: 'pending' | 'paid' | 'partial';
@@ -23,6 +27,7 @@ export default function BrokerageBills() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [viewingBill, setViewingBill] = useState<BillGroup | null>(null);
+  
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentForm, setPaymentForm] = useState<Partial<BillPayment>>({
     date: format(new Date(), 'yyyy-MM-dd'),
@@ -32,12 +37,16 @@ export default function BrokerageBills() {
     notes: ''
   });
 
+  const [editingBill, setEditingBill] = useState<BillGroup | null>(null);
+  const [editForm, setEditForm] = useState({ amount: 0, note: '' });
+
   const [dateRange, setDateRange] = useState({
     from: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     to: format(endOfMonth(new Date()), 'yyyy-MM-dd')
   });
   const [showDateRange, setShowDateRange] = useState(false);
   const [selectedPartyForRange, setSelectedPartyForRange] = useState<string>('all');
+  const [refreshTick, setRefreshTick] = useState(0);
 
   const months = [
     'January','February','March','April','May','June',
@@ -62,6 +71,42 @@ export default function BrokerageBills() {
     localStorage.setItem(key, JSON.stringify(payments));
   };
 
+  const getSavedAdjustment = (partyId: string, month: number, year: number, billType: 'buyer' | 'seller') => {
+    const key = `bill_adj_${partyId}_${month}_${year}_${billType}`;
+    try {
+      const saved = localStorage.getItem(key);
+      return saved ? JSON.parse(saved) : { amount: 0, note: '' };
+    } catch { return { amount: 0, note: '' }; }
+  };
+
+  const saveAdjustment = () => {
+    if (!editingBill) return;
+    const key = `bill_adj_${editingBill.party.id}_${selectedMonth}_${selectedYear}_${editingBill.billType}`;
+    localStorage.setItem(key, JSON.stringify(editForm));
+    setRefreshTick(t => t + 1);
+    
+    // Update viewingBill state if currently open
+    if (viewingBill && viewingBill.party.id === editingBill.party.id && viewingBill.billType === editingBill.billType) {
+      setViewingBill(prev => {
+        if (!prev) return prev;
+        const newTotalBrokerage = prev.baseBrokerage + editForm.amount;
+        const newBalanceAmount = Math.max(0, newTotalBrokerage - prev.paidAmount);
+        const newStatus = prev.paidAmount >= newTotalBrokerage ? 'paid' : prev.paidAmount > 0 ? 'partial' : 'pending';
+        return {
+          ...prev,
+          adjustmentAmount: editForm.amount,
+          adjustmentNote: editForm.note,
+          totalBrokerage: newTotalBrokerage,
+          balanceAmount: newBalanceAmount,
+          status: newStatus
+        };
+      });
+    }
+    
+    setEditingBill(null);
+    toast.success('Bill adjusted successfully');
+  };
+
   const bills = useMemo(() => {
     const byParty: Record<string, BillGroup> = {};
 
@@ -73,9 +118,13 @@ export default function BrokerageBills() {
         if (!byParty[key]) {
           const savedPayments = getSavedPayments(c.sellerId, selectedMonth, selectedYear, 'seller');
           const paidAmount = savedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+          const adj = getSavedAdjustment(c.sellerId, selectedMonth, selectedYear, 'seller');
           byParty[key] = {
             party: c.seller,
             contracts: [],
+            baseBrokerage: 0,
+            adjustmentAmount: adj.amount,
+            adjustmentNote: adj.note,
             totalBrokerage: 0,
             totalQuantity: 0,
             status: 'pending',
@@ -86,7 +135,7 @@ export default function BrokerageBills() {
           };
         }
         byParty[key].contracts.push(c);
-        byParty[key].totalBrokerage += sellerBrokerage;
+        byParty[key].baseBrokerage += sellerBrokerage;
         byParty[key].totalQuantity += c.quantity || 0;
       }
 
@@ -97,9 +146,13 @@ export default function BrokerageBills() {
         if (!byParty[key]) {
           const savedPayments = getSavedPayments(c.buyerId, selectedMonth, selectedYear, 'buyer');
           const paidAmount = savedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+          const adj = getSavedAdjustment(c.buyerId, selectedMonth, selectedYear, 'buyer');
           byParty[key] = {
             party: c.buyer,
             contracts: [],
+            baseBrokerage: 0,
+            adjustmentAmount: adj.amount,
+            adjustmentNote: adj.note,
             totalBrokerage: 0,
             totalQuantity: 0,
             status: 'pending',
@@ -110,20 +163,23 @@ export default function BrokerageBills() {
           };
         }
         byParty[key].contracts.push(c);
-        byParty[key].totalBrokerage += buyerBrokerage;
+        byParty[key].baseBrokerage += buyerBrokerage;
         byParty[key].totalQuantity += c.quantity || 0;
       }
     });
 
     Object.values(byParty).forEach(bill => {
+      bill.totalBrokerage = bill.baseBrokerage + bill.adjustmentAmount;
       bill.balanceAmount = Math.max(0, bill.totalBrokerage - bill.paidAmount);
       bill.status = bill.paidAmount >= bill.totalBrokerage ? 'paid' : bill.paidAmount > 0 ? 'partial' : 'pending';
     });
 
     return Object.values(byParty);
-  }, [monthContracts, selectedMonth, selectedYear]);
+  }, [monthContracts, selectedMonth, selectedYear, refreshTick]);
 
   const handleDownloadBill = (bill: BillGroup) => {
+    // Generate the PDF. Using totalBrokerage. 
+    // Ideally pdfGenerator could be updated to show adjustment, but the total is correct.
     const doc = generateBrokerageBillPDF(
       {
         ...bill,
@@ -198,6 +254,9 @@ export default function BrokerageBills() {
           byParty[key] = {
             party: c.seller,
             contracts: [],
+            baseBrokerage: 0,
+            adjustmentAmount: 0,
+            adjustmentNote: '',
             totalBrokerage: 0,
             totalQuantity: 0,
             status: 'pending',
@@ -208,6 +267,7 @@ export default function BrokerageBills() {
           };
         }
         byParty[key].contracts.push(c);
+        byParty[key].baseBrokerage += c.sellerBrokerageAmount;
         byParty[key].totalBrokerage += c.sellerBrokerageAmount;
         byParty[key].totalQuantity += c.quantity || 0;
       }
@@ -220,6 +280,9 @@ export default function BrokerageBills() {
           byParty[key] = {
             party: c.buyer,
             contracts: [],
+            baseBrokerage: 0,
+            adjustmentAmount: 0,
+            adjustmentNote: '',
             totalBrokerage: 0,
             totalQuantity: 0,
             status: 'pending',
@@ -230,6 +293,7 @@ export default function BrokerageBills() {
           };
         }
         byParty[key].contracts.push(c);
+        byParty[key].baseBrokerage += c.buyerBrokerageAmount;
         byParty[key].totalBrokerage += c.buyerBrokerageAmount;
         byParty[key].totalQuantity += c.quantity || 0;
       }
@@ -394,9 +458,20 @@ export default function BrokerageBills() {
         ) : (
           <div className="space-y-4">
             {bills.map((bill, idx) => (
-              <div key={idx} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div key={idx} className="bg-white rounded-2xl border border-gray-200 overflow-hidden relative group">
+                <button
+                   onClick={() => {
+                     setEditingBill(bill);
+                     setEditForm({ amount: bill.adjustmentAmount, note: bill.adjustmentNote });
+                   }}
+                   className="absolute top-4 right-4 p-2 bg-gray-50 text-gray-500 hover:text-rose-600 rounded-lg border border-gray-200 hover:border-rose-200 transition-colors opacity-0 group-hover:opacity-100 z-10"
+                   title="Edit Bill Adjustments"
+                >
+                  <Edit2 size={16} />
+                </button>
+
                 <div className="p-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pr-10">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
                         <span className="text-sm font-bold text-rose-700">{bill.party.legalName.charAt(0)}</span>
@@ -422,7 +497,14 @@ export default function BrokerageBills() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
                     <div className="bg-gray-50 rounded-xl p-3">
                       <p className="text-xs text-gray-500 mb-1">Total Brokerage</p>
-                      <p className="text-lg font-bold text-gray-900">Rs. {bill.totalBrokerage.toLocaleString('en-IN')}</p>
+                      <p className="text-lg font-bold text-gray-900">
+                        Rs. {bill.totalBrokerage.toLocaleString('en-IN')}
+                      </p>
+                      {bill.adjustmentAmount !== 0 && (
+                        <p className="text-[10px] text-amber-600 mt-1 leading-tight">
+                          Includes {bill.adjustmentAmount > 0 ? '+' : ''}{bill.adjustmentAmount} adj.
+                        </p>
+                      )}
                     </div>
                     <div className="bg-gray-50 rounded-xl p-3">
                       <p className="text-xs text-gray-500 mb-1">Paid Amount</p>
@@ -489,6 +571,7 @@ export default function BrokerageBills() {
           </div>
         )}
 
+        {/* View Details Modal */}
         {viewingBill && !showPaymentModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setViewingBill(null)}>
             <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
@@ -507,7 +590,7 @@ export default function BrokerageBills() {
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3">
                   <div className="bg-gray-50 rounded-xl p-3 text-center">
-                    <p className="text-xs text-gray-500">Total</p>
+                    <p className="text-xs text-gray-500">Total {viewingBill.adjustmentAmount !== 0 && '(Adj.)'}</p>
                     <p className="text-lg font-bold text-gray-900">Rs. {viewingBill.totalBrokerage.toLocaleString('en-IN')}</p>
                   </div>
                   <div className="bg-green-50 rounded-xl p-3 text-center">
@@ -519,6 +602,17 @@ export default function BrokerageBills() {
                     <p className="text-lg font-bold text-red-600">Rs. {viewingBill.balanceAmount.toLocaleString('en-IN')}</p>
                   </div>
                 </div>
+
+                {viewingBill.adjustmentAmount !== 0 && (
+                  <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                    <p className="text-sm font-semibold text-amber-800">
+                      Adjustment Applied: {viewingBill.adjustmentAmount > 0 ? '+' : ''}{viewingBill.adjustmentAmount.toLocaleString('en-IN')} Rs
+                    </p>
+                    {viewingBill.adjustmentNote && (
+                      <p className="text-xs text-amber-700 mt-1">{viewingBill.adjustmentNote}</p>
+                    )}
+                  </div>
+                )}
 
                 <div className="border rounded-xl overflow-hidden">
                   <table className="w-full text-sm">
@@ -591,6 +685,7 @@ export default function BrokerageBills() {
           </div>
         )}
 
+        {/* Record Payment Modal */}
         {showPaymentModal && viewingBill && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowPaymentModal(false)}>
             <div className="bg-white rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
@@ -679,6 +774,73 @@ export default function BrokerageBills() {
                   className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700"
                 >
                   Record Payment
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Bill Modal (Adjustments) */}
+        {editingBill && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50" onClick={() => setEditingBill(null)}>
+            <div className="bg-white rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-900">Edit Bill Adjustment</h2>
+                <button onClick={() => setEditingBill(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+                  <X size={20} />
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 mb-4">
+                Adjust the total brokerage for <strong>{editingBill.party.legalName}</strong>. 
+                Use negative values for discounts.
+              </p>
+              
+              <div className="space-y-4">
+                <div className="p-3 bg-gray-50 rounded-xl flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Calculated Brokerage:</span>
+                  <span className="font-semibold text-gray-900">Rs. {editingBill.baseBrokerage.toLocaleString('en-IN')}</span>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Adjustment Amount (+/-)</label>
+                  <input
+                    type="number"
+                    value={editForm.amount || ''}
+                    onChange={e => setEditForm({ ...editForm, amount: parseFloat(e.target.value) || 0 })}
+                    placeholder="0"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    New Total: <strong>Rs. {(editingBill.baseBrokerage + editForm.amount).toLocaleString('en-IN')}</strong>
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Adjustment Reason / Notes</label>
+                  <textarea
+                    value={editForm.note || ''}
+                    onChange={e => setEditForm({ ...editForm, note: e.target.value })}
+                    placeholder="e.g. Discount given for bulk volume"
+                    rows={2}
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setEditingBill(null)}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveAdjustment}
+                  className="flex-1 px-4 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700"
+                >
+                  Save Changes
                 </button>
               </div>
             </div>
