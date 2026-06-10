@@ -1,7 +1,7 @@
 // src/pages/Notes.tsx
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Search, Plus, X, Trash2, Edit2, Save, Tag, FileText, ChevronLeft, Calendar, LayoutGrid } from 'lucide-react';
+import { Search, Plus, X, Trash2, Tag, FileText, ChevronLeft, Calendar, LayoutGrid, CloudLightning, CloudCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
@@ -17,16 +17,16 @@ export default function Notes() {
   const { notes, addNote, updateNote, deleteNote } = useAppStore();
   const [search, setSearch] = useState('');
   
-  // UI State
+  // UI Panels and Mobile View States
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
   const [isMobileViewList, setIsMobileViewList] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Form State
+  // Local input/editor values
   const [form, setForm] = useState({ title: '', content: '', tags: '' });
 
-  // Get active note based on selection
-  const activeNote = useMemo(() => notes.find(n => n.id === activeNoteId), [notes, activeNoteId]);
+  // Keep a reference to track the currently loaded note ID to prevent overwrite loops during typing
+  const loadedNoteIdRef = useRef<string | null>(null);
 
   const sortedNotes = useMemo(() => {
     let result = [...notes];
@@ -45,114 +45,137 @@ export default function Notes() {
     });
   }, [notes, search]);
 
-  // Set first note as active automatically if on desktop and none selected
+  // Automatically select the first note on initialization if none is selected (for desktop)
   useEffect(() => {
-    if (!activeNoteId && !isEditing && sortedNotes.length > 0) {
+    if (!activeNoteId && sortedNotes.length > 0) {
       setActiveNoteId(sortedNotes[0].id);
     }
-  }, [sortedNotes, activeNoteId, isEditing]);
+  }, [sortedNotes, activeNoteId]);
+
+  // Load selected note details into local input form states whenever activeNoteId changes
+  useEffect(() => {
+    if (activeNoteId && activeNoteId !== loadedNoteIdRef.current) {
+      loadedNoteIdRef.current = activeNoteId;
+      const target = notes.find(n => n.id === activeNoteId);
+      if (target) {
+        setForm({
+          title: target.title || '',
+          content: target.content || '',
+          tags: (target.tags || []).join(', ')
+        });
+      }
+    }
+  }, [activeNoteId, notes]);
+
+  // Real-time Auto-saving implementation with a 500ms debounce loop
+  useEffect(() => {
+    if (!activeNoteId) return;
+    const currentStoredNote = notes.find(n => n.id === activeNoteId);
+    if (!currentStoredNote) return;
+
+    const parsedTags = form.tags.split(',').map(t => t.trim()).filter(Boolean);
+
+    // Evaluate whether user made real changes from what is currently in storage
+    const hasPendingChanges =
+      form.title !== (currentStoredNote.title || '') ||
+      form.content !== (currentStoredNote.content || '') ||
+      JSON.stringify(parsedTags) !== JSON.stringify(currentStoredNote.tags || []);
+
+    if (!hasPendingChanges) return;
+
+    setIsSaving(true);
+
+    const debounceTimer = setTimeout(async () => {
+      try {
+        await updateNote(activeNoteId, {
+          ...currentStoredNote,
+          title: form.title,
+          content: form.content,
+          tags: parsedTags,
+          updatedAt: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error('Auto-save failed', err);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(debounceTimer);
+  }, [form.title, form.content, form.tags, activeNoteId, notes, updateNote]);
 
   const handleSelectNote = (id: string) => {
     setActiveNoteId(id);
-    setIsEditing(false);
     setIsMobileViewList(false);
   };
 
-  const startCreate = () => {
-    setActiveNoteId(null);
-    setForm({ title: '', content: '', tags: '' });
-    setIsEditing(true);
-    setIsMobileViewList(false);
-  };
-
-  const startEdit = () => {
-    if (!activeNote) return;
-    setForm({
-      title: activeNote.title || '',
-      content: activeNote.content || '',
-      tags: (activeNote.tags || []).join(', ')
-    });
-    setIsEditing(true);
-  };
-
-  const handleSave = async () => {
-    if (!form.title.trim()) {
-      toast.error('Title is required');
-      return;
-    }
-    const tags = form.tags.split(',').map(t => t.trim()).filter(Boolean);
-    const payload = {
-      id: activeNoteId || uuidv4(),
-      title: form.title,
-      content: form.content,
-      tags,
-      updatedAt: new Date().toISOString(),
-      createdAt: activeNoteId ? activeNote?.createdAt : new Date().toISOString()
+  // Modern workflow: Instant Apple Notes style row creation
+  const startCreate = async () => {
+    const freshId = uuidv4();
+    const blankNote = {
+      id: freshId,
+      title: 'New Note',
+      content: '',
+      tags: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
+    loadedNoteIdRef.current = freshId;
+    setForm({ title: 'New Note', content: '', tags: '' });
+    setActiveNoteId(freshId);
+    setIsMobileViewList(false);
+
     try {
-      if (activeNoteId) {
-        await updateNote(activeNoteId, payload);
-        toast.success('Note updated');
-      } else {
-        await addNote(payload);
-        setActiveNoteId(payload.id);
-        toast.success('Note created');
-      }
-      setIsEditing(false);
+      await addNote(blankNote);
     } catch {
-      toast.error('Failed to save note');
+      toast.error('Failed to instantiate note');
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this note?')) return;
-    await deleteNote(id);
-    toast.success('Note deleted');
-    if (activeNoteId === id) {
-      setActiveNoteId(null);
-      setIsEditing(false);
-      setIsMobileViewList(true);
+    try {
+      await deleteNote(id);
+      toast.success('Note deleted');
+      if (activeNoteId === id) {
+        loadedNoteIdRef.current = null;
+        setActiveNoteId(null);
+        setIsMobileViewList(true);
+      }
+    } catch {
+      toast.error('Failed to remove note');
     }
   };
 
-  const handleCancel = () => {
-    if (!activeNoteId) {
-      // Canceling a new note
-      setIsMobileViewList(true);
-      if (sortedNotes.length > 0) {
-        setActiveNoteId(sortedNotes[0].id);
-      }
-    }
-    setIsEditing(false);
-  };
+  const activeNoteObject = useMemo(() => notes.find(n => n.id === activeNoteId), [notes, activeNoteId]);
 
   return (
-    <div className="h-[calc(100vh-64px)] p-4 md:p-6 bg-gray-50 flex">
+    <div className="h-[calc(100vh-64px)] p-4 md:p-6 bg-gray-50 flex font-sans">
       <div className="flex w-full bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
         
-        {/* Left Pane - List */}
-        <div className={`w-full md:w-80 lg:w-[400px] flex flex-col border-r border-gray-100 bg-white ${!isMobileViewList ? 'hidden md:flex' : 'flex'}`}>
+        {/* Left Sidebar Pane - List View */}
+        <div className={`w-full md:w-80 lg:w-[380px] flex flex-col border-r border-gray-100 bg-white select-none ${!isMobileViewList ? 'hidden md:flex' : 'flex'}`}>
           
-          {/* Header & Search */}
+          {/* List Header Frame */}
           <div className="p-6 border-b border-gray-100">
-            <h1 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900 mb-5 flex items-center gap-2">
               <LayoutGrid className="w-6 h-6 text-rose-600" />
-              All Notes
+              Notes
             </h1>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <div className="relative flex-1 group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-gray-600 transition-colors" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-gray-600 transition-colors" />
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Search..."
-                  className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-gray-200 focus:bg-white transition-all outline-none"
+                  placeholder="Search notes..."
+                  className="w-full pl-9 pr-9 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-gray-100 focus:bg-white transition-all outline-none"
                 />
                 {search && (
                   <button
                     onClick={() => setSearch('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-200 transition-colors"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-200 transition-colors"
                   >
                     <X size={14} />
                   </button>
@@ -160,55 +183,48 @@ export default function Notes() {
               </div>
               <button
                 onClick={startCreate}
-                className="flex-shrink-0 w-11 h-11 bg-stone-700 text-white rounded-2xl flex items-center justify-center hover:bg-stone-800 hover:shadow-md transition-all"
-                title="New Note"
+                className="flex-shrink-0 w-10 h-10 bg-stone-800 text-white rounded-xl flex items-center justify-center hover:bg-stone-900 transition-all shadow-sm"
+                title="Create Note"
               >
                 <Plus size={20} />
               </button>
             </div>
           </div>
 
-          {/* Note List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+          {/* Scrolling Note Rows */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar">
             {sortedNotes.length === 0 ? (
-              <div className="text-center py-10 px-4">
-                <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 text-sm">No notes found.</p>
+              <div className="text-center py-12 px-4">
+                <FileText className="w-9 h-9 text-gray-300 mx-auto mb-2" />
+                <p className="text-gray-400 text-sm">No business notes recorded</p>
               </div>
             ) : (
               sortedNotes.map(note => {
-                const isActive = activeNoteId === note.id && !isEditing;
-                const isCreating = isEditing && !activeNoteId;
-                const visuallyActive = isActive && !isCreating;
+                const isSelected = activeNoteId === note.id;
 
                 return (
                   <div 
                     key={note.id}
                     onClick={() => handleSelectNote(note.id)}
-                    className={`p-4 rounded-2xl cursor-pointer transition-all duration-200 border ${
-                      visuallyActive 
-                        ? 'bg-rose-50/40 border-rose-200 shadow-sm' 
-                        : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'
+                    className={`p-4 rounded-2xl cursor-pointer transition-all duration-150 border text-left ${
+                      isSelected 
+                        ? 'bg-rose-50/40 border-rose-200/80 shadow-sm' 
+                        : 'bg-white border-transparent hover:bg-gray-50/70'
                     }`}
                   >
-                    <div className="flex items-start justify-between mb-1">
-                      <h3 className={`font-semibold text-base line-clamp-1 pr-2 ${visuallyActive ? 'text-gray-900' : 'text-gray-800'}`}>
-                        {note.title || 'Untitled Note'}
-                      </h3>
-                    </div>
-                    <p className="text-gray-500 text-sm line-clamp-1 mb-4">
-                      {note.content || 'No additional content...'}
+                    <h3 className="font-semibold text-[15px] text-gray-800 line-clamp-1 mb-0.5">
+                      {note.title || 'Untitled Note'}
+                    </h3>
+                    <p className="text-gray-400 text-xs line-clamp-1 mb-2.5">
+                      {note.content || 'No description text...'}
                     </p>
-                    <div className="flex items-center gap-3 text-xs text-gray-400 font-medium">
-                      <span className="flex items-center gap-1.5">
-                        <Edit2 className="w-3.5 h-3.5" />
+                    <div className="flex items-center justify-between text-[11px] font-medium text-gray-400">
+                      <span>
                         {safelyFormatDate(note.createdAt).split('•')[0].trim()}
                       </span>
                       {(note.tags && note.tags.length > 0) && (
-                        <span className="flex items-center gap-1.5 bg-gray-50 px-2 py-0.5 rounded-lg border border-gray-100">
-                          <Tag className="w-3 h-3" />
+                        <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-500 text-[10px]">
                           {note.tags[0]}
-                          {note.tags.length > 1 && ` +${note.tags.length - 1}`}
                         </span>
                       )}
                     </div>
@@ -219,134 +235,85 @@ export default function Notes() {
           </div>
         </div>
 
-        {/* Right Pane - Detail / Editor */}
-        <div className={`flex-1 flex-col bg-[#fffdfc] ${isMobileViewList ? 'hidden' : 'flex md:flex'}`}>
-          {(!activeNoteId && !isEditing) ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8 text-center">
-              <FileText className="w-16 h-16 mb-4 text-gray-200" />
-              <h2 className="text-xl font-medium text-gray-600 mb-2">No note selected</h2>
-              <p className="text-sm">Select a note from the list or create a new one to get started.</p>
-              <button
-                onClick={startCreate}
-                className="mt-6 flex items-center gap-2 px-6 py-3 bg-stone-700 text-white rounded-xl text-sm font-medium hover:bg-stone-800 transition-colors"
-              >
-                <Plus size={16} /> Create Note
-              </button>
+        {/* Right Workspace Pane - Workspace/Inline Editor view */}
+        <div className={`flex-1 flex flex-col bg-[#fffdfc] ${isMobileViewList ? 'hidden' : 'flex md:flex'}`}>
+          {!activeNoteId ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8 text-center select-none">
+              <FileText className="w-14 h-14 mb-3 text-gray-200" />
+              <h2 className="text-lg font-medium text-gray-600 mb-1">No note active</h2>
+              <p className="text-xs max-w-xs">Select any recorded note on the list sidebar panel, or tap create to start editing instantaneously.</p>
             </div>
           ) : (
             <>
-              {/* Right Pane Toolbar */}
-              <div className="h-[88px] px-6 lg:px-10 flex items-center justify-between border-b border-gray-100 shrink-0">
+              {/* Dynamic Header Status Bar */}
+              <div className="h-[76px] px-6 lg:px-10 flex items-center justify-between border-b border-gray-100 shrink-0 select-none">
                 <button 
                   onClick={() => setIsMobileViewList(true)}
-                  className="md:hidden flex items-center gap-2 text-gray-500 hover:text-gray-900 font-medium"
+                  className="md:hidden flex items-center gap-1 text-gray-500 hover:text-gray-900 font-medium text-sm"
                 >
-                  <ChevronLeft size={20} /> Back
+                  <ChevronLeft size={18} /> Notes
                 </button>
-                <div className="hidden md:block">
-                  {/* Space for future breadcrumbs/info */}
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {!isEditing ? (
+                
+                {/* Cloud Live Auto-save sync indicators */}
+                <div className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
+                  {isSaving ? (
                     <>
-                      <button 
-                        onClick={() => handleDelete(activeNoteId!)}
-                        className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                        title="Delete Note"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                      <button
-                        onClick={startEdit}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-rose-50 text-rose-700 font-medium rounded-xl hover:bg-rose-100 transition-colors"
-                      >
-                        <Edit2 size={16} /> Edit Note
-                      </button>
+                      <CloudLightning className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                      <span className="text-amber-600 font-semibold">Saving changes...</span>
                     </>
                   ) : (
                     <>
-                      <button
-                        onClick={handleCancel}
-                        className="px-5 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-xl transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSave}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-stone-700 text-white font-medium rounded-xl hover:bg-stone-800 transition-colors shadow-sm"
-                      >
-                        <Save size={16} /> Save
-                      </button>
+                      <CloudCheck className="w-3.5 h-3.5 text-green-500" />
+                      <span>Saved locally to cloud</span>
                     </>
                   )}
                 </div>
+
+                <button 
+                  onClick={() => handleDelete(activeNoteId)}
+                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                  title="Delete this note"
+                >
+                  <Trash2 size={18} />
+                </button>
               </div>
 
-              {/* Editor / Viewer Content */}
-              <div className="flex-1 overflow-y-auto px-6 lg:px-16 py-8 custom-scrollbar">
-                <div className="max-w-3xl mx-auto">
-                  {!isEditing && activeNote ? (
-                    // Read Mode
-                    <div className="animate-in fade-in duration-300">
-                      <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-8">
-                        {activeNote.title}
-                      </h1>
-                      
-                      <div className="flex items-center gap-4 text-sm text-gray-500 mb-10 pb-6 border-b border-gray-100 font-medium">
-                        <span className="flex items-center gap-1.5">
-                          <Calendar className="w-4 h-4 text-gray-400" />
-                          {safelyFormatDate(activeNote.createdAt)}
-                        </span>
-                        {(activeNote.tags || []).length > 0 && (
-                          <div className="flex items-center gap-2">
-                            <Tag className="w-4 h-4 text-gray-400" />
-                            <div className="flex flex-wrap gap-2">
-                              {activeNote.tags.map(tag => (
-                                <span key={tag} className="bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-md">
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+              {/* Seamless Live Text Editors */}
+              <div className="flex-1 overflow-y-auto px-6 lg:px-12 py-8 custom-scrollbar">
+                <div className="max-w-3xl mx-auto space-y-5">
+                  
+                  {/* Note Title Input Row */}
+                  <input
+                    value={form.title}
+                    onChange={e => setForm({ ...form, title: e.target.value })}
+                    placeholder="Note Title"
+                    className="w-full bg-transparent text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight leading-tight outline-none border-none placeholder:text-gray-200 font-sans"
+                  />
 
-                      <div className="prose prose-gray prose-lg max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap font-serif">
-                        {activeNote.content}
-                      </div>
-                    </div>
-                  ) : (
-                    // Edit Mode
-                    <div className="animate-in fade-in duration-300 space-y-6">
+                  {/* Context Info Strip */}
+                  <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-gray-400 border-b border-gray-100 pb-5">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {activeNoteObject ? safelyFormatDate(activeNoteObject.createdAt) : ''}
+                    </span>
+                    <div className="relative flex-1 max-w-sm flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-gray-300 shrink-0" />
                       <input
-                        value={form.title}
-                        onChange={e => setForm({ ...form, title: e.target.value })}
-                        placeholder="Note Title"
-                        className="w-full bg-transparent text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight outline-none placeholder:text-gray-300"
-                        autoFocus
-                      />
-
-                      <div className="flex items-center border-b border-gray-200 pb-6 mb-6">
-                        <div className="relative flex-1">
-                          <Tag className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <input
-                            value={form.tags}
-                            onChange={e => setForm({ ...form, tags: e.target.value })}
-                            placeholder="Tags (comma separated, e.g. Ideas, Tasks)"
-                            className="w-full pl-7 pr-4 py-2 bg-transparent text-sm font-medium text-gray-600 outline-none placeholder:text-gray-400"
-                          />
-                        </div>
-                      </div>
-
-                      <textarea
-                        value={form.content}
-                        onChange={e => setForm({ ...form, content: e.target.value })}
-                        placeholder="Start typing..."
-                        className="w-full min-h-[500px] bg-transparent text-lg text-gray-700 leading-relaxed outline-none resize-none font-serif placeholder:text-gray-300"
+                        value={form.tags}
+                        onChange={e => setForm({ ...form, tags: e.target.value })}
+                        placeholder="Add tags separated by comma..."
+                        className="w-full bg-transparent text-gray-500 outline-none border-none placeholder:text-gray-300 py-0.5"
                       />
                     </div>
-                  )}
+                  </div>
+
+                  {/* Main Workspace Body Textarea Input (Matches website body typography) */}
+                  <textarea
+                    value={form.content}
+                    onChange={e => setForm({ ...form, content: e.target.value })}
+                    placeholder="Type content notes here..."
+                    className="w-full min-h-[460px] bg-transparent text-[16px] text-gray-700 leading-relaxed outline-none border-none resize-none placeholder:text-gray-300 font-sans"
+                  />
                 </div>
               </div>
             </>
