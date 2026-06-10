@@ -1,7 +1,8 @@
 // src/pages/Notes.tsx
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Search, Plus, X, Trash2, Tag, FileText, ChevronLeft, Calendar, LayoutGrid, CloudLightning, CloudCheck } from 'lucide-react';
+// REPLACED CloudCheck WITH Cloud HERE
+import { Search, Plus, X, Trash2, Tag, FileText, ChevronLeft, Calendar, LayoutGrid, CloudLightning, Cloud } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
@@ -263,7 +264,8 @@ export default function Notes() {
                     </>
                   ) : (
                     <>
-                      <CloudCheck className="w-3.5 h-3.5 text-green-500" />
+                      {/* FIXED: REPLACED CloudCheck WITH Cloud */}
+                      <Cloud className="w-3.5 h-3.5 text-green-500" />
                       <span>Saved locally to cloud</span>
                     </>
                   )}
