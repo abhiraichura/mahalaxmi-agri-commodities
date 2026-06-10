@@ -1,7 +1,8 @@
+// src/pages/AllContracts.tsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Search, Plus, Filter, AlertTriangle, Clock, FileText, ChevronDown } from 'lucide-react';
+import { Search, Plus, Filter, AlertTriangle, Clock, FileText, ChevronDown, X } from 'lucide-react';
 import { format, isPast, parseISO, isTomorrow } from 'date-fns';
 
 export default function AllContracts() {
@@ -60,8 +61,17 @@ export default function AllContracts() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search contracts..."
-            className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm"
+            className="w-full pl-10 pr-10 py-3 bg-white border border-gray-200 rounded-xl text-sm"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
         <select
           value={statusFilter}
