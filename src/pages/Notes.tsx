@@ -1,8 +1,10 @@
-import { useState } from 'react';
+// src/pages/Notes.tsx
+import { useState, useMemo } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Search, Plus, X, Trash2, Edit2, Save, Tag, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
+import { format } from 'date-fns';
 
 export default function Notes() {
   const { notes, addNote, updateNote, deleteNote } = useAppStore();
@@ -11,12 +13,18 @@ export default function Notes() {
   const [form, setForm] = useState({ title: '', content: '', tags: '' });
   const [isFormOpen, setIsFormOpen] = useState(false);
 
-  const filtered = notes.filter(n => {
-    const q = search.toLowerCase();
-    return (n.title || '').toLowerCase().includes(q) ||
-           (n.content || '').toLowerCase().includes(q) ||
-           (n.tags || []).some(t => t.toLowerCase().includes(q));
-  });
+  const sortedNotes = useMemo(() => {
+    let result = notes;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = notes.filter(n => 
+        (n.title || '').toLowerCase().includes(q) ||
+        (n.content || '').toLowerCase().includes(q) ||
+        (n.tags || []).some(t => t.toLowerCase().includes(q))
+      );
+    }
+    return result.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  }, [notes, search]);
 
   const handleSave = async () => {
     if (!form.title.trim()) {
@@ -74,7 +82,7 @@ export default function Notes() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 md:px-8">
+    <div className="max-w-6xl mx-auto px-4 py-8 md:px-8 bg-gray-50 min-h-screen">
       {/* Header & Search Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
         <div>
@@ -92,15 +100,25 @@ export default function Notes() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search notes..."
-              className="w-full pl-11 pr-4 py-3 bg-white/50 backdrop-blur-sm border-0 ring-1 ring-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-rose-500 focus:bg-white transition-all duration-300 outline-none shadow-sm"
+              className="w-full pl-11 pr-10 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 transition-all duration-300 outline-none shadow-sm"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
           {!isFormOpen && (
             <button
               onClick={() => setIsFormOpen(true)}
-              className="flex-shrink-0 flex items-center justify-center w-12 h-12 bg-rose-600 text-white rounded-2xl hover:bg-rose-700 hover:shadow-lg hover:shadow-rose-200 transition-all duration-300"
+              className="flex-shrink-0 flex items-center justify-center px-5 py-3 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 hover:shadow-lg hover:shadow-rose-200 transition-all duration-300 gap-2"
             >
               <Plus className="w-5 h-5" />
+              <span className="hidden sm:inline">Add Note</span>
             </button>
           )}
         </div>
@@ -112,8 +130,8 @@ export default function Notes() {
           isFormOpen ? 'opacity-100 max-h-[800px] mb-10' : 'opacity-0 max-h-0 mb-0'
         }`}
       >
-        <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xl shadow-gray-200/50 ring-1 ring-gray-100">
-          <div className="flex items-center justify-between mb-6 border-b border-gray-50 pb-4">
+        <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-200">
+          <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
                 {editing ? <Edit2 className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
@@ -135,14 +153,14 @@ export default function Notes() {
               value={form.title}
               onChange={e => setForm({ ...form, title: e.target.value })}
               placeholder="Note Title"
-              className="w-full px-4 py-3 text-lg font-semibold bg-transparent border-0 ring-1 ring-gray-200 rounded-xl focus:ring-2 focus:ring-rose-500 transition-shadow outline-none placeholder:font-normal"
+              className="w-full px-4 py-3 text-lg font-semibold bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-500 transition-shadow outline-none placeholder:font-normal"
             />
             <textarea
               value={form.content}
               onChange={e => setForm({ ...form, content: e.target.value })}
               placeholder="Write your thoughts here..."
-              rows={4}
-              className="w-full px-4 py-4 bg-transparent border-0 ring-1 ring-gray-200 rounded-xl text-gray-700 focus:ring-2 focus:ring-rose-500 transition-shadow outline-none resize-none leading-relaxed"
+              rows={5}
+              className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 focus:ring-2 focus:ring-rose-500 transition-shadow outline-none resize-none leading-relaxed"
             />
             
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-2">
@@ -152,7 +170,7 @@ export default function Notes() {
                   value={form.tags}
                   onChange={e => setForm({ ...form, tags: e.target.value })}
                   placeholder="Tags (comma separated)"
-                  className="w-full pl-11 pr-4 py-3 bg-gray-50 border-0 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-rose-500 transition-all outline-none"
+                  className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-rose-500 transition-all outline-none"
                 />
               </div>
               
@@ -177,8 +195,8 @@ export default function Notes() {
       </div>
 
       {/* Notes Grid */}
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-white/50 rounded-3xl border border-dashed border-gray-200">
+      {sortedNotes.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-white rounded-2xl border border-dashed border-gray-300">
           <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4">
             <Search className="w-8 h-8 text-gray-300" />
           </div>
@@ -189,41 +207,46 @@ export default function Notes() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map(note => (
+          {sortedNotes.map(note => (
             <div 
               key={note.id} 
-              className="group flex flex-col bg-white border-0 ring-1 ring-gray-200 rounded-3xl p-6 hover:-translate-y-1 hover:shadow-xl hover:shadow-gray-200/40 hover:ring-rose-100 transition-all duration-300"
+              className="group flex flex-col bg-white border border-gray-200 rounded-2xl p-6 hover:-translate-y-1 hover:shadow-md hover:border-rose-200 transition-all duration-300"
             >
-              <div className="flex items-start justify-between mb-4">
-                <h3 className="font-bold text-lg text-gray-900 leading-tight pr-4">
-                  {note.title}
-                </h3>
+              <div className="flex items-start justify-between mb-2">
+                <div className="pr-4">
+                  <h3 className="font-bold text-lg text-gray-900 leading-tight mb-1">
+                    {note.title}
+                  </h3>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">
+                    {format(new Date(note.createdAt || new Date()), 'MMM dd, yyyy • hh:mm a')}
+                  </p>
+                </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                   <button 
                     onClick={() => startEdit(note)} 
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button 
                     onClick={() => handleDelete(note.id)} 
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
               
-              <p className="text-gray-600 text-sm leading-relaxed mb-6 flex-1 whitespace-pre-wrap line-clamp-4">
+              <div className="text-gray-600 text-sm leading-relaxed mb-6 flex-1 whitespace-pre-wrap mt-3">
                 {note.content}
-              </p>
+              </div>
               
               {(note.tags || []).length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-auto pt-4 border-t border-gray-50">
+                <div className="flex flex-wrap gap-2 mt-auto pt-4 border-t border-gray-100">
                   {note.tags.map((tag: string) => (
                     <span 
                       key={tag} 
-                      className="px-3 py-1 bg-gray-50 text-gray-600 text-xs font-medium rounded-lg border border-gray-100"
+                      className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-md"
                     >
                       #{tag}
                     </span>
