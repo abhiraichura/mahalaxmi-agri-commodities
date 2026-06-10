@@ -1,6 +1,6 @@
 // src/pages/MessageGenerator.tsx
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Copy, Share2, MessageSquare, Calendar, History, Trash2, ChevronDown, Search } from 'lucide-react';
+import { Copy, Share2, MessageSquare, Calendar, History, Trash2, ChevronDown, Search, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
@@ -92,6 +92,19 @@ export default function MessageGenerator() {
     return lines.join('\n');
   }, [commodity, rateType, mandiRate, exportRate, arrival, priceMovement]);
 
+  // Helper method to completely flush the active form fields state values
+  const handleResetFormFields = () => {
+    setCommodity('');
+    setRateType('mandi');
+    setMandiRate('');
+    setExportRate('');
+    setArrival('');
+    setPriceMovement('');
+    setDropdownSearch('');
+    setIsDropdownOpen(false);
+    toast.success('Form cleared completely');
+  };
+
   // Handle local storage updates safely
   const saveToApplicationState = (finalText: string) => {
     const newRecord: SavedMessage = {
@@ -141,20 +154,40 @@ export default function MessageGenerator() {
     toast.success('History log removed');
   };
 
+  // Check if there is anything written inside the inputs to show the reset action helper button dynamically
+  const isFormDirty = useMemo(() => {
+    return !!(commodity || mandiRate || exportRate || arrival || priceMovement);
+  }, [commodity, mandiRate, exportRate, arrival, priceMovement]);
+
   return (
     <div className="h-[calc(100vh-64px)] p-4 md:p-6 bg-gray-50 overflow-y-auto font-sans">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Left Column: Interactive Settings Input Form Panel */}
         <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-gray-200 shadow-sm space-y-6">
-          <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
-            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
-              <MessageSquare className="w-6 h-6" />
+          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
+                <MessageSquare className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Message Generator</h1>
+                <p className="text-xs text-gray-400">Quickly draft and format messaging copy for WhatsApp streams</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Message Generator</h1>
-              <p className="text-xs text-gray-400">Quickly draft and format messaging copy for WhatsApp streams</p>
-            </div>
+
+            {/* Clear Fields Button Component Added in Header Toolbar Row */}
+            {isFormDirty && (
+              <button
+                type="button"
+                onClick={handleResetFormFields}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl border border-gray-200 hover:border-red-100 transition-all shadow-sm"
+                title="Reset all draft fields to empty values"
+              >
+                <RotateCcw size={14} />
+                Clear Form
+              </button>
+            )}
           </div>
 
           <div className="space-y-4">
