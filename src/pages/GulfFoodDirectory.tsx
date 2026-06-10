@@ -1,3 +1,4 @@
+// src/pages/GulfFoodDirectory.tsx
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Phone, Mail, MapPin, Globe, User, X, Download, Upload, FileText, Trash2, Edit2, ExternalLink, AlertTriangle } from 'lucide-react';
@@ -384,8 +385,17 @@ export default function GulfFoodDirectory() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search by company name, city, contact person, product profile..."
-              className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-200 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
           {filtered.length > 0 && (
             <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer whitespace-nowrap bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
