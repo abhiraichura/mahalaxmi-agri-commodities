@@ -1,8 +1,9 @@
+// src/pages/PartyDirectory.tsx
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Party } from '../types';
-import { Search, Plus, Phone, Mail, MapPin, Edit2, Trash2, Download, Upload, X, ChevronRight, ChevronDown, Check, User, Users, AlertTriangle, CheckSquare } from 'lucide-react';
+import { Search, Plus, Phone, Mail, MapPin, Edit2, Trash2, Download, Upload, X, ChevronRight, ChevronDown, Check, User, Users, AlertTriangle, CheckSquare, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ExportPartyModal from '../components/ExportPartyModal';
 
@@ -42,6 +43,10 @@ export default function PartyDirectory() {
     setSelectedIds([]);
     setDeleteStep(0);
   };
+
+  const sortedProducts = useMemo(() => {
+    return [...products].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [products]);
 
   const filtered = useMemo(() => {
     let result = parties.filter(p => {
@@ -187,6 +192,7 @@ export default function PartyDirectory() {
           alternatePhones: row['Alternate Phones'] ? row['Alternate Phones'].split(';').map((s: string) => s.trim()).filter(Boolean) : [],
           alternateEmails: row['Alternate Emails'] ? row['Alternate Emails'].split(';').map((s: string) => s.trim()).filter(Boolean) : [],
           otherContacts: [],
+          notes: row['Notes'] || '',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
@@ -288,8 +294,17 @@ export default function PartyDirectory() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search by name, contact person, city, phone, or product..."
-              className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-200 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -319,7 +334,7 @@ export default function PartyDirectory() {
                   className="w-full px-4 py-2.5 h-[36px] sm:h-auto bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between text-left transition-colors hover:bg-gray-100"
                 >
                   <span className={productFilter !== 'all' ? 'text-gray-900 font-medium truncate pr-2' : 'text-gray-600'}>
-                    {productFilter === 'all' ? 'All Products' : products.find(p => p.id === productFilter)?.name}
+                    {productFilter === 'all' ? 'All Products' : sortedProducts.find(p => p.id === productFilter)?.name}
                   </span>
                   <ChevronDown size={16} className={`text-gray-400 transition-transform ${productDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -333,7 +348,7 @@ export default function PartyDirectory() {
                       <span>All Products</span>
                       {productFilter === 'all' && <Check size={14} className="text-rose-600" />}
                     </button>
-                    {products.map(p => (
+                    {sortedProducts.map(p => (
                       <button
                         key={p.id}
                         onClick={() => { setProductFilter(p.id); setProductDropdownOpen(false); }}
@@ -567,6 +582,16 @@ export default function PartyDirectory() {
                         ) : null;
                       })}
                     </div>
+                  </div>
+                )}
+
+                {viewingParty.notes && (
+                  <div className="mt-4 p-4 bg-rose-50/50 border border-rose-100 rounded-xl">
+                    <div className="flex items-center gap-2 mb-2 text-rose-700">
+                      <FileText size={16} />
+                      <span className="font-semibold text-sm">Private Notes</span>
+                    </div>
+                    <p className="text-gray-700 text-sm whitespace-pre-wrap">{viewingParty.notes}</p>
                   </div>
                 )}
               </div>
