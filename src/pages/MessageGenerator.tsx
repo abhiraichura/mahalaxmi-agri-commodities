@@ -1,6 +1,6 @@
 // src/pages/MessageGenerator.tsx
-import { useState, useMemo } from 'react';
-import { Copy, Share2, MessageSquare, Calendar, History, Trash2, CheckCircle2 } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { Copy, Share2, MessageSquare, Calendar, History, Trash2, ChevronDown, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
@@ -12,6 +12,16 @@ interface SavedMessage {
   rawText: string;
 }
 
+// Predefined commodity array options
+const COMMODITIES = [
+  'Black Tal',
+  'Jeera',
+  'Dhana',
+  'Kalonji',
+  'Mung',
+  'White Tal'
+];
+
 export default function MessageGenerator() {
   // Input fields state hooks
   const [commodity, setCommodity] = useState('');
@@ -21,13 +31,36 @@ export default function MessageGenerator() {
   const [arrival, setArrival] = useState('');
   const [priceMovement, setPriceMovement] = useState('');
 
+  // Dropdown UI states
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside the element area
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filter commodity choices based on active dropdown search query
+  const filteredCommodities = useMemo(() => {
+    return COMMODITIES.filter(c => 
+      c.toLowerCase().includes(dropdownSearch.toLowerCase())
+    );
+  }, [dropdownSearch]);
+
   // Persistent historical memory state logs saved locally
   const [history, setHistory] = useState<SavedMessage[]>(() => {
     const cached = localStorage.getItem('mahalaxmi_message_history');
     return cached ? JSON.parse(cached) : [];
   });
 
-  // Derived computed property: real-time live formatted messaging message array assembly
+  // Derived computed property: real-time live formatted messaging copy assembly
   const generatedMessage = useMemo(() => {
     if (!commodity.trim()) return '';
 
@@ -38,7 +71,6 @@ export default function MessageGenerator() {
     if (rateType === 'mandi') {
       // Mandi layout logic: optional parameters checked sequentially
       if (arrival.trim()) {
-        // Automatically appends "Bags" suffix if the user hasn't explicitly typed it
         const cleanArrival = arrival.toLowerCase().includes('bag') 
           ? arrival.trim() 
           : `${arrival.trim()} Bags`;
@@ -76,8 +108,8 @@ export default function MessageGenerator() {
   };
 
   const handleCopyToClipboard = async () => {
-    if (!generatedMessage) {
-      toast.error('Please fill in at least the commodity name.');
+    if (!commodity.trim()) {
+      toast.error('Please select or type a commodity name.');
       return;
     }
     try {
@@ -90,15 +122,13 @@ export default function MessageGenerator() {
   };
 
   const handleShareToWhatsApp = () => {
-    if (!generatedMessage) {
-      toast.error('Please fill in at least the commodity name.');
+    if (!commodity.trim()) {
+      toast.error('Please select or type a commodity name.');
       return;
     }
     
-    // Save state tracking footprint 
     saveToApplicationState(generatedMessage);
 
-    // URL encode to safely maintain custom multi-line layout formatting structure
     const encodedMessage = encodeURIComponent(generatedMessage);
     const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
     window.open(whatsappUrl, '_blank');
@@ -128,18 +158,75 @@ export default function MessageGenerator() {
           </div>
 
           <div className="space-y-4">
-            {/* Commodity selection input option line */}
-            <div>
+            {/* Commodity selection modern custom search dropdown */}
+            <div className="relative" ref={dropdownRef}>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                 Commodity Name <span className="text-rose-500">*</span>
               </label>
-              <input
-                type="text"
-                value={commodity}
-                onChange={(e) => setCommodity(e.target.value)}
-                placeholder="e.g. Black Sesame Seed, Cumin Seed"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-100 focus:bg-white focus:border-rose-300 transition-all outline-none"
-              />
+              
+              <div 
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between cursor-pointer hover:bg-gray-100/50 transition-all select-none"
+              >
+                <span className={commodity ? 'text-gray-900 font-medium' : 'text-gray-400'}>
+                  {commodity || 'Select or type a commodity...'}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isDropdownOpen ? 'transform rotate-180' : ''}`} />
+              </div>
+
+              {/* Dropdown Floating Container View Card */}
+              {isDropdownOpen && (
+                <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden animate-fadeIn">
+                  {/* Inline Search Bar inside Dropdown */}
+                  <div className="p-2 border-b border-gray-100 flex items-center gap-2 bg-gray-50/50">
+                    <Search className="w-4 h-4 text-gray-400 ml-2 shrink-0" />
+                    <input
+                      type="text"
+                      value={dropdownSearch}
+                      onChange={(e) => setDropdownSearch(e.target.value)}
+                      placeholder="Filter list or type custom value..."
+                      className="w-full bg-transparent py-1.5 px-1 text-sm outline-none border-none text-gray-700"
+                    />
+                  </div>
+                  
+                  {/* Option List Grid View */}
+                  <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5 custom-scrollbar">
+                    {filteredCommodities.length > 0 ? (
+                      filteredCommodities.map((item) => (
+                        <div
+                          key={item}
+                          onClick={() => {
+                            setCommodity(item);
+                            setIsDropdownOpen(false);
+                            setDropdownSearch('');
+                          }}
+                          className={`px-3 py-2.5 rounded-xl text-sm cursor-pointer transition-colors ${
+                            commodity === item 
+                              ? 'bg-rose-50 text-rose-700 font-semibold' 
+                              : 'text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          {item}
+                        </div>
+                      ))
+                    ) : (
+                      /* Custom Entry Fallback Callback Option if text input matches nothing on custom listing */
+                      dropdownSearch.trim() && (
+                        <div
+                          onClick={() => {
+                            setCommodity(dropdownSearch.trim());
+                            setIsDropdownOpen(false);
+                            setDropdownSearch('');
+                          }}
+                          className="px-3 py-2.5 rounded-xl text-sm text-rose-600 bg-rose-50/50 hover:bg-rose-50 cursor-pointer font-medium"
+                        >
+                          Use custom value: "{dropdownSearch.trim()}"
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Rate categorization selector options toggle strip */}
@@ -245,7 +332,7 @@ export default function MessageGenerator() {
                 </pre>
               ) : (
                 <div className="text-center py-8 text-stone-500 text-sm italic">
-                  Enter commodity name above to instantly render string view blocks...
+                  Select a commodity above to instantly render string view blocks...
                 </div>
               )}
             </div>
