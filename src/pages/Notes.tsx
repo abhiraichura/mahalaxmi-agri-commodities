@@ -1,8 +1,8 @@
 // src/pages/Notes.tsx
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
-// REPLACED CloudCheck WITH Cloud HERE
-import { Search, Plus, X, Trash2, Tag, FileText, ChevronLeft, Calendar, LayoutGrid, CloudLightning, Cloud } from 'lucide-react';
+// Added Download icon for the CSV export action row
+import { Search, Plus, X, Trash2, Tag, FileText, ChevronLeft, Calendar, LayoutGrid, CloudLightning, Cloud, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
@@ -149,6 +149,59 @@ export default function Notes() {
     }
   };
 
+  // Handler to export notes array to clean format CSV
+  const handleExportCSV = () => {
+    if (!notes || notes.length === 0) {
+      toast.error('No notes found to export');
+      return;
+    }
+
+    // CSV Headers
+    const headers = ['ID', 'Title', 'Content', 'Tags', 'Created At', 'Updated At'];
+
+    // Safe escaping rules for CSV formatting wrapper
+    const escapeCSVCell = (val: any) => {
+      if (val === null || val === undefined) return '""';
+      let cleanString = String(val);
+      // Double quote escaping for inner content safety
+      if (cleanString.includes('"') || cleanString.includes(',') || cleanString.includes('\n') || cleanString.includes('\r')) {
+        cleanString = '"' + cleanString.replace(/"/g, '""') + '"';
+      } else if (!cleanString) {
+        return '""';
+      }
+      return cleanString;
+    };
+
+    // Generate matching rows
+    const csvRows = notes.map(note => [
+      escapeCSVCell(note.id),
+      escapeCSVCell(note.title || 'Untitled Note'),
+      escapeCSVCell(note.content || ''),
+      escapeCSVCell((note.tags || []).join(', ')),
+      escapeCSVCell(note.createdAt || ''),
+      escapeCSVCell(note.updatedAt || '')
+    ]);
+
+    // Prepend header strings sequence
+    const csvContent = [headers.join(','), ...csvRows.map(row => row.join(','))].join('\n');
+
+    // Trigger browser file download instantiation payload
+    try {
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `mahalaxmi_notes_export_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Notes exported to CSV successfully');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export CSV file');
+    }
+  };
+
   const activeNoteObject = useMemo(() => notes.find(n => n.id === activeNoteId), [notes, activeNoteId]);
 
   return (
@@ -160,10 +213,24 @@ export default function Notes() {
           
           {/* List Header Frame */}
           <div className="p-6 border-b border-gray-100">
-            <h1 className="text-2xl font-bold text-gray-900 mb-5 flex items-center gap-2">
-              <LayoutGrid className="w-6 h-6 text-rose-600" />
-              Notes
-            </h1>
+            <div className="flex items-center justify-between mb-5">
+              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                <LayoutGrid className="w-6 h-6 text-rose-600" />
+                Notes
+              </h1>
+              {/* CSV Export Button added right here to easily click it */}
+              {notes.length > 0 && (
+                <button
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 hover:text-gray-900 text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                  title="Export all data records to Excel/CSV"
+                >
+                  <Download size={13} />
+                  Export CSV
+                </button>
+              )}
+            </div>
+            
             <div className="flex items-center gap-2.5">
               <div className="relative flex-1 group">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-gray-600 transition-colors" />
@@ -264,7 +331,6 @@ export default function Notes() {
                     </>
                   ) : (
                     <>
-                      {/* FIXED: REPLACED CloudCheck WITH Cloud */}
                       <Cloud className="w-3.5 h-3.5 text-green-500" />
                       <span>Saved locally to cloud</span>
                     </>
