@@ -1,7 +1,8 @@
+// src/pages/Parties.tsx
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Search, MapPin, User, Phone, Check, ChevronDown, BookOpen } from 'lucide-react';
+import { Search, MapPin, User, Phone, Check, ChevronDown, BookOpen, X } from 'lucide-react';
 import { getColData } from '../utils/firebase';
 
 // Unify type for our Global View
@@ -57,6 +58,11 @@ export default function Parties() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Alphabetically sort products for the dropdown
+  const sortedProducts = useMemo(() => {
+    return [...products].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [products]);
 
   // 1. Unify Data into a single array
   const unifiedData = useMemo<UnifiedContact[]>(() => {
@@ -180,8 +186,17 @@ export default function Parties() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search any company, contact, city, phone, or product across all directories..."
-              className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-base focus:ring-2 focus:ring-rose-100 transition-shadow"
+              className="w-full pl-12 pr-10 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-base focus:ring-2 focus:ring-rose-100 transition-shadow"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-200 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -212,7 +227,7 @@ export default function Parties() {
                   className="w-full px-4 py-2.5 h-[36px] sm:h-auto bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between text-left transition-colors hover:bg-gray-100"
                 >
                   <span className={productFilter !== 'all' ? 'text-gray-900 font-medium truncate pr-2' : 'text-gray-600'}>
-                    {productFilter === 'all' ? 'All Products' : products.find(p => p.id === productFilter)?.name}
+                    {productFilter === 'all' ? 'All Products' : sortedProducts.find(p => p.id === productFilter)?.name}
                   </span>
                   <ChevronDown size={16} className={`text-gray-400 transition-transform ${productDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -226,7 +241,7 @@ export default function Parties() {
                       <span>All Products</span>
                       {productFilter === 'all' && <Check size={14} className="text-rose-600" />}
                     </button>
-                    {products.map(p => (
+                    {sortedProducts.map(p => (
                       <button
                         key={p.id}
                         onClick={() => { setProductFilter(p.id); setProductDropdownOpen(false); }}
