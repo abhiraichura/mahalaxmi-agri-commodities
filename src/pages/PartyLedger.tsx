@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+// src/pages/PartyLedger.tsx
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Search, FileText, ArrowLeft, Download, Phone, ChevronDown, Check } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
@@ -37,6 +38,10 @@ export default function PartyLedger() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const sortedParties = useMemo(() => {
+    return [...parties].sort((a, b) => (a.legalName || '').localeCompare(b.legalName || ''));
+  }, [parties]);
 
   const selectedParty = parties.find(p => p.id === selectedPartyId);
 
@@ -141,7 +146,7 @@ export default function PartyLedger() {
                 <span>-- Select Party --</span>
                 {!selectedPartyId && <Check size={14} className="text-rose-600" />}
               </button>
-              {parties.map(p => (
+              {sortedParties.map(p => (
                 <button
                   key={p.id}
                   type="button"
