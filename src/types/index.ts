@@ -1,3 +1,4 @@
+// src/types/index.ts
 export interface ContactPerson {
   id: string;
   name: string;
@@ -24,6 +25,7 @@ export interface Party {
   alternatePhones: string[];
   alternateEmails: string[];
   otherContacts: ContactPerson[];
+  notes?: string;
   createdAt: any;
   updatedAt: any;
 }
