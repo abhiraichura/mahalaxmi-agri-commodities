@@ -18,6 +18,7 @@ import Notes from './pages/Notes';
 import PartyLedger from './pages/PartyLedger';
 import AllContracts from './pages/AllContracts';
 import GulfFoodDirectory from './pages/GulfFoodDirectory';
+import MessageGenerator from './pages/MessageGenerator';
 
 function App() {
   const { user, loading } = useAuthStore();
@@ -64,6 +65,7 @@ function App() {
           <Route path="/gulfood" element={<Navigate to="/parties/gulfood" replace />} />
 
           <Route path="/products" element={<ProductManager />} />
+          <Route path="/message-generator" element={<MessageGenerator />} />
           <Route path="/brokerage" element={<BrokerageBills />} />
           <Route path="/ledger" element={<PartyLedger />} />
           <Route path="/notes" element={<Notes />} />
