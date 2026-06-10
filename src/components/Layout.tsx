@@ -54,7 +54,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/products', icon: Package, label: 'Products' },
     { to: '/brokerage', icon: Receipt, label: 'Brokerage Bills' },
     { to: '/ledger', icon: BookOpen, label: 'Party Ledger' },
-    { to: '/message-generator', label: 'Message Generator', icon: MessageSquare },
+    { to: '/message-generator', label: 'Message Generator', icon: StickyNote },
     { to: '/notes', icon: StickyNote, label: 'Notes' },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ];
