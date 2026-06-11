@@ -10,7 +10,9 @@ import {
   Clock, 
   ChevronLeft, 
   ChevronRight,
-  CheckSquare
+  CheckSquare,
+  Edit3,
+  Check
 } from 'lucide-react';
 import { db } from '../utils/firebase';
 import { 
@@ -40,6 +42,10 @@ export default function Todos() {
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [baseDate, setBaseDate] = useState(new Date());
   
+  // State for handling inline adjustments
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
+
   const weekDays = useMemo(() => {
     return Array.from({ length: 7 }).map((_, i) => {
       const d = new Date(baseDate);
@@ -121,6 +127,22 @@ export default function Todos() {
     }
   };
 
+  const startEditing = (todo: TodoItem) => {
+    setEditingId(todo.id);
+    setEditingText(todo.text);
+  };
+
+  const saveUpdate = async (id: string) => {
+    if (!editingText.trim()) return;
+    try {
+      const docRef = doc(db, 'daily_todos', id);
+      await updateDoc(docRef, { text: editingText.trim() });
+      setEditingId(null);
+    } catch (error) {
+      console.error("Error updating task text: ", error);
+    }
+  };
+
   const deleteTodo = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'daily_todos', id));
@@ -142,7 +164,7 @@ export default function Todos() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-            Task Planner <CheckSquare className="w-6 h-6 text-indigo-600" />
+            Task Planner <CheckSquare className="w-6 h-6 text-rose-700" />
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">Organize and monitor your operational updates day-by-day.</p>
         </div>
@@ -170,7 +192,7 @@ export default function Todos() {
                   onChange={(e) => setNewTodoText(e.target.value)}
                   placeholder="Type task details here..."
                   rows={3}
-                  className="w-full p-3 bg-gray-50 text-sm font-medium text-gray-800 placeholder-gray-400 rounded-xl border border-transparent focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all resize-none"
+                  className="w-full p-3 bg-gray-50 text-sm font-medium text-gray-800 placeholder-gray-400 rounded-xl border border-transparent focus:bg-white focus:border-rose-500 focus:ring-4 focus:ring-rose-500/5 outline-none transition-all resize-none"
                 />
               </div>
 
@@ -184,9 +206,9 @@ export default function Todos() {
                       onClick={() => setPriority(p)}
                       className={`text-xs py-2 font-bold rounded-xl capitalize transition-all border ${
                         priority === p 
-                          ? p === 'high' ? 'bg-rose-500 text-white border-rose-500' :
+                          ? p === 'high' ? 'bg-rose-600 text-white border-rose-600' :
                             p === 'medium' ? 'bg-amber-500 text-white border-amber-500' :
-                            'bg-emerald-500 text-white border-emerald-500'
+                            'bg-emerald-600 text-white border-emerald-600'
                           : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                       }`}
                     >
@@ -199,7 +221,7 @@ export default function Todos() {
               <button
                 type="submit"
                 disabled={!newTodoText.trim()}
-                className="w-full py-2.5 bg-indigo-600 disabled:bg-gray-200 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-md flex items-center justify-center gap-1.5"
+                className="w-full py-2.5 bg-rose-700 disabled:bg-gray-200 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl hover:bg-rose-800 transition-all shadow-md flex items-center justify-center gap-1.5"
               >
                 <Plus className="w-4 h-4" /> Add to Day
               </button>
@@ -214,7 +236,7 @@ export default function Todos() {
               </div>
               <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
                 <div 
-                  className="bg-indigo-400 h-full transition-all duration-500 ease-out" 
+                  className="bg-rose-500 h-full transition-all duration-500 ease-out" 
                   style={{ width: `${stats.percent}%` }}
                 />
               </div>
@@ -243,18 +265,18 @@ export default function Todos() {
                     onClick={() => setSelectedDay(dateStr)}
                     className={`flex flex-col items-center min-w-[56px] py-2 rounded-xl transition-all duration-200 ${
                       isActive 
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100 font-bold scale-[1.02]' 
+                        ? 'bg-rose-700 text-white shadow-md shadow-rose-100 font-bold scale-[1.02]' 
                         : 'bg-white hover:bg-gray-50 text-gray-700 border border-transparent hover:border-gray-100'
                     }`}
                   >
-                    <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? 'text-indigo-200' : 'text-gray-400'}`}>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? 'text-rose-200' : 'text-gray-400'}`}>
                       {date.toLocaleDateString('en-US', { weekday: 'short' })}
                     </span>
                     <span className="text-sm font-black mt-0.5">
                       {date.getDate()}
                     </span>
                     {isToday && !isActive && (
-                      <span className="w-1 h-1 bg-indigo-600 rounded-full mt-1" />
+                      <span className="w-1 h-1 bg-rose-700 rounded-full mt-1" />
                     )}
                   </button>
                 );
@@ -272,7 +294,7 @@ export default function Todos() {
           <div className="space-y-2.5 min-h-[300px]">
             {loading ? (
               <div className="flex items-center justify-center py-20 bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-rose-700 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : dailyTodos.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-2xl border border-dashed border-gray-200 shadow-sm px-4">
@@ -295,20 +317,33 @@ export default function Todos() {
                   <div className="flex items-center gap-3.5 flex-1 min-w-0">
                     <button 
                       onClick={() => toggleTodo(todo.id, todo.completed)}
-                      className="text-gray-400 hover:text-indigo-600 transition-colors flex-shrink-0"
+                      className="text-gray-400 hover:text-rose-700 transition-colors flex-shrink-0"
                     >
                       {todo.completed ? (
                         <CheckCircle2 className="w-5 h-5 text-emerald-500 fill-emerald-50" />
                       ) : (
-                        <Circle className="w-5 h-5 text-gray-300 group-hover:text-indigo-500" />
+                        <Circle className="w-5 h-5 text-gray-300 group-hover:text-rose-700" />
                       )}
                     </button>
-                    <span className={`text-xs sm:text-sm font-semibold truncate ${todo.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-                      {todo.text}
-                    </span>
+                    
+                    {editingId === todo.id ? (
+                      <input
+                        type="text"
+                        value={editingText}
+                        onChange={(e) => setEditingText(e.target.value)}
+                        onBlur={() => saveUpdate(todo.id)}
+                        onKeyDown={(e) => e.key === 'Enter' && saveUpdate(todo.id)}
+                        autoFocus
+                        className="w-full text-xs sm:text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-300 rounded-md px-2 py-0.5 outline-none focus:border-rose-500"
+                      />
+                    ) : (
+                      <span className={`text-xs sm:text-sm font-semibold truncate flex-1 ${todo.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                        {todo.text}
+                      </span>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+                  <div className="flex items-center gap-2 ml-4 flex-shrink-0">
                     <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider border ${
                       todo.priority === 'high' ? 'bg-rose-50 text-rose-600 border-rose-100' :
                       todo.priority === 'medium' ? 'bg-amber-50 text-amber-600 border-amber-100' :
@@ -317,9 +352,25 @@ export default function Todos() {
                       {todo.priority}
                     </span>
 
+                    {editingId === todo.id ? (
+                      <button
+                        onClick={() => saveUpdate(todo.id)}
+                        className="text-emerald-600 p-1.5 hover:bg-gray-50 rounded-lg"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => startEditing(todo)}
+                        className="sm:opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 transition-all p-1.5 rounded-lg hover:bg-gray-50"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
                     <button
                       onClick={() => deleteTodo(todo.id)}
-                      className="sm:opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-500 transition-all p-1.5"
+                      className="sm:opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-500 transition-all p-1.5 rounded-lg hover:bg-gray-50"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
