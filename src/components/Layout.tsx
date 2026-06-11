@@ -57,7 +57,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/ledger', icon: BookOpen, label: 'Party Ledger' },
     { to: '/message-generator', label: 'Message Generator', icon: StickyNote },
     { to: '/notes', icon: StickyNote, label: 'Notes' },
-    { to: '/todos', name: 'Task Planner', icon: CheckSquare},
+    { to: '/todos', icon: CheckSquare, label: 'Task Planner'},
     { to: '/settings', icon: Settings, label: 'Settings' },
   ];
 
