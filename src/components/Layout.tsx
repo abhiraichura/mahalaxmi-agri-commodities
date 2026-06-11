@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { checkForUpdate, markVersionSeen, clearAppCache } from '../utils/cacheManager';
+import { CheckSquare, StickyNote, LayoutDashboard, FileText } from 'lucide-react';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuthStore();
@@ -15,6 +16,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showUpdateBanner, setShowUpdateBanner] = useState(false);
+  
 
   useEffect(() => {
     if (checkForUpdate()) {
@@ -56,6 +58,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/ledger', icon: BookOpen, label: 'Party Ledger' },
     { to: '/message-generator', label: 'Message Generator', icon: StickyNote },
     { to: '/notes', icon: StickyNote, label: 'Notes' },
+    { to: '/todos', name: 'Task Planner', icon: CheckSquare},
     { to: '/settings', icon: Settings, label: 'Settings' },
   ];
 
