@@ -19,6 +19,7 @@ import PartyLedger from './pages/PartyLedger';
 import AllContracts from './pages/AllContracts';
 import GulfFoodDirectory from './pages/GulfFoodDirectory';
 import MessageGenerator from './pages/MessageGenerator';
+import Todos from './pages/Todos'; // 1. Add this import statement up top
 
 function App() {
   const { user, loading } = useAuthStore();
@@ -69,6 +70,7 @@ function App() {
           <Route path="/brokerage" element={<BrokerageBills />} />
           <Route path="/ledger" element={<PartyLedger />} />
           <Route path="/notes" element={<Notes />} />
+          <Route path="/todos" element={<Todos />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
