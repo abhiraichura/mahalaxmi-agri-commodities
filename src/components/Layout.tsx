@@ -2,11 +2,10 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
 import {
   LayoutDashboard, FileText, Users, Package, Receipt, Settings, LogOut,
-  BookOpen, StickyNote, ChevronDown, ChevronRight, FolderOpen, Menu, X, RefreshCw, Search
+  BookOpen, StickyNote, ChevronDown, ChevronRight, FolderOpen, Menu, X, RefreshCw, Search, CheckSquare
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { checkForUpdate, markVersionSeen, clearAppCache } from '../utils/cacheManager';
-import { CheckSquare, StickyNote, LayoutDashboard, FileText } from 'lucide-react';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuthStore();
