@@ -1,3 +1,4 @@
+// src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAuthStore, useAppStore } from './hooks/useAuthStore';
@@ -19,13 +20,13 @@ import PartyLedger from './pages/PartyLedger';
 import AllContracts from './pages/AllContracts';
 import GulfFoodDirectory from './pages/GulfFoodDirectory';
 import MessageGenerator from './pages/MessageGenerator';
-import Todos from './pages/Todos'; // 1. Add this import statement up top
+import PartyMessageGenerator from './pages/PartyMessageGenerator';
+import Todos from './pages/Todos';
 
 function App() {
   const { user, loading } = useAuthStore();
   const { loadContracts, loadParties, loadProducts, loadSettingsFromFirebase, loadNotes } = useAppStore();
 
-  // Load all data globally once user is logged in
   useEffect(() => {
     if (user) {
       loadContracts();
@@ -57,7 +58,6 @@ function App() {
           <Route path="/contracts/edit/:id" element={<ContractForm />} />
           <Route path="/contracts/:id" element={<ContractView />} />
           
-          {/* Parties & Directories Routing */}
           <Route path="/parties" element={<Parties />} />
           <Route path="/parties/directory" element={<PartyDirectory />} />
           <Route path="/parties/new" element={<PartyForm />} />
@@ -67,6 +67,7 @@ function App() {
 
           <Route path="/products" element={<ProductManager />} />
           <Route path="/message-generator" element={<MessageGenerator />} />
+          <Route path="/party-message" element={<PartyMessageGenerator />} />
           <Route path="/brokerage" element={<BrokerageBills />} />
           <Route path="/ledger" element={<PartyLedger />} />
           <Route path="/notes" element={<Notes />} />
