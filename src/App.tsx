@@ -21,6 +21,7 @@ import AllContracts from './pages/AllContracts';
 import GulfFoodDirectory from './pages/GulfFoodDirectory';
 import MessageGenerator from './pages/MessageGenerator';
 import PartyMessageGenerator from './pages/PartyMessageGenerator';
+import CustomMessageGenerator from './pages/CustomMessageGenerator';
 import Todos from './pages/Todos';
 
 function App() {
@@ -68,6 +69,7 @@ function App() {
           <Route path="/products" element={<ProductManager />} />
           <Route path="/message-generator" element={<MessageGenerator />} />
           <Route path="/party-message" element={<PartyMessageGenerator />} />
+          <Route path="/custom-message" element={<CustomMessageGenerator />} />
           <Route path="/brokerage" element={<BrokerageBills />} />
           <Route path="/ledger" element={<PartyLedger />} />
           <Route path="/notes" element={<Notes />} />
