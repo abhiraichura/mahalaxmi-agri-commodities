@@ -144,9 +144,10 @@ export default function PartyMessageGenerator() {
                         >
                           <div className="font-medium">{party.name}</div>
                           {(party.contactPerson || party.phone) && (
-                            <div className="text-xs opacity-75 mt-0.5 flex gap-2">
-                              {party.contactPerson && <span>👤 {party.contactPerson}</span>}
-                              {party.phone && <span>📞 {party.phone}</span>}
+                            <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5">
+                              {party.contactPerson && <span>{party.contactPerson}</span>}
+                              {party.contactPerson && party.phone && <span>•</span>}
+                              {party.phone && <span>{party.phone}</span>}
                             </div>
                           )}
                         </div>
