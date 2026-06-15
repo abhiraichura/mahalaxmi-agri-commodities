@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
 import {
   LayoutDashboard, FileText, Users, Package, Receipt, Settings, LogOut,
-  BookOpen, StickyNote, ChevronDown, ChevronRight, FolderOpen, Menu, X, RefreshCw, Search, CheckSquare
+  BookOpen, StickyNote, ChevronDown, ChevronRight, FolderOpen, Menu, X, RefreshCw, Search, CheckSquare, Type
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { checkForUpdate, markVersionSeen, clearAppCache } from '../utils/cacheManager';
@@ -54,6 +54,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/ledger', icon: BookOpen, label: 'Party Ledger' },
     { to: '/message-generator', label: 'Message Generator', icon: StickyNote },
     { to: '/party-message', label: 'Party Message Gen', icon: StickyNote },
+    { to: '/custom-message', label: 'Custom Message Gen', icon: Type },
     { to: '/notes', icon: StickyNote, label: 'Notes' },
     { to: '/todos', icon: CheckSquare, label: 'Task Planner'},
     { to: '/settings', icon: Settings, label: 'Settings' },
