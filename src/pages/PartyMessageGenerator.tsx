@@ -1,6 +1,6 @@
 // src/pages/PartyMessageGenerator.tsx
-import { useState, useEffect } from 'react';
-import { Copy, Share2, MessageSquare } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Copy, Share2, MessageSquare, ChevronDown, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAppStore } from '../hooks/useAuthStore';
 
@@ -8,16 +8,48 @@ export default function PartyMessageGenerator() {
   const { parties } = useAppStore();
   const [selectedPartyId, setSelectedPartyId] = useState('');
   const [message, setMessage] = useState('');
+  
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const party = parties.find(p => p.id === selectedPartyId);
-    if (party) {
-      const contactName = party.contactPerson || party.name;
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const sortedParties = useMemo(() => {
+    return [...parties].sort((a, b) => a.name.localeCompare(b.name));
+  }, [parties]);
+
+  const filteredParties = useMemo(() => {
+    return sortedParties.filter(p => {
+      const searchLower = dropdownSearch.toLowerCase();
+      return (
+        p.name.toLowerCase().includes(searchLower) ||
+        (p.contactPerson && p.contactPerson.toLowerCase().includes(searchLower)) ||
+        (p.phone && p.phone.includes(dropdownSearch))
+      );
+    });
+  }, [sortedParties, dropdownSearch]);
+
+  const selectedParty = useMemo(() => {
+    return parties.find(p => p.id === selectedPartyId);
+  }, [selectedPartyId, parties]);
+
+  useEffect(() => {
+    if (selectedParty) {
+      const contactName = selectedParty.contactPerson || selectedParty.name;
       setMessage(`Good morning ${contactName},\n\nPlease confirm if you have any specific requirements today for sesame, cumin, coriander, fenugreek, fennel, or moong.\nEarly confirmation helps us secure the best offers for you.\n\nRegards,\nMahalaxmi Agri Commodities\n90330 00032 | 98255 00032`);
     } else {
       setMessage('');
     }
-  }, [selectedPartyId, parties]);
+  }, [selectedPartyId, selectedParty]);
 
   const handleCopy = async () => {
     if (!message) return;
@@ -32,11 +64,10 @@ export default function PartyMessageGenerator() {
   const handleWhatsAppShare = () => {
     if (!message) return;
     
-    const party = parties.find(p => p.id === selectedPartyId);
     let targetPhone = '';
     
-    if (party && party.phone) {
-      let cleanPhone = party.phone.replace(/[^\d+]/g, '');
+    if (selectedParty && selectedParty.phone) {
+      let cleanPhone = selectedParty.phone.replace(/[^\d+]/g, '');
       if (cleanPhone.length === 10 && !cleanPhone.startsWith('+')) {
         cleanPhone = '91' + cleanPhone;
       }
@@ -64,25 +95,74 @@ export default function PartyMessageGenerator() {
             </div>
           </div>
           <div className="space-y-4">
-            <div>
+            
+            <div className="relative" ref={dropdownRef}>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                Select Party
+                Select Party <span className="text-rose-500">*</span>
               </label>
-              <select
-                value={selectedPartyId}
-                onChange={(e) => setSelectedPartyId(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-100 focus:bg-white outline-none transition-all"
+              
+              <div 
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between cursor-pointer hover:bg-gray-100/50 transition-all select-none"
               >
-                <option value="">-- Select a Party --</option>
-                {parties.map((party) => (
-                  <option key={party.id} value={party.id}>
-                    {party.name} {party.contactPerson ? `(${party.contactPerson})` : ''} {party.phone ? ` - ${party.phone}` : ''}
-                  </option>
-                ))}
-              </select>
+                <span className={selectedParty ? 'text-gray-900 font-medium' : 'text-gray-400'}>
+                  {selectedParty 
+                    ? `${selectedParty.name} ${selectedParty.contactPerson ? `(${selectedParty.contactPerson})` : ''}`
+                    : '-- Select or search a party --'}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isDropdownOpen ? 'transform rotate-180' : ''}`} />
+              </div>
+
+              {isDropdownOpen && (
+                <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden animate-fadeIn">
+                  <div className="p-2 border-b border-gray-100 flex items-center gap-2 bg-gray-50/50">
+                    <Search className="w-4 h-4 text-gray-400 ml-2 shrink-0" />
+                    <input
+                      type="text"
+                      value={dropdownSearch}
+                      onChange={(e) => setDropdownSearch(e.target.value)}
+                      placeholder="Search by name, contact person, or phone..."
+                      className="w-full bg-transparent py-1.5 px-1 text-sm outline-none border-none text-gray-700"
+                    />
+                  </div>
+                  
+                  <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5 custom-scrollbar">
+                    {filteredParties.length > 0 ? (
+                      filteredParties.map((party) => (
+                        <div
+                          key={party.id}
+                          onClick={() => {
+                            setSelectedPartyId(party.id);
+                            setIsDropdownOpen(false);
+                            setDropdownSearch('');
+                          }}
+                          className={`px-3 py-2.5 rounded-xl text-sm cursor-pointer transition-colors ${
+                            selectedPartyId === party.id 
+                              ? 'bg-rose-50 text-rose-700 font-semibold' 
+                              : 'text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="font-medium">{party.name}</div>
+                          {(party.contactPerson || party.phone) && (
+                            <div className="text-xs opacity-75 mt-0.5 flex gap-2">
+                              {party.contactPerson && <span>👤 {party.contactPerson}</span>}
+                              {party.phone && <span>📞 {party.phone}</span>}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-3 py-4 text-center text-sm text-gray-400 italic">
+                        No parties found matching "{dropdownSearch}"
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 mt-4">
                 Message Preview
               </label>
               <textarea
