@@ -1,3 +1,4 @@
+// src/components/Layout.tsx
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
 import {
@@ -15,7 +16,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showUpdateBanner, setShowUpdateBanner] = useState(false);
-  
 
   useEffect(() => {
     if (checkForUpdate()) {
@@ -23,12 +23,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Close mobile menu on route change
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
-  // Prevent body scroll when mobile menu is open
   useEffect(() => {
     if (mobileMenuOpen) {
       document.body.style.overflow = 'hidden';
@@ -49,13 +47,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setShowUpdateBanner(false);
   };
 
-  // Dashboard is handled manually at the top, the rest go below the "Parties" group
   const navItems = [
     { to: '/contracts', icon: FileText, label: 'Contracts' },
     { to: '/products', icon: Package, label: 'Products' },
     { to: '/brokerage', icon: Receipt, label: 'Brokerage Bills' },
     { to: '/ledger', icon: BookOpen, label: 'Party Ledger' },
     { to: '/message-generator', label: 'Message Generator', icon: StickyNote },
+    { to: '/party-message', label: 'Party Message Gen', icon: StickyNote },
     { to: '/notes', icon: StickyNote, label: 'Notes' },
     { to: '/todos', icon: CheckSquare, label: 'Task Planner'},
     { to: '/settings', icon: Settings, label: 'Settings' },
@@ -63,7 +61,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex">
-      {/* Update Banner */}
       {showUpdateBanner && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-white px-4 py-2 flex items-center justify-between shadow-md">
           <div className="flex items-center gap-2 text-sm font-medium">
@@ -90,7 +87,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Mobile Menu Toggle Button */}
       <button
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white border border-gray-200 rounded-xl shadow-sm text-gray-700 hover:bg-gray-50"
@@ -99,7 +95,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
-      {/* Overlay for mobile */}
       {mobileMenuOpen && (
         <div
           className="lg:hidden fixed inset-0 bg-black/40 z-30"
@@ -107,7 +102,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`bg-white border-r border-gray-200 flex flex-col fixed h-full z-40 transition-transform duration-300 ease-in-out
           w-64
@@ -121,7 +115,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {/* Dashboard Item */}
           <NavLink
             to="/"
             className={({ isActive }) =>
@@ -136,7 +129,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             Dashboard
           </NavLink>
 
-          {/* Parties with submenu */}
           <div>
             <button
               onClick={() => setPartiesOpen(!partiesOpen)}
@@ -199,7 +191,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          {/* Regular nav items */}
           {navItems.map(item => (
             <NavLink
               key={item.to}
@@ -232,7 +223,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className={`flex-1 lg:ml-64 min-w-0 ${showUpdateBanner ? 'pt-10' : ''}`}>
         {children}
       </main>
