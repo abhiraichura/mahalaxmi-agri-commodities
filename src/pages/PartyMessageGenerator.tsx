@@ -45,7 +45,7 @@ export default function PartyMessageGenerator() {
   useEffect(() => {
     if (selectedParty) {
       const contactName = selectedParty.contactPerson || selectedParty.name;
-      setMessage(`Good morning ${contactName},\n\nPlease confirm if you have any specific requirements today for sesame, cumin, coriander, fenugreek, fennel, or moong.\nEarly confirmation helps us secure the best offers for you.\n\nRegards,\nMahalaxmi Agri Commodities\n90330 00032 | 98255 00032`);
+      setMessage(`Good morning ${contactName},\n\nPlease confirm if you have any specific requirements today for Sesame, Cumin, Coriander, or Moong.\nEarly confirmation helps us secure the best offers for you.\n\nRegards,\nMahalaxmi Agri Commodities\n90330 00032 | 98255 00032`);
     } else {
       setMessage('');
     }
