@@ -66,8 +66,7 @@ export const generateContractPDF = (
   doc.text('CONTRACT NOTE', PW / 2, startY + 6.5, { align: 'center' });
   
   doc.setFontSize(10);
-  // Adjusted DATE X-coordinate to add padding from the right border
-  doc.text(`DATE: ${format(new Date(contract.date), 'dd-MM-yyyy')}`, PW - M - 4, startY + 6.5, { align: 'right' });
+  doc.text(`DATE: ${format(new Date(contract.date), 'dd-MM-yyyy')}`, PW - M - 2, startY + 6.5, { align: 'right' });
 
   // 3. Parties Row (Dynamic Left/Right Assignment)
   const isBuyerLeft = type === 'buyer_copy';
@@ -168,8 +167,19 @@ export const generateContractPDF = (
 
   drawItem('PRODUCT', contract.product.name);
 
+  // Filter out any specs that are empty so they don't render a lone '%'
   const specArray = contract.contractSpecs || contract.product.specs || [];
-  let specText = specArray.map((s: any) => `${s.value} ${s.unit || ''}`.trim()).join(', ');
+  const validSpecs = specArray.filter((s: any) => 
+    s.value !== undefined && s.value !== null && String(s.value).trim() !== ''
+  );
+
+  let specText = validSpecs.map((s: any) => {
+    const valStr = String(s.value).trim();
+    const unitStr = s.unit ? String(s.unit).trim() : '';
+    const labelStr = s.label ? `${String(s.label).trim()}: ` : '';
+    return `${labelStr}${valStr} ${unitStr}`.trim();
+  }).join(', ');
+
   if (!specText) specText = 'CRUSHING QUALITY AS PER SAMPLE';
   drawItem('SPECIFICATION', specText);
 
@@ -194,7 +204,8 @@ export const generateContractPDF = (
       drawItem('BROKERAGE', '');
   }
 
-  drawItem('OTHER TERMS', contract.otherTerms || `AS PER GOVERMENT RULE, "${contract.gstPercent}% GST" EXTRA.`);
+  const gstText = contract.gstPercent ? `${contract.gstPercent}% GST` : 'GST';
+  drawItem('OTHER TERMS', contract.otherTerms || `AS PER GOVERMENT RULE, "${gstText}" EXTRA.`);
 
   const row3Y = dy + 2;
   doc.line(M, row3Y, PW - M, row3Y);
