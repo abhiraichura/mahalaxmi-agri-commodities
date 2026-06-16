@@ -180,7 +180,7 @@ export const generateContractPDF = (
     theme: 'grid',
     styles: {
       font: 'helvetica',
-      fontSize: 9.5,
+      fontSize: 8,
       textColor: TEXT_DARK,
       lineColor: BORDER_COLOR,
       lineWidth: 0.2,
