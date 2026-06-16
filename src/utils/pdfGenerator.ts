@@ -1,17 +1,14 @@
+// src/utils/pdfGenerator.ts
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Contract, CompanySettings, BrokerageBill, BillPayment } from '../types';
 import { format } from 'date-fns';
 
-// --- Modern Soft Color Palette ---
-const TEXT_DARK: [number, number, number] = [40, 45, 50];       
-const TEXT_MUTED: [number, number, number] = [107, 114, 128];   
-const BORDER_COLOR: [number, number, number] = [229, 231, 235]; 
-const BG_HEADER: [number, number, number] = [249, 250, 251];    
-
-function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
-  return doc.splitTextToSize(text, maxWidth);
-}
+const BORDER_DARK: [number, number, number] = [0, 0, 0];
+const BORDER_LIGHT: [number, number, number] = [200, 200, 200];
+const BG_GRAY: [number, number, number] = [242, 242, 242];
+const TEXT_BLACK: [number, number, number] = [0, 0, 0];
+const TEXT_GRAY: [number, number, number] = [80, 80, 80];
 
 export const generateContractPDF = (
   contract: Contract,
@@ -27,40 +24,42 @@ export const generateContractPDF = (
   });
 
   const PW = 210;
-  const PH = 297;
   const M = 15;
   const W = PW - M * 2;
+  let startY = 15;
 
-  // ─── LETTERHEAD AREA (Top 55mm) ───
   if (options.isDownload && (settings as any).letterhead) {
     try {
       const lh = (settings as any).letterhead;
       const imgFormat = lh.includes('image/jpeg') ? 'JPEG' : 'PNG';
       doc.addImage(lh, imgFormat, 0, 0, 210, 55);
+      startY = 58;
     } catch (e) {
       console.error('Failed to add letterhead', e);
     }
   }
 
-  // ─── EXACT CONTRACT LAYOUT ───
-  const startY = 55;
-  const endY = 285;
+  const endY = 282;
 
-  // 1. Draw Outer Border Box
-  doc.setDrawColor(0, 0, 0);
+  // Outer Frame
+  doc.setDrawColor(...BORDER_DARK);
   doc.setLineWidth(0.4);
   doc.rect(M, startY, W, endY - startY);
 
-  // 2. Header Row (NO. | CONTRACT NOTE | DATE)
-  const row1Y = startY + 10;
-  doc.line(M, row1Y, PW - M, row1Y);
-  doc.line(55, startY, 55, row1Y);
-  doc.line(155, startY, 155, row1Y);
+  // Header Bar
+  doc.setFillColor(...BG_GRAY);
+  doc.rect(M, startY, W, 10, 'FD');
+  
+  // Vertical Dividers for Header
+  doc.setDrawColor(...BORDER_DARK);
+  doc.setLineWidth(0.4);
+  doc.line(M + 45, startY, M + 45, startY + 10);
+  doc.line(PW - M - 45, startY, PW - M - 45, startY + 10);
 
-  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0, 0, 0);
-  doc.text(`NO.: ${contract.contractNo}`, M + 2, startY + 6.5);
+  doc.setFontSize(10);
+  doc.setTextColor(...TEXT_BLACK);
+  doc.text(`NO.: ${contract.contractNo}`, M + 4, startY + 6.5);
   
   doc.setFontSize(12);
   doc.text('CONTRACT NOTE', PW / 2, startY + 6.5, { align: 'center' });
@@ -68,119 +67,82 @@ export const generateContractPDF = (
   doc.setFontSize(10);
   doc.text(`DATE: ${format(new Date(contract.date), 'dd-MM-yyyy')}`, PW - M - 4, startY + 6.5, { align: 'right' });
 
-  // 3. Parties Row (Dynamic Left/Right Assignment)
+  // Divider below header
+  doc.line(M, startY + 10, PW - M, startY + 10);
+
+  // Parties Section
   const isBuyerLeft = type === 'buyer_copy';
-  
   const leftPartyType = isBuyerLeft ? 'BUYER' : 'SELLER';
   const rightPartyType = isBuyerLeft ? 'SELLER' : 'BUYER';
-  
   const leftPartyData = isBuyerLeft ? contract.buyer : contract.seller;
   const rightPartyData = isBuyerLeft ? contract.seller : contract.buyer;
 
-  let yLeft = row1Y + 5;
-  let yRight = row1Y + 5;
+  let leftY = startY + 15;
+  let rightY = startY + 15;
 
-  // -- Left Side Party --
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text(leftPartyType, M + 2, yLeft);
-  doc.text(`: ${leftPartyData.legalName}`, M + 25, yLeft);
-  yLeft += 5;
-
-  doc.setFont('helvetica', 'normal');
-  const leftAddr = doc.splitTextToSize(leftPartyData.address || '', 80);
-  doc.text(leftAddr, M + 27, yLeft);
-  yLeft += (leftAddr.length * 5);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('CITY', M + 2, yLeft);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`: ${leftPartyData.city || ''}`, M + 25, yLeft);
-  yLeft += 5;
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('GSTIN NO.', M + 2, yLeft);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`: ${leftPartyData.gstin || ''}`, M + 25, yLeft);
-  yLeft += 5;
-
-  if (leftPartyData.pan) {
+  const renderParty = (title: string, party: any, xPos: number, yPos: number, maxWidth: number) => {
+    let currentY = yPos;
+    
     doc.setFont('helvetica', 'bold');
-    doc.text('PAN NO.', M + 2, yLeft);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`: ${leftPartyData.pan}`, M + 25, yLeft);
-    yLeft += 5;
-  }
+    doc.setFontSize(10);
+    doc.text(title, xPos, currentY);
+    doc.text(`: ${party.legalName}`, xPos + 22, currentY);
+    currentY += 5;
 
-  // -- Right Side Party --
-  doc.setFont('helvetica', 'bold');
-  doc.text('|| Shreenathji Satya Chhe ||', PW * 0.75, yRight, { align: 'center' });
-  yRight += 6;
+    if (party.address) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      const addrLines = doc.splitTextToSize(party.address.trim(), maxWidth - 24);
+      doc.text(addrLines, xPos + 24, currentY);
+      currentY += addrLines.length * 4.5;
+    }
 
-  doc.text(rightPartyType, PW / 2 + 2, yRight);
-  doc.text(`: ${rightPartyData.legalName}`, PW / 2 + 25, yRight);
-  yRight += 5;
-
-  doc.setFont('helvetica', 'normal');
-  const rightAddr = doc.splitTextToSize(rightPartyData.address || '', 80);
-  doc.text(rightAddr, PW / 2 + 27, yRight);
-  yRight += (rightAddr.length * 5);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('CITY', PW / 2 + 2, yRight);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`: ${rightPartyData.city || ''}`, PW / 2 + 25, yRight);
-  yRight += 5;
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('GSTIN NO.', PW / 2 + 2, yRight);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`: ${rightPartyData.gstin || ''}`, PW / 2 + 25, yRight);
-  yRight += 5;
-
-  if (rightPartyData.pan) {
     doc.setFont('helvetica', 'bold');
-    doc.text('PAN NO.', PW / 2 + 2, yRight);
+    doc.setFontSize(9);
+    doc.text('CITY', xPos, currentY);
     doc.setFont('helvetica', 'normal');
-    doc.text(`: ${rightPartyData.pan}`, PW / 2 + 25, yRight);
-    yRight += 5;
-  }
+    doc.text(`: ${party.city || ''}`, xPos + 22, currentY);
+    currentY += 5;
 
-  // Close Parties section with bottom and middle lines
-  const row2Y = Math.max(yLeft, yRight) + 2;
-  doc.line(M, row2Y, PW - M, row2Y);
-  doc.line(PW / 2, row1Y, PW / 2, row2Y);
+    if (party.gstin) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('GSTIN NO.', xPos, currentY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`: ${party.gstin}`, xPos + 22, currentY);
+      currentY += 5;
+    }
 
-  // 4. Details Section
-  let dy = row2Y + 6;
-  const labelX = M + 2;
-  const valueX = M + 45;
-
-  const drawItem = (label: string, val: string) => {
-    doc.setFont('helvetica', 'bold');
-    doc.text(label, labelX, dy);
-    doc.setFont('helvetica', 'normal');
-    const lines = doc.splitTextToSize(`: ${val}`, W - 45);
-    doc.text(lines, valueX, dy);
-    dy += lines.length * 6;
+    if (party.pan) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('PAN NO.', xPos, currentY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`: ${party.pan}`, xPos + 22, currentY);
+      currentY += 5;
+    }
+    
+    return currentY;
   };
 
-  drawItem('PRODUCT', contract.product.name);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text('|| Shreenathji Satya Chhe ||', PW * 0.75, rightY - 2, { align: 'center' });
+  rightY += 3;
 
-  const specArray = contract.contractSpecs || contract.product.specs || [];
-  
-  // FILTER OUT EMPTY SPECS to prevent random "%" and empty spaces
-  const validSpecs = specArray.filter((s: any) => s.value && s.value.toString().trim() !== '');
-  
-  let specText = validSpecs.map((s: any) => {
-    const label = s.label ? `${s.label} ` : '';
-    return `${label}${s.value} ${s.unit || ''}`.trim();
-  }).join(', ');
-  
-  if (!specText) {
-    specText = 'CRUSHING QUALITY AS PER SAMPLE';
-  }
-  drawItem('SPECIFICATION', specText);
+  leftY = renderParty(leftPartyType, leftPartyData, M + 4, leftY, W / 2 - 8);
+  rightY = renderParty(rightPartyType, rightPartyData, PW / 2 + 4, rightY, W / 2 - 8);
+
+  const partiesBottomY = Math.max(leftY, rightY) + 3;
+
+  // Center vertical line and bottom horizontal line for parties
+  doc.setDrawColor(...BORDER_DARK);
+  doc.setLineWidth(0.2);
+  doc.line(PW / 2, startY + 10, PW / 2, partiesBottomY);
+  doc.line(M, partiesBottomY, PW - M, partiesBottomY);
+
+  // Contract Details Section
+  const validSpecs = (contract.contractSpecs || contract.product.specs || []).filter((s: any) => s.value && s.value.toString().trim() !== '');
+  let specText = validSpecs.map((s: any) => `${s.label ? `${s.label} ` : ''}${s.value} ${s.unit || ''}`.trim()).join(', ');
+  if (!specText) specText = 'CRUSHING QUALITY AS PER SAMPLE';
 
   const qtyKg = contract.quantityUnit === 'MT' ? contract.quantity * 1000 : contract.quantity;
   let qtyText = `${contract.quantity} ${contract.quantityUnit}`;
@@ -189,34 +151,58 @@ export const generateContractPDF = (
   } else if (contract.quantityUnit === 'MT') {
      qtyText = `${contract.quantity} MT = ${qtyKg.toLocaleString('en-IN')} Kg`;
   }
-  drawItem('QUANTITY', qtyText);
 
-  drawItem('PRICE', `${contract.price} Per ${contract.priceUnit}`);
-  drawItem('PACKING', contract.packing || '50 KG PACKING');
-  drawItem('DELIVERY AT', contract.deliveryLocation || 'Ex Factory');
-  drawItem('LOADING CONDITION', contract.loadingCondition || 'GOODS TO BE LOADED WITHIN ONE WEEK');
-  drawItem('PAYMENT', contract.paymentTerms || 'Ready Payment');
+  const detailsData = [
+    ['PRODUCT', ':', contract.product.name],
+    ['SPECIFICATION', ':', specText],
+    ['QUANTITY', ':', qtyText],
+    ['PRICE', ':', `${contract.price} Per ${contract.priceUnit}`],
+    ['PACKING', ':', contract.packing || '50 KG PACKING'],
+    ['DELIVERY AT', ':', contract.deliveryLocation || 'Ex Factory'],
+    ['LOADING CONDITION', ':', contract.loadingCondition || 'GOODS TO BE LOADED WITHIN ONE WEEK'],
+    ['PAYMENT', ':', contract.paymentTerms || 'Ready Payment']
+  ];
 
   if (type === 'broker_copy' || options.showTotalValue) {
-      drawItem('BROKERAGE', contract.brokerageAmount ? contract.brokerageAmount.toString() : '');
-  } else {
-      drawItem('BROKERAGE', '');
+    detailsData.push(['BROKERAGE', ':', contract.brokerageAmount ? contract.brokerageAmount.toString() : '']);
   }
+  
+  detailsData.push(['OTHER TERMS', ':', contract.otherTerms || `AS PER GOVERMENT RULE, "${contract.gstPercent}% GST" EXTRA.`]);
 
-  drawItem('OTHER TERMS', contract.otherTerms || `AS PER GOVERMENT RULE, "${contract.gstPercent}% GST" EXTRA.`);
+  autoTable(doc, {
+    startY: partiesBottomY + 2,
+    body: detailsData,
+    theme: 'plain',
+    styles: {
+      font: 'helvetica',
+      fontSize: 9.5,
+      textColor: TEXT_BLACK,
+      cellPadding: { top: 2.5, right: 4, bottom: 2.5, left: 4 }
+    },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 42 },
+      1: { fontStyle: 'bold', cellWidth: 5, halign: 'center' },
+      2: { cellWidth: 'auto' }
+    },
+    margin: { left: M, right: M }
+  });
 
-  const row3Y = dy + 2;
-  doc.line(M, row3Y, PW - M, row3Y);
+  let currentY = (doc as any).lastAutoTable.finalY + 2;
 
-  // 5. Terms & Conditions
-  let ty = row3Y + 6;
+  // Separator before Terms
+  doc.setDrawColor(...BORDER_DARK);
+  doc.setLineWidth(0.2);
+  doc.line(M, currentY, PW - M, currentY);
+
+  // Terms & Conditions Header
+  doc.setFillColor(...BG_GRAY);
+  doc.rect(M, currentY, W, 8, 'FD');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text('TERMS & CONDITIONS', PW / 2, ty, { align: 'center' });
-  ty += 6;
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(9.5);
+  doc.text('TERMS & CONDITIONS', PW / 2, currentY + 5.5, { align: 'center' });
+  
+  currentY += 8;
+  doc.line(M, currentY, PW - M, currentY);
 
   const termsList = settings.termsAndConditions.length > 0 ? settings.termsAndConditions : [
       'FROM AS PER REQUIREMENT & BILL LEADING MUST ON PER BILL',
@@ -228,35 +214,47 @@ export const generateContractPDF = (
       'THIS CONTRACT SUBJECT TO RESPONSIBILITY OF BOTH PARTIES AND EFFECTED AS A BROKER OF BOTH PARTIES WITH OUT ANY LIABILITIES.'
   ];
 
-  termsList.forEach(term => {
-      const lines = doc.splitTextToSize(term, W - 4);
-      doc.text(lines, M + 2, ty);
-      ty += lines.length * 4.5;
+  const termsMapped = termsList.map((t, i) => [`${i + 1}.`, t]);
+
+  autoTable(doc, {
+    startY: currentY + 2,
+    body: termsMapped,
+    theme: 'plain',
+    styles: {
+      font: 'helvetica',
+      fontSize: 8.5,
+      textColor: TEXT_BLACK,
+      cellPadding: { top: 1.5, right: 4, bottom: 1.5, left: 4 }
+    },
+    columnStyles: {
+      0: { cellWidth: 8, fontStyle: 'bold', halign: 'right' },
+      1: { cellWidth: 'auto', halign: 'justify' }
+    },
+    margin: { left: M, right: M }
   });
 
-  // 6. Signatures
+  // Footer Signatures
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.text(`For, ${settings.name || 'Mahalaxmi Agri Commodities'}`, PW - M - 2, endY - 25, { align: 'right' });
+  doc.text(`For, ${settings.name || 'Mahalaxmi Agri Commodities'}`, PW - M - 4, endY - 26, { align: 'right' });
 
   if (settings.signature) {
       try {
-          doc.addImage(settings.signature, 'PNG', PW - M - 45, endY - 22, 40, 14);
+          doc.addImage(settings.signature, 'PNG', PW - M - 45, endY - 24, 40, 14);
       } catch(e) {}
   }
 
-  doc.setFont('helvetica', 'normal');
-  doc.text('AUTHORISED SIGNATURE', PW - M - 2, endY - 4, { align: 'right' });
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text('AUTHORISED SIGNATURE', PW - M - 4, endY - 6, { align: 'right' });
 
   const copyLabel = type === 'buyer_copy' ? 'BUYER COPY' : type === 'seller_copy' ? 'SELLER COPY' : 'BROKER COPY';
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(100);
-  doc.text(`** ${copyLabel} **`, M + 2, endY - 4);
+  doc.setFontSize(10);
+  doc.setTextColor(...TEXT_GRAY);
+  doc.text(`** ${copyLabel} **`, M + 4, endY - 6);
 
   return doc;
 };
-
 
 export const generateBrokerageBillPDF = (
   bill: any,
@@ -280,13 +278,13 @@ export const generateBrokerageBillPDF = (
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
-  doc.setTextColor(...TEXT_DARK);
+  doc.setTextColor(...TEXT_BLACK);
   doc.text('BROKERAGE BILL', PW / 2, y, { align: 'center' });
   y += 8;
 
   doc.setFontSize(9.5);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...TEXT_MUTED);
+  doc.setTextColor(...TEXT_GRAY);
 
   let periodText = '';
   if (bill.month && bill.month > 0) {
@@ -297,50 +295,52 @@ export const generateBrokerageBillPDF = (
     periodText = `Period: ${bill.year}`;
   }
 
+  const generatedDate = bill.generatedAt?.toDate ? bill.generatedAt.toDate() : new Date(bill.generatedAt || Date.now());
+
   doc.text(periodText, M, y);
-  doc.text(`Generated: ${format(new Date(bill.generatedAt?.toDate ? bill.generatedAt.toDate() : bill.generatedAt), 'dd/MM/yyyy')}`, PW - M - 4, y, { align: 'right' });
+  doc.text(`Generated: ${format(generatedDate, 'dd/MM/yyyy')}`, PW - M - 4, y, { align: 'right' });
   y += 6;
 
-  doc.setDrawColor(...BORDER_COLOR);
-  doc.setLineWidth(0.2);
+  doc.setDrawColor(...BORDER_LIGHT);
+  doc.setLineWidth(0.3);
   doc.line(M, y, PW - M, y);
   y += 5;
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.setTextColor(...TEXT_MUTED);
+  doc.setTextColor(...TEXT_GRAY);
   doc.text('BILLED TO', M, y);
   y += 6;
 
   doc.setFontSize(11);
-  doc.setTextColor(...TEXT_DARK);
+  doc.setTextColor(...TEXT_BLACK);
   doc.text(bill.party.legalName, M, y);
   y += 5;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.setTextColor(...TEXT_DARK);
+  doc.setTextColor(...TEXT_BLACK);
   if (bill.party.address) {
-    doc.text(`${bill.party.address}, ${bill.party.city}, ${bill.party.state}`, M, y);
+    doc.text(`${bill.party.address}, ${bill.party.city || ''}`, M, y);
     y += 5;
   }
   if (bill.party.gstin) {
-    doc.setTextColor(...TEXT_MUTED);
+    doc.setTextColor(...TEXT_GRAY);
     doc.text(`GSTIN: `, M, y);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...TEXT_DARK);
+    doc.setTextColor(...TEXT_BLACK);
     doc.text(bill.party.gstin, M + 13, y);
     y += 5;
   }
-  y += 2;
+  y += 4;
 
   if (bill.status || bill.paidAmount > 0) {
-    doc.setFillColor(...BG_HEADER);
-    doc.setDrawColor(...BORDER_COLOR);
+    doc.setFillColor(...BG_GRAY);
+    doc.setDrawColor(...BORDER_LIGHT);
     doc.rect(M, y, W, 10, 'FD');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    doc.setFontSize(9.5);
     const statusText = bill.status === 'paid' ? 'PAID' : bill.status === 'partial' ? 'PARTIALLY PAID' : 'PENDING';
     
     if (bill.status === 'paid') {
@@ -351,7 +351,7 @@ export const generateBrokerageBillPDF = (
     
     doc.text(`Status: ${statusText}`, M + 4, y + 6.5);
 
-    doc.setTextColor(...TEXT_DARK);
+    doc.setTextColor(...TEXT_BLACK);
     if (bill.paidAmount > 0) {
       doc.text(`Paid: Rs. ${bill.paidAmount.toLocaleString('en-IN')}`, PW / 2, y + 6.5, { align: 'center' });
     }
@@ -360,7 +360,7 @@ export const generateBrokerageBillPDF = (
     if (bill.balanceAmount > 0) {
       doc.text(`Balance Due: Rs. ${bill.balanceAmount.toLocaleString('en-IN')}`, PW - M - 4, y + 6.5, { align: 'right' });
     }
-    y += 14;
+    y += 16;
   }
 
   const tableData = (bill.contracts || []).map((c: any) => [
@@ -378,17 +378,17 @@ export const generateBrokerageBillPDF = (
     body: tableData,
     theme: 'grid',
     headStyles: {
-      fillColor: BG_HEADER,
-      textColor: TEXT_MUTED,
+      fillColor: BG_GRAY,
+      textColor: TEXT_BLACK,
       fontStyle: 'bold',
       fontSize: 8.5,
-      lineColor: BORDER_COLOR,
+      lineColor: BORDER_LIGHT,
       lineWidth: 0.2
     },
     bodyStyles: { 
       fontSize: 8.5,
-      textColor: TEXT_DARK,
-      lineColor: BORDER_COLOR,
+      textColor: TEXT_BLACK,
+      lineColor: BORDER_LIGHT,
       lineWidth: 0.2,
       cellPadding: 4
     },
@@ -404,14 +404,14 @@ export const generateBrokerageBillPDF = (
 
   const finalY = (doc as any).lastAutoTable.finalY + 8;
   
-  doc.setFillColor(...BG_HEADER);
-  doc.setDrawColor(...BORDER_COLOR);
+  doc.setFillColor(...BG_GRAY);
+  doc.setDrawColor(...BORDER_LIGHT);
   doc.rect(PW - M - 80, finalY, 80, 10, 'FD');
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...TEXT_MUTED);
+  doc.setTextColor(...TEXT_GRAY);
   doc.text('Total Brokerage:', PW - M - 76, finalY + 6.5);
-  doc.setTextColor(...TEXT_DARK);
+  doc.setTextColor(...TEXT_BLACK);
   doc.text(`Rs. ${bill.totalBrokerage.toLocaleString('en-IN')}`, PW - M - 4, finalY + 6.5, { align: 'right' });
 
   if (bill.payments && bill.payments.length > 0) {
@@ -419,7 +419,7 @@ export const generateBrokerageBillPDF = (
     
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.setTextColor(...TEXT_MUTED);
+    doc.setTextColor(...TEXT_GRAY);
     doc.text('PAYMENT HISTORY', M, payY);
     payY += 4;
 
@@ -436,18 +436,18 @@ export const generateBrokerageBillPDF = (
       body: paymentRows,
       theme: 'grid',
       headStyles: {
-        fillColor: BG_HEADER,
-        textColor: TEXT_MUTED,
+        fillColor: BG_GRAY,
+        textColor: TEXT_BLACK,
         fontStyle: 'bold',
         fontSize: 8.5,
         lineWidth: 0.2,
-        lineColor: BORDER_COLOR
+        lineColor: BORDER_LIGHT
       },
       bodyStyles: { 
         fontSize: 8.5, 
-        textColor: TEXT_DARK,
+        textColor: TEXT_BLACK,
         lineWidth: 0.2,
-        lineColor: BORDER_COLOR
+        lineColor: BORDER_LIGHT
       },
       columnStyles: {
         3: { halign: 'right', fontStyle: 'bold' }
@@ -459,7 +459,7 @@ export const generateBrokerageBillPDF = (
 
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...TEXT_MUTED);
+  doc.setTextColor(...TEXT_GRAY);
   doc.text('This is a computer generated bill.', PW / 2, 285, { align: 'center' });
 
   return doc;
