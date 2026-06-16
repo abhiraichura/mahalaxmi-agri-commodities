@@ -66,7 +66,7 @@ export const generateContractPDF = (
   doc.text('CONTRACT NOTE', PW / 2, startY + 6.5, { align: 'center' });
   
   doc.setFontSize(10);
-  doc.text(`DATE: ${format(new Date(contract.date), 'dd-MM-yyyy')}`, PW - M - 2, startY + 6.5, { align: 'right' });
+  doc.text(`DATE: ${format(new Date(contract.date), 'dd-MM-yyyy')}`, PW - M - 4, startY + 6.5, { align: 'right' });
 
   // 3. Parties Row (Dynamic Left/Right Assignment)
   const isBuyerLeft = type === 'buyer_copy';
@@ -167,20 +167,19 @@ export const generateContractPDF = (
 
   drawItem('PRODUCT', contract.product.name);
 
-  // Filter out any specs that are empty so they don't render a lone '%'
   const specArray = contract.contractSpecs || contract.product.specs || [];
-  const validSpecs = specArray.filter((s: any) => 
-    s.value !== undefined && s.value !== null && String(s.value).trim() !== ''
-  );
-
+  
+  // FILTER OUT EMPTY SPECS to prevent random "%" and empty spaces
+  const validSpecs = specArray.filter((s: any) => s.value && s.value.toString().trim() !== '');
+  
   let specText = validSpecs.map((s: any) => {
-    const valStr = String(s.value).trim();
-    const unitStr = s.unit ? String(s.unit).trim() : '';
-    const labelStr = s.label ? `${String(s.label).trim()}: ` : '';
-    return `${labelStr}${valStr} ${unitStr}`.trim();
+    const label = s.label ? `${s.label} ` : '';
+    return `${label}${s.value} ${s.unit || ''}`.trim();
   }).join(', ');
-
-  if (!specText) specText = 'CRUSHING QUALITY AS PER SAMPLE';
+  
+  if (!specText) {
+    specText = 'CRUSHING QUALITY AS PER SAMPLE';
+  }
   drawItem('SPECIFICATION', specText);
 
   const qtyKg = contract.quantityUnit === 'MT' ? contract.quantity * 1000 : contract.quantity;
@@ -204,8 +203,7 @@ export const generateContractPDF = (
       drawItem('BROKERAGE', '');
   }
 
-  const gstText = contract.gstPercent ? `${contract.gstPercent}% GST` : 'GST';
-  drawItem('OTHER TERMS', contract.otherTerms || `AS PER GOVERMENT RULE, "${gstText}" EXTRA.`);
+  drawItem('OTHER TERMS', contract.otherTerms || `AS PER GOVERMENT RULE, "${contract.gstPercent}% GST" EXTRA.`);
 
   const row3Y = dy + 2;
   doc.line(M, row3Y, PW - M, row3Y);
