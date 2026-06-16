@@ -180,7 +180,7 @@ export const generateContractPDF = (
     theme: 'grid',
     styles: {
       font: 'helvetica',
-      fontSize: 8,
+      fontSize: 8.5,
       textColor: TEXT_DARK,
       lineColor: BORDER_COLOR,
       lineWidth: 0.2,
@@ -202,7 +202,7 @@ export const generateContractPDF = (
   doc.text('TERMS & CONDITIONS', M, y);
   y += 6;
 
-  doc.setFontSize(7.5); // Smaller font size for terms
+  doc.setFontSize(6); // Smaller font size for terms
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_MUTED);
 
