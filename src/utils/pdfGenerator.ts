@@ -202,7 +202,7 @@ export const generateContractPDF = (
   doc.text('TERMS & CONDITIONS', M, y);
   y += 6;
 
-  doc.setFontSize(8.5);
+  doc.setFontSize(7.5); // Smaller font size for terms
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_MUTED);
 
@@ -217,9 +217,9 @@ export const generateContractPDF = (
   ];
 
   termsList.forEach(term => {
-      const splitText = doc.splitTextToSize(`•  ${term}`, W * 0.65);
+      const splitText = doc.splitTextToSize(`•  ${term}`, W / 2); // Reverted back to 50% width
       doc.text(splitText, M, y);
-      y += splitText.length * 4.5;
+      y += splitText.length * 4; // Adjusted line height to fit smaller font
   });
 
   const footerY = PH - 35;
