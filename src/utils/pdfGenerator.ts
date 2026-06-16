@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { Contract, CompanySettings, BrokerageBill, BillPayment } from '../types';
 import { format } from 'date-fns';
 
-const TEXT_DARK: [number, number, number] = [40, 45, 50];
+const TEXT_DARK: [number, number, number] = [65, 70, 75];
 const TEXT_MUTED: [number, number, number] = [107, 114, 128];
 const BORDER_COLOR: [number, number, number] = [229, 231, 235];
 const BG_HEADER: [number, number, number] = [249, 250, 251];
@@ -141,7 +141,10 @@ export const generateContractPDF = (
   y = partyBoxY + partiesHeight + 5;
 
   const specArray = contract.contractSpecs || contract.product.specs || [];
-  let specText = specArray.map((s: any) => `${s.value} ${s.unit || ''}`.trim()).join(', ');
+  let specText = specArray
+    .filter((s: any) => s.value && s.value.toString().trim() !== '')
+    .map((s: any) => `${s.value} ${s.unit || ''}`.trim())
+    .join(', ');
   if (!specText) specText = 'CRUSHING QUALITY AS PER SAMPLE';
 
   const qtyKg = contract.quantityUnit === 'MT' ? contract.quantity * 1000 : contract.quantity;
@@ -214,7 +217,7 @@ export const generateContractPDF = (
   ];
 
   termsList.forEach(term => {
-      const splitText = doc.splitTextToSize(`•  ${term}`, W / 2);
+      const splitText = doc.splitTextToSize(`•  ${term}`, W * 0.65);
       doc.text(splitText, M, y);
       y += splitText.length * 4.5;
   });
