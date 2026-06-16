@@ -45,7 +45,7 @@ export const generateContractPDF = (
   contract: Contract,
   settings: CompanySettings,
   type: 'buyer_copy' | 'seller_copy' | 'broker_copy',
-  options: { showTotalValue?: boolean } = {}
+  options: { showTotalValue?: boolean; isDownload?: boolean } = {}
 ): jsPDF => {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -58,6 +58,17 @@ export const generateContractPDF = (
   const PH = 297;
   const M = 15; // Clean, wide margins
   const W = PW - M * 2;
+
+  // Render Letterhead ONLY if downloading
+  if (options.isDownload && (settings as any).letterhead) {
+    try {
+      const lh = (settings as any).letterhead;
+      const imgFormat = lh.includes('image/jpeg') ? 'JPEG' : 'PNG';
+      doc.addImage(lh, imgFormat, 0, 0, 210, 50);
+    } catch (e) {
+      console.error('Failed to add letterhead', e);
+    }
+  }
 
   // LETTERHEAD GAP: Leave 55mm blank for the pre-printed design
   let y = 55; 
@@ -319,13 +330,24 @@ export const generateContractPDF = (
 
 export const generateBrokerageBillPDF = (
   bill: any,
-  settings: CompanySettings
+  settings: CompanySettings,
+  options: { isDownload?: boolean } = {}
 ): jsPDF => {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const PW = 210;
   const M = 15;
   const W = PW - M * 2;
   
+  if (options.isDownload && (settings as any).letterhead) {
+    try {
+      const lh = (settings as any).letterhead;
+      const imgFormat = lh.includes('image/jpeg') ? 'JPEG' : 'PNG';
+      doc.addImage(lh, imgFormat, 0, 0, 210, 50);
+    } catch (e) {
+      console.error('Failed to add letterhead', e);
+    }
+  }
+
   // LETTERHEAD GAP: Also leave 55mm blank for the pre-printed design
   let y = 55;
 
