@@ -34,7 +34,7 @@ export default function ContractView() {
   };
 
   const handleDownload = (type: 'buyer_copy' | 'seller_copy' | 'broker_copy') => {
-    const doc = generateContractPDF(contract, settings, type, { showTotalValue: type === 'broker_copy' });
+    const doc = generateContractPDF(contract, settings, type, { showTotalValue: type === 'broker_copy', isDownload: true });
     const label = type === 'buyer_copy' ? 'Buyer' : type === 'seller_copy' ? 'Seller' : 'Broker';
     downloadPDF(doc, `Contract_${contract.contractNo}_${label}_Copy.pdf`);
     toast.success(`${label} copy downloaded`);
@@ -54,7 +54,7 @@ export default function ContractView() {
   };
 
   const handleShare = async (type: 'buyer_copy' | 'seller_copy') => {
-    const doc = generateContractPDF(contract, settings, type);
+    const doc = generateContractPDF(contract, settings, type, { isDownload: true });
     const blob = doc.output('blob');
     const file = new File([blob], `Contract_${contract.contractNo}_${type}.pdf`, { type: 'application/pdf' });
 
