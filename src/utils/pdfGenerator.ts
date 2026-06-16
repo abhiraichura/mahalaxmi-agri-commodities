@@ -22,8 +22,6 @@ export const generateContractPDF = (
   const W = PW - M * 2;
 
   // ─── LETTERHEAD AREA (Top 55mm) ───
-  // For downloading, we inject the uploaded letterhead image.
-  // For printing, this area remains completely blank so it prints correctly on pre-printed physical letterheads.
   if (options.isDownload && (settings as any).letterhead) {
     try {
       const lh = (settings as any).letterhead;
@@ -35,8 +33,8 @@ export const generateContractPDF = (
   }
 
   // ─── EXACT CONTRACT LAYOUT ───
-  const startY = 55; // Start immediately below the letterhead space
-  const endY = 285;  // Bottom edge of the outer box
+  const startY = 55;
+  const endY = 285;
 
   // 1. Draw Outer Border Box
   doc.setDrawColor(0, 0, 0);
@@ -45,9 +43,9 @@ export const generateContractPDF = (
 
   // 2. Header Row (NO. | CONTRACT NOTE | DATE)
   const row1Y = startY + 10;
-  doc.line(M, row1Y, PW - M, row1Y);       // Bottom line of header
-  doc.line(55, startY, 55, row1Y);         // Left vertical divider
-  doc.line(155, startY, 155, row1Y);       // Right vertical divider
+  doc.line(M, row1Y, PW - M, row1Y);
+  doc.line(55, startY, 55, row1Y);
+  doc.line(155, startY, 155, row1Y);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
@@ -127,7 +125,7 @@ export const generateContractPDF = (
   doc.line(M, row2Y, PW - M, row2Y);
   doc.line(PW / 2, row1Y, PW / 2, row2Y);
 
-  // 4. Details Section (Line by Line EXACT format)
+  // 4. Details Section
   let dy = row2Y + 6;
   const labelX = M + 2;
   const valueX = M + 45;
@@ -148,7 +146,6 @@ export const generateContractPDF = (
   if (!specText) specText = 'CRUSHING QUALITY AS PER SAMPLE';
   drawItem('SPECIFICATION', specText);
 
-  // Replicate exact Quantity string format
   const qtyKg = contract.quantityUnit === 'MT' ? contract.quantity * 1000 : contract.quantity;
   let qtyText = `${contract.quantity} ${contract.quantityUnit}`;
   if (contract.packing && contract.packing.includes('50') && contract.quantityUnit === 'MT') {
@@ -201,7 +198,7 @@ export const generateContractPDF = (
       ty += lines.length * 4.5;
   });
 
-  // 6. Signatures (Anchored to the bottom of the outer box)
+  // 6. Signatures
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.text(`For, ${settings.name || 'Mahalaxmi Agri Commodities'}`, PW - M - 2, endY - 25, { align: 'right' });
@@ -223,7 +220,6 @@ export const generateContractPDF = (
 
   return doc;
 };
-
 
 export const generateBrokerageBillPDF = (
   bill: any,
@@ -309,7 +305,12 @@ export const generateBrokerageBillPDF = (
     doc.setFontSize(9);
     const statusText = bill.status === 'paid' ? 'PAID' : bill.status === 'partial' ? 'PARTIALLY PAID' : 'PENDING';
     
-    doc.setTextColor(...(bill.status === 'paid' ? [30, 130, 70] : [160, 30, 50]));
+    if (bill.status === 'paid') {
+      doc.setTextColor(30, 130, 70);
+    } else {
+      doc.setTextColor(160, 30, 50);
+    }
+    
     doc.text(`Status: ${statusText}`, M + 4, y + 6.5);
 
     doc.setTextColor(20, 20, 20);
