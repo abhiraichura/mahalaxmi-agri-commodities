@@ -50,6 +50,12 @@ export default function Settings() {
     reader.readAsDataURL(file);
   };
 
+  const removeImage = (type: 'logo' | 'signature' | 'letterhead') => {
+    if (type === 'logo') { setLogoPreview(null); setFormData(prev => ({ ...prev, logo: '' })); }
+    if (type === 'signature') { setSigPreview(null); setFormData(prev => ({ ...prev, signature: '' })); }
+    if (type === 'letterhead') { setLetterheadPreview(null); setFormData(prev => ({ ...prev, letterhead: '' })); }
+  };
+
   const handleSave = async () => {
     updateSettings(formData);
     await saveSettingsToFirebase();
@@ -100,7 +106,17 @@ export default function Settings() {
       <div className="space-y-6">
         {/* Logo Upload */}
         <div className="bg-white border border-gray-200 rounded-2xl p-6">
-          <label className="block text-sm font-medium text-gray-700 mb-3">Company Logo (max 500KB)</label>
+          <div className="flex items-center justify-between mb-3">
+            <label className="block text-sm font-medium text-gray-700">Company Logo (max 500KB)</label>
+            {logoPreview && (
+              <button
+                onClick={() => removeImage('logo')}
+                className="text-xs text-red-600 hover:text-red-700 flex items-center gap-1 font-medium"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Remove
+              </button>
+            )}
+          </div>
           <div
             onClick={() => logoRef.current?.click()}
             className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center cursor-pointer hover:border-rose-500 transition-colors overflow-hidden bg-gray-50"
@@ -111,9 +127,19 @@ export default function Settings() {
           <input ref={logoRef} type="file" accept="image/*" onChange={e => handleImageUpload(e, 'logo')} className="hidden" />
         </div>
 
-        {/* Letterhead Upload - NEW */}
+        {/* Letterhead Upload */}
         <div className="bg-white border border-gray-200 rounded-2xl p-6">
-          <label className="block text-sm font-medium text-gray-700 mb-3">Letterhead (max 500KB)</label>
+          <div className="flex items-center justify-between mb-3">
+            <label className="block text-sm font-medium text-gray-700">Letterhead (max 500KB)</label>
+            {letterheadPreview && (
+              <button
+                onClick={() => removeImage('letterhead')}
+                className="text-xs text-red-600 hover:text-red-700 flex items-center gap-1 font-medium"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Remove
+              </button>
+            )}
+          </div>
           <div
             onClick={() => letterheadRef.current?.click()}
             className="w-full h-32 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center cursor-pointer hover:border-rose-500 transition-colors overflow-hidden bg-gray-50"
@@ -135,7 +161,17 @@ export default function Settings() {
 
         {/* Digital Signature Upload */}
         <div className="bg-white border border-gray-200 rounded-2xl p-6">
-          <label className="block text-sm font-medium text-gray-700 mb-3">Digital Signature (max 500KB, transparent PNG preferred)</label>
+          <div className="flex items-center justify-between mb-3">
+            <label className="block text-sm font-medium text-gray-700">Digital Signature (max 500KB, transparent PNG preferred)</label>
+            {sigPreview && (
+              <button
+                onClick={() => removeImage('signature')}
+                className="text-xs text-red-600 hover:text-red-700 flex items-center gap-1 font-medium"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Remove
+              </button>
+            )}
+          </div>
           <div
             onClick={() => sigRef.current?.click()}
             className="w-32 h-16 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center cursor-pointer hover:border-rose-500 transition-colors overflow-hidden bg-gray-50"
@@ -287,7 +323,7 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Financial Years - NEW */}
+        {/* Financial Years */}
         <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
           <h3 className="font-semibold text-sm">Financial Years</h3>
           <div className="flex flex-wrap gap-2">
