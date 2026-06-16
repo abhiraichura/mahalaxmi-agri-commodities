@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Contract, CompanySettings, BrokerageBill, BillPayment } from '../types';
 import { format } from 'date-fns';
-
+ 
 const TEXT_DARK: [number, number, number] = [65, 70, 75];
 const TEXT_MUTED: [number, number, number] = [107, 114, 128];
 const BORDER_COLOR: [number, number, number] = [229, 231, 235];
