@@ -3,11 +3,10 @@ import autoTable from 'jspdf-autotable';
 import { Contract, CompanySettings, BrokerageBill, BillPayment } from '../types';
 import { format } from 'date-fns';
 
-// --- Modern Soft Color Palette ---
-const TEXT_DARK: [number, number, number] = [40, 45, 50];       // Dark Slate (Softer than pure black)
-const TEXT_MUTED: [number, number, number] = [107, 114, 128];   // Soft Gray for labels
-const BORDER_COLOR: [number, number, number] = [229, 231, 235]; // Very light gray borders
-const BG_HEADER: [number, number, number] = [249, 250, 251];    // Subtle off-white background
+const TEXT_DARK: [number, number, number] = [40, 45, 50];
+const TEXT_MUTED: [number, number, number] = [107, 114, 128];
+const BORDER_COLOR: [number, number, number] = [229, 231, 235];
+const BG_HEADER: [number, number, number] = [249, 250, 251];
 
 function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
   return doc.splitTextToSize(text, maxWidth);
@@ -31,7 +30,6 @@ export const generateContractPDF = (
   const M = 15;
   const W = PW - M * 2;
 
-  // ─── LETTERHEAD AREA (Top 55mm) ───
   if (options.isDownload && (settings as any).letterhead) {
     try {
       const lh = (settings as any).letterhead;
@@ -42,9 +40,8 @@ export const generateContractPDF = (
     }
   }
 
-  let y = 60; // Start below the letterhead
+  let y = 60;
 
-  // ─── HEADER BAR (Contract Note, No, Date) ───
   doc.setFillColor(...BG_HEADER);
   doc.setDrawColor(...BORDER_COLOR);
   doc.setLineWidth(0.2);
@@ -64,15 +61,13 @@ export const generateContractPDF = (
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_MUTED);
-  doc.text('Date:', PW - M - 28, y + 7.5);
+  doc.text('Date:', PW - M - 40, y + 7.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...TEXT_DARK);
-  doc.text(format(new Date(contract.date), 'dd-MM-yyyy'), PW - M - 18, y + 7.5);
+  doc.text(format(new Date(contract.date), 'dd-MM-yyyy'), PW - M - 30, y + 7.5);
 
   y += 17;
 
-  // ─── PARTIES SECTION (Seller & Buyer) ───
-  // Outer box for parties
   doc.setDrawColor(...BORDER_COLOR);
   doc.setLineWidth(0.2);
   
@@ -140,13 +135,11 @@ export const generateContractPDF = (
 
   const partiesHeight = Math.max(leftY, rightY) - partyBoxY + 4;
   
-  // Draw boxes around parties
   doc.rect(M, partyBoxY, W / 2, partiesHeight);
   doc.rect(midX, partyBoxY, W / 2, partiesHeight);
 
   y = partyBoxY + partiesHeight + 5;
 
-  // ─── CONTRACT DETAILS TABLE ───
   const specArray = contract.contractSpecs || contract.product.specs || [];
   let specText = specArray.map((s: any) => `${s.value} ${s.unit || ''}`.trim()).join(', ');
   if (!specText) specText = 'CRUSHING QUALITY AS PER SAMPLE';
@@ -200,7 +193,6 @@ export const generateContractPDF = (
 
   y = (doc as any).lastAutoTable.finalY + 8;
 
-  // ─── TERMS & CONDITIONS ───
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...TEXT_DARK);
@@ -222,12 +214,11 @@ export const generateContractPDF = (
   ];
 
   termsList.forEach(term => {
-      const splitText = doc.splitTextToSize(`•  ${term}`, W);
+      const splitText = doc.splitTextToSize(`•  ${term}`, W / 2);
       doc.text(splitText, M, y);
       y += splitText.length * 4.5;
   });
 
-  // ─── SIGNATURE BLOCK ───
   const footerY = PH - 35;
   
   doc.setFontSize(10);
@@ -246,7 +237,6 @@ export const generateContractPDF = (
   doc.setTextColor(...TEXT_MUTED);
   doc.text('AUTHORISED SIGNATURE', PW - M, footerY + 22, { align: 'right' });
 
-  // Document Type Indicator (Bottom Left)
   const copyLabel = type === 'buyer_copy' ? 'BUYER COPY' : type === 'seller_copy' ? 'SELLER COPY' : 'BROKER COPY';
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
@@ -343,9 +333,9 @@ export const generateBrokerageBillPDF = (
     const statusText = bill.status === 'paid' ? 'PAID' : bill.status === 'partial' ? 'PARTIALLY PAID' : 'PENDING';
     
     if (bill.status === 'paid') {
-      doc.setTextColor(22, 163, 74); // Success green
+      doc.setTextColor(22, 163, 74);
     } else {
-      doc.setTextColor(225, 29, 72); // Rose red
+      doc.setTextColor(225, 29, 72);
     }
     
     doc.text(`Status: ${statusText}`, M + 4, y + 6.5);
