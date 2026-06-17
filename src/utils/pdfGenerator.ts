@@ -79,7 +79,7 @@ export const generateContractPDF = (
   const renderParty = (party: any, label: string, startX: number, currentY: number) => {
     let cy = currentY;
     
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...TEXT_MUTED);
     doc.text(label.toUpperCase(), startX, cy);
@@ -92,7 +92,7 @@ export const generateContractPDF = (
     doc.text(nameLines, startX, cy);
     cy += nameLines.length * 5;
 
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_DARK);
     
