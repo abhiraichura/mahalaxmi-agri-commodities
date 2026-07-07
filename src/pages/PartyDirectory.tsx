@@ -3,7 +3,7 @@ import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Party } from '../types';
-import { Search, Plus, Phone, Mail, MapPin, Edit2, Trash2, Download, Upload, X, ChevronRight, ChevronDown, Check, User, Users, AlertTriangle, CheckSquare, FileText } from 'lucide-react';
+import { Search, Plus, Phone, Mail, MapPin, Edit2, Trash2, Download, Upload, X, ChevronRight, ChevronDown, Check, User, Users, AlertTriangle, CheckSquare, FileText, Copy, ClipboardPaste } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ExportPartyModal from '../components/ExportPartyModal';
 
@@ -133,6 +133,28 @@ export default function PartyDirectory() {
   const parsePhones = (phoneStr: string): string[] => {
     if (!phoneStr) return [];
     return phoneStr.split(/[\/,]/).map(s => s.trim()).filter(Boolean);
+  };
+
+  const handleCopy = async (text: string) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Copied to clipboard');
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      toast.error('Failed to copy');
+    }
+  };
+
+  const handleCopyStructural = async (party: Party) => {
+    const formattedData = `${party.legalName || party.name || ''}\n${party.gstin || ''}\n${party.address || ''}`;
+    try {
+      await navigator.clipboard.writeText(formattedData.trim());
+      toast.success('Copied party details');
+    } catch (err) {
+      console.error('Failed to copy structural data: ', err);
+      toast.error('Failed to copy');
+    }
   };
 
   // Transform parties data to match specialized ExportPartyModal data mapping schema
@@ -428,13 +450,24 @@ export default function PartyDirectory() {
                           <p className="text-xs text-gray-500 truncate">{party.name}</p>
                         )}
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 ${
-                        party.type === 'buyer' ? 'bg-blue-50 text-blue-600' :
-                        party.type === 'seller' ? 'bg-green-50 text-green-600' :
-                        'bg-purple-50 text-purple-600'
-                      }`}>
-                        {party.type}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 ${
+                          party.type === 'buyer' ? 'bg-blue-50 text-blue-600' :
+                          party.type === 'seller' ? 'bg-green-50 text-green-600' :
+                          'bg-purple-50 text-purple-600'
+                        }`}>
+                          {party.type}
+                        </span>
+                        {!isSelectionMode && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleCopyStructural(party); }}
+                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex-shrink-0"
+                            title="Copy Party Details Structurally"
+                          >
+                            <ClipboardPaste size={16} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -446,23 +479,57 @@ export default function PartyDirectory() {
                       </div>
                     )}
 
-                    <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
-                      <MapPin size={14} className="flex-shrink-0" />
-                      <span className="truncate">{party.city}, {party.state}</span>
+                    {party.gstin && (
+                      <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
+                        <FileText size={14} className="flex-shrink-0" />
+                        <span className="truncate flex-1">GST: {party.gstin}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleCopy(party.gstin!); }}
+                          className="p-1 text-gray-400 hover:text-rose-600 rounded"
+                          title="Copy GST"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex items-start gap-1.5 text-sm text-gray-500 mb-2">
+                      <MapPin size={14} className="flex-shrink-0 mt-0.5" />
+                      <span className="line-clamp-2 flex-1">
+                        {party.address ? `${party.address}, ${party.city}, ${party.state}` : `${party.city}, ${party.state}`}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopy(party.address ? `${party.address}, ${party.city}, ${party.state}` : `${party.city}, ${party.state}`);
+                        }}
+                        className="p-1 text-gray-400 hover:text-rose-600 rounded flex-shrink-0"
+                        title="Copy Address"
+                      >
+                        <Copy size={14} />
+                      </button>
                     </div>
 
                     {phones.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-2">
+                      <div className="flex flex-wrap gap-2 mb-2 mt-2">
                         {phones.map((phone, idx) => (
-                          <a
-                            key={idx}
-                            href={`tel:${phone.replace(/\s/g, '')}`}
-                            onClick={e => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 text-sm text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-1 rounded-lg"
-                          >
-                            <Phone size={12} />
-                            {phone}
-                          </a>
+                          <div key={idx} className="inline-flex items-center gap-1 bg-rose-50 px-2 py-1 rounded-lg">
+                            <a
+                              href={`tel:${phone.replace(/\s/g, '')}`}
+                              onClick={e => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 text-sm text-rose-600 hover:text-rose-700"
+                            >
+                              <Phone size={12} />
+                              {phone}
+                            </a>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleCopy(phone); }}
+                              className="p-0.5 text-rose-400 hover:text-rose-700 rounded"
+                              title="Copy Phone"
+                            >
+                              <Copy size={12} />
+                            </button>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -489,9 +556,18 @@ export default function PartyDirectory() {
              <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-gray-900">{viewingParty.legalName}</h2>
-                <button onClick={() => setViewingParty(null)} className="p-2 hover:bg-gray-100 rounded-lg">
-                  <X size={20} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleCopyStructural(viewingParty)}
+                    className="p-2 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                    title="Copy Details"
+                  >
+                    <ClipboardPaste size={20} />
+                  </button>
+                  <button onClick={() => setViewingParty(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-3 text-sm">
@@ -530,9 +606,14 @@ export default function PartyDirectory() {
                         </div>
                         <div className="flex items-center gap-2">
                           {contact.phone && (
-                            <a href={`tel:${contact.phone.replace(/\s/g, '')}`} className="p-1.5 bg-white rounded-lg text-rose-600 hover:bg-rose-50 shadow-sm border border-gray-100">
-                              <Phone size={14} />
-                            </a>
+                            <>
+                              <a href={`tel:${contact.phone.replace(/\s/g, '')}`} className="p-1.5 bg-white rounded-lg text-rose-600 hover:bg-rose-50 shadow-sm border border-gray-100">
+                                <Phone size={14} />
+                              </a>
+                              <button onClick={() => handleCopy(contact.phone!)} className="p-1.5 bg-white rounded-lg text-gray-500 hover:bg-rose-50 hover:text-rose-600 shadow-sm border border-gray-100">
+                                <Copy size={14} />
+                              </button>
+                            </>
                           )}
                           {contact.email && (
                             <a href={`mailto:${contact.email}`} className="p-1.5 bg-white rounded-lg text-blue-600 hover:bg-blue-50 shadow-sm border border-gray-100">
@@ -545,25 +626,51 @@ export default function PartyDirectory() {
                   </div>
                 )}
 
-                {viewingParty.gstin && <p className="text-gray-600">GSTIN: {viewingParty.gstin}</p>}
+                {viewingParty.gstin && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <span>GSTIN: {viewingParty.gstin}</span>
+                    <button onClick={() => handleCopy(viewingParty.gstin!)} className="p-1 text-gray-400 hover:text-rose-600 rounded">
+                      <Copy size={14} />
+                    </button>
+                  </div>
+                )}
                 {viewingParty.pan && <p className="text-gray-600">PAN: {viewingParty.pan}</p>}
 
                 <div className="grid grid-cols-2 gap-2">
                   <p><span className="text-gray-500">Type:</span> <span className="capitalize">{viewingParty.type}</span></p>
                   <p><span className="text-gray-500">City:</span> {viewingParty.city}, {viewingParty.state}</p>
                 </div>
-                <p className="text-gray-600">Address: {viewingParty.address}</p>
-                <p className="text-gray-600">{viewingParty.city}, {viewingParty.state} - {viewingParty.pincode}</p>
+                
+                <div className="flex items-start gap-2 text-gray-600 mt-2">
+                  <div className="flex-1">
+                    <p>Address: {viewingParty.address}</p>
+                    <p>{viewingParty.city}, {viewingParty.state} - {viewingParty.pincode}</p>
+                  </div>
+                  <button
+                    onClick={() => handleCopy(`${viewingParty.address ? viewingParty.address + '\n' : ''}${viewingParty.city}, ${viewingParty.state} - ${viewingParty.pincode}`)}
+                    className="p-1 text-gray-400 hover:text-rose-600 rounded mt-1"
+                    title="Copy Address"
+                  >
+                    <Copy size={16} />
+                  </button>
+                </div>
 
                 {viewingParty.phone && (
-                  <div className="flex items-center gap-2">
-                    <Phone size={14} className="text-gray-400" />
-                    <span className="text-gray-600">Phone:</span>
-                    <div className="flex flex-wrap gap-2">
+                  <div className="flex items-start gap-2 mt-2">
+                    <div className="flex items-center gap-2 mt-1">
+                      <Phone size={14} className="text-gray-400" />
+                      <span className="text-gray-600">Phone:</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 flex-1">
                       {parsePhones(viewingParty.phone).map((phone, idx) => (
-                        <a key={idx} href={`tel:${phone.replace(/\s/g, '')}`} className="text-rose-600 hover:underline">
-                          {phone}
-                        </a>
+                        <div key={idx} className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded border border-gray-100">
+                          <a href={`tel:${phone.replace(/\s/g, '')}`} className="text-rose-600 hover:underline text-sm">
+                            {phone}
+                          </a>
+                          <button onClick={() => handleCopy(phone)} className="p-1 text-gray-400 hover:text-rose-600 rounded" title="Copy Phone">
+                            <Copy size={12} />
+                          </button>
+                        </div>
                       ))}
                     </div>
                   </div>
