@@ -23,6 +23,7 @@ import MessageGenerator from './pages/MessageGenerator';
 import PartyMessageGenerator from './pages/PartyMessageGenerator';
 import CustomMessageGenerator from './pages/CustomMessageGenerator';
 import Todos from './pages/Todos';
+import NcdexAutomation from './pages/NcdexAutomation';
 
 function App() {
   const { user, loading } = useAuthStore();
@@ -70,6 +71,7 @@ function App() {
           <Route path="/message-generator" element={<MessageGenerator />} />
           <Route path="/party-message" element={<PartyMessageGenerator />} />
           <Route path="/custom-message" element={<CustomMessageGenerator />} />
+          <Route path="/ncdex-automation" element={<NcdexAutomation />} />
           <Route path="/brokerage" element={<BrokerageBills />} />
           <Route path="/ledger" element={<PartyLedger />} />
           <Route path="/notes" element={<Notes />} />
