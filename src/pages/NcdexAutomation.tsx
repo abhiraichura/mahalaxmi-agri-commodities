@@ -108,46 +108,14 @@ export default function NcdexAutomation() {
   };
 
   const fetchBoardData = async (): Promise<{ jeera: SpiceQuote; dhaniya: SpiceQuote; turmeric: SpiceQuote }> => {
-    const targetUrl = 'https://www.ncdex.com/market-watch/live_quotes';
+    // Request the HTML from our own Vercel backend API
+    const res = await fetch('/api/ncdex');
+    if (!res.ok) throw new Error('Failed to fetch from Vercel API backend');
     
-    // Multi-proxy fallback strategy to bypass Cloudflare/CORS blocks
-    const fetchMethods = [
-      async () => {
-        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
-        if (!res.ok) throw new Error('AllOrigins Failed');
-        const data = await res.json();
-        return data.contents as string;
-      },
-      async () => {
-        const res = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`);
-        if (!res.ok) throw new Error('Codetabs Failed');
-        return await res.text();
-      },
-      async () => {
-        const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(targetUrl)}`);
-        if (!res.ok) throw new Error('Corsproxy Failed');
-        return await res.text();
-      }
-    ];
+    const htmlText = await res.text();
 
-    let htmlText = '';
-    let fetched = false;
-
-    for (const method of fetchMethods) {
-      try {
-        const text = await method();
-        if (text && (text.includes('JEERA') || text.includes('Jeera'))) {
-          htmlText = text;
-          fetched = true;
-          break;
-        }
-      } catch (e) {
-        console.warn('Proxy attempt failed, trying next...');
-      }
-    }
-
-    if (!fetched) {
-      throw new Error('All proxy networks blocked or NCDEX is unreachable.');
+    if (!htmlText.includes('JEERA') && !htmlText.includes('Jeera')) {
+      throw new Error('NCDEX data missing from response');
     }
 
     const parser = new DOMParser();
@@ -162,14 +130,8 @@ export default function NcdexAutomation() {
 
       if (matchedRows.length === 0) {
         return {
-          symbol: displayName,
-          expiry: 'Oct',
-          open: 0,
-          prevClose: 0,
-          ltp: 0,
-          change: '0',
-          changePct: '0.00%',
-          oi: '0',
+          symbol: displayName, expiry: 'Oct', open: 0, prevClose: 0,
+          ltp: 0, change: '0', changePct: '0.00%', oi: '0',
         };
       }
 
