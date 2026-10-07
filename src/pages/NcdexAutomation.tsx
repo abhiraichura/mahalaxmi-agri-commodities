@@ -108,18 +108,46 @@ export default function NcdexAutomation() {
   };
 
   const fetchBoardData = async (): Promise<{ jeera: SpiceQuote; dhaniya: SpiceQuote; turmeric: SpiceQuote }> => {
-    const targetUrl = 'https://ncdex.com/market-watch/live_quotes';
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+    const targetUrl = 'https://www.ncdex.com/market-watch/live_quotes';
     
+    // Multi-proxy fallback strategy to bypass Cloudflare/CORS blocks
+    const fetchMethods = [
+      async () => {
+        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
+        if (!res.ok) throw new Error('AllOrigins Failed');
+        const data = await res.json();
+        return data.contents as string;
+      },
+      async () => {
+        const res = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`);
+        if (!res.ok) throw new Error('Codetabs Failed');
+        return await res.text();
+      },
+      async () => {
+        const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(targetUrl)}`);
+        if (!res.ok) throw new Error('Corsproxy Failed');
+        return await res.text();
+      }
+    ];
+
     let htmlText = '';
-    try {
-      const resp = await fetch(proxyUrl);
-      const data = await resp.json();
-      htmlText = data.contents;
-    } catch {
-      // Direct fetch fallback if proxy fails
-      const directResp = await fetch(targetUrl, { mode: 'cors' });
-      htmlText = await directResp.text();
+    let fetched = false;
+
+    for (const method of fetchMethods) {
+      try {
+        const text = await method();
+        if (text && (text.includes('JEERA') || text.includes('Jeera'))) {
+          htmlText = text;
+          fetched = true;
+          break;
+        }
+      } catch (e) {
+        console.warn('Proxy attempt failed, trying next...');
+      }
+    }
+
+    if (!fetched) {
+      throw new Error('All proxy networks blocked or NCDEX is unreachable.');
     }
 
     const parser = new DOMParser();
@@ -251,7 +279,7 @@ export default function NcdexAutomation() {
           const latestEarlierHour = storedHours[0];
           const storedLtp = history.readings[latestEarlierHour.toString()]?.[commodityKey];
 
-          if (storedLtp !== undefined) {
+          if (storedLtp !== undefined && storedLtp !== 0) {
             const movementVal = current.ltp - storedLtp;
             const hourDisplay = latestEarlierHour === 12 
               ? '12 PM' 
@@ -277,12 +305,14 @@ export default function NcdexAutomation() {
       };
 
       // STEP 5 - SAVE HISTORY
-      history.readings[activeHour.toString()] = {
-        jeera: Math.round(jeera.ltp),
-        dhaniya: Math.round(dhaniya.ltp),
-        turmeric: Math.round(turmeric.ltp),
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+      if (jeera.ltp > 0 || dhaniya.ltp > 0 || turmeric.ltp > 0) {
+        history.readings[activeHour.toString()] = {
+          jeera: Math.round(jeera.ltp),
+          dhaniya: Math.round(dhaniya.ltp),
+          turmeric: Math.round(turmeric.ltp),
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+      }
 
       // STEP 6 - OUTPUT
       const dateText = formatISTDate(istNow);
@@ -311,8 +341,8 @@ M: 90330 00032, 99099 71301
 
       setOutput(finalOutput);
       await sendTelegramAlert(finalOutput);
-    } catch {
-      setOutput('Error: Unable to fetch or parse NCDEX quotes. Verify network connectivity.');
+    } catch (error) {
+      setOutput(`Error: ${(error as Error).message}. Verify network connectivity.`);
     }
     setLoading(false);
   };
