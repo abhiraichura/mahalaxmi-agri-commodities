@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-// import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
+
+// If you are using Firebase, import your DB config here to fetch the real directory:
+// import { collection, getDocs } from 'firebase/firestore';
 // import { db } from '../utils/firebase'; 
 
 interface Party {
@@ -7,157 +9,293 @@ interface Party {
   name: string;
   phone: string;
   type: string;
-  isSent: boolean;
+  isSent?: boolean;
+}
+
+interface ContactList {
+  id: string;
+  name: string;
+  members: Party[];
 }
 
 export default function WhatsAppBroadcast() {
-  const [parties, setParties] = useState<Party[]>([]);
+  const [lists, setLists] = useState<ContactList[]>([]);
+  const [selectedListId, setSelectedListId] = useState<string>('');
   const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [newListName, setNewListName] = useState('');
+  const [isAddingContacts, setIsAddingContacts] = useState(false);
+  const [directory, setDirectory] = useState<Party[]>([]);
 
-  // Fetch parties from database
+  // 1. Check for Midnight Reset and Load Lists
   useEffect(() => {
-    const fetchParties = async () => {
-      setLoading(true);
-      try {
-        // REPLACE THIS MOCK DATA WITH YOUR ACTUAL FIREBASE FETCH LOGIC
-        // const querySnapshot = await getDocs(collection(db, 'parties'));
-        // const fetchedParties = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), isSent: false })) as Party[];
-        
-        const mockData: Party[] = [
-          { id: '1', name: 'Ramesh Patel', phone: '919876543210', type: 'Buyer', isSent: false },
-          { id: '2', name: 'Suresh Kumar', phone: '919876543211', type: 'Seller', isSent: false },
-          { id: '3', name: 'Manoj Traders', phone: '919876543212', type: 'Buyer', isSent: true },
-        ];
-        setParties(mockData);
-      } catch (error) {
-        console.error('Error fetching parties:', error);
-      } finally {
-        setLoading(false);
+    const loadAndCheckReset = () => {
+      const savedListsStr = localStorage.getItem('whatsappBroadcastLists');
+      let savedLists: ContactList[] = savedListsStr ? JSON.parse(savedListsStr) : [];
+
+      // Check current date against the last saved reset date
+      const lastResetDate = localStorage.getItem('whatsappLastResetDate');
+      const currentDate = new Date().toDateString(); // e.g. "Mon Oct 10 2026"
+
+      if (lastResetDate !== currentDate) {
+        // It's a new day! Reset all isSent statuses to false
+        savedLists = savedLists.map(list => ({
+          ...list,
+          members: list.members.map(member => ({ ...member, isSent: false }))
+        }));
+        localStorage.setItem('whatsappLastResetDate', currentDate);
+      }
+
+      setLists(savedLists);
+      if (savedLists.length > 0) {
+        setSelectedListId(savedLists[0].id);
       }
     };
 
-    fetchParties();
+    loadAndCheckReset();
+    fetchDirectory();
   }, []);
 
-  const handleSend = async (party: Party) => {
+  // Save lists to local storage whenever they change
+  useEffect(() => {
+    localStorage.setItem('whatsappBroadcastLists', JSON.stringify(lists));
+  }, [lists]);
+
+  // Fetch Directory (Replace mock data with your DB fetch)
+  const fetchDirectory = async () => {
+    // try {
+    //   const querySnapshot = await getDocs(collection(db, 'parties'));
+    //   const fetched = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Party[];
+    //   setDirectory(fetched);
+    // } catch(e) {}
+    
+    // Mock Directory Data
+    setDirectory([
+      { id: '1', name: 'Ramesh Patel', phone: '919876543210', type: 'Buyer' },
+      { id: '2', name: 'Suresh Kumar', phone: '919876543211', type: 'Seller' },
+      { id: '3', name: 'Manoj Traders', phone: '919876543212', type: 'Buyer' },
+      { id: '4', name: 'Amit Singh', phone: '919876543213', type: 'Seller' },
+      { id: '5', name: 'Gujarat Agri Hub', phone: '919876543214', type: 'Broker' },
+    ]);
+  };
+
+  const createList = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newListName.trim()) return;
+    
+    const newList: ContactList = {
+      id: Date.now().toString(),
+      name: newListName.trim(),
+      members: []
+    };
+    
+    setLists([...lists, newList]);
+    setSelectedListId(newList.id);
+    setNewListName('');
+  };
+
+  const deleteList = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this list?')) {
+      const updated = lists.filter(l => l.id !== id);
+      setLists(updated);
+      if (selectedListId === id) setSelectedListId(updated[0]?.id || '');
+    }
+  };
+
+  const toggleDirectoryMember = (party: Party) => {
+    setLists(lists.map(list => {
+      if (list.id === selectedListId) {
+        const isMember = list.members.some(m => m.id === party.id);
+        if (isMember) {
+          return { ...list, members: list.members.filter(m => m.id !== party.id) };
+        } else {
+          return { ...list, members: [...list.members, { ...party, isSent: false }] };
+        }
+      }
+      return list;
+    }));
+  };
+
+  const handleSend = (partyId: string, phone: string) => {
     if (!message.trim()) {
       alert('Please enter a message first.');
       return;
     }
 
-    // 1. Generate Link and Open WhatsApp
+    // 1. Open WhatsApp
     const encodedMessage = encodeURIComponent(message);
-    // Ensure phone number has country code but no spaces/plus signs
-    const formattedPhone = party.phone.replace(/[^0-9]/g, '');
-    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
-    window.open(whatsappUrl, '_blank');
+    const formattedPhone = phone.replace(/[^0-9]/g, '');
+    window.open(`https://wa.me/${formattedPhone}?text=${encodedMessage}`, '_blank');
 
-    // 2. Update Status locally (and in Firebase)
-    try {
-      // FIREBASE UPDATE LOGIC:
-      // const partyRef = doc(db, 'parties', party.id);
-      // await updateDoc(partyRef, { lastBroadcastSent: new Date() });
-
-      setParties(prev => 
-        prev.map(p => p.id === party.id ? { ...p, isSent: true } : p)
-      );
-    } catch (error) {
-      console.error('Error updating status:', error);
-    }
+    // 2. Mark as sent in the current list
+    setLists(lists.map(list => {
+      if (list.id === selectedListId) {
+        return {
+          ...list,
+          members: list.members.map(m => m.id === partyId ? { ...m, isSent: true } : m)
+        };
+      }
+      return list;
+    }));
   };
 
-  const resetAllStatuses = () => {
-    if(window.confirm('Reset all sent statuses for a new broadcast?')) {
-      setParties(prev => prev.map(p => ({ ...p, isSent: false })));
-      // Note: You would also want to batch update this in Firebase if tracking persistently
-    }
-  };
+  const selectedList = lists.find(l => l.id === selectedListId);
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">WhatsApp Broadcast</h1>
-        <button 
-          onClick={resetAllStatuses}
-          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-        >
-          Reset All Statuses
-        </button>
-      </div>
+    <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col lg:flex-row gap-6">
+      
+      {/* LEFT PANEL: Lists & Message */}
+      <div className="w-full lg:w-1/3 space-y-6">
+        
+        {/* List Management */}
+        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+          <h2 className="text-lg font-bold mb-4 text-gray-800">Your Lists</h2>
+          
+          <form onSubmit={createList} className="flex gap-2 mb-4">
+            <input
+              type="text"
+              placeholder="New list name (e.g., Buyers)"
+              className="flex-1 p-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+              value={newListName}
+              onChange={(e) => setNewListName(e.target.value)}
+            />
+            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700">
+              Add
+            </button>
+          </form>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Message Input Section */}
-        <div className="md:col-span-1 bg-white p-4 rounded-lg shadow border border-gray-200 h-fit">
-          <h2 className="text-lg font-semibold mb-3">Broadcast Message</h2>
+          {lists.length === 0 ? (
+            <p className="text-sm text-gray-500 italic">No lists created yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {lists.map(list => (
+                <div 
+                  key={list.id} 
+                  className={`flex justify-between items-center p-3 rounded-md cursor-pointer transition-colors border ${selectedListId === list.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}
+                  onClick={() => setSelectedListId(list.id)}
+                >
+                  <div>
+                    <span className="font-semibold text-gray-700">{list.name}</span>
+                    <span className="text-xs text-gray-500 ml-2">({list.members.length} members)</span>
+                  </div>
+                  <button onClick={(e) => { e.stopPropagation(); deleteList(list.id); }} className="text-red-500 hover:text-red-700 p-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Message Input */}
+        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+          <h2 className="text-lg font-bold mb-3 text-gray-800">Message Content</h2>
           <textarea
-            className="w-full h-48 p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-            placeholder="Type your message here..."
+            className="w-full h-40 p-3 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Type or paste the message you want to broadcast..."
             value={message}
             onChange={(e) => setMessage(e.target.value)}
           />
-          <p className="text-xs text-gray-500 mt-2">
-            This message will be sent to the selected contacts.
-          </p>
         </div>
 
-        {/* Contacts List Section */}
-        <div className="md:col-span-2 bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {loading ? (
-                  <tr><td colSpan={5} className="px-6 py-4 text-center">Loading...</td></tr>
+      </div>
+
+      {/* RIGHT PANEL: List Members & Action */}
+      <div className="w-full lg:w-2/3">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 min-h-[600px] flex flex-col">
+          
+          {selectedList ? (
+            <>
+              {/* Header */}
+              <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <h2 className="text-xl font-bold text-gray-800">{selectedList.name}</h2>
+                <button 
+                  onClick={() => setIsAddingContacts(!isAddingContacts)}
+                  className="bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-900 transition-colors"
+                >
+                  {isAddingContacts ? 'Done Adding' : '+ Add/Remove Parties'}
+                </button>
+              </div>
+
+              {/* Add Contacts Directory View */}
+              {isAddingContacts && (
+                <div className="p-4 bg-gray-50 border-b border-gray-200 max-h-64 overflow-y-auto">
+                  <p className="text-sm text-gray-600 mb-3 font-medium">Select parties to include in "{selectedList.name}"</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {directory.map(party => {
+                      const isSelected = selectedList.members.some(m => m.id === party.id);
+                      return (
+                        <label key={party.id} className={`flex items-center p-3 border rounded-md cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:bg-gray-100'}`}>
+                          <input 
+                            type="checkbox" 
+                            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                            checked={isSelected}
+                            onChange={() => toggleDirectoryMember(party)}
+                          />
+                          <div className="ml-3 flex flex-col">
+                            <span className="text-sm font-semibold text-gray-800">{party.name}</span>
+                            <span className="text-xs text-gray-500">{party.type} • {party.phone}</span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Members List (Mobile Friendly Cards) */}
+              <div className="p-4 flex-1 overflow-y-auto bg-gray-50">
+                {selectedList.members.length === 0 ? (
+                  <div className="text-center mt-10 text-gray-500">
+                    <p>No parties in this list yet.</p>
+                    <p className="text-sm mt-1">Click "+ Add/Remove Parties" to build your list.</p>
+                  </div>
                 ) : (
-                  parties.map((party) => (
-                    <tr key={party.id} className={party.isSent ? 'bg-green-50' : ''}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{party.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${party.type === 'Buyer' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
-                          {party.type}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{party.phone}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {party.isSent ? (
-                          <span className="flex items-center text-sm text-green-600 font-medium">
-                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                            Sent
-                          </span>
-                        ) : (
-                          <span className="text-sm text-gray-400">Pending</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedList.members.map(member => (
+                      <div key={member.id} className={`p-4 rounded-lg border shadow-sm flex flex-col justify-between ${member.isSent ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="font-bold text-gray-900">{member.name}</h3>
+                            <p className="text-sm text-gray-500">{member.phone}</p>
+                            <span className="inline-block mt-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600 bg-gray-200 rounded-full">
+                              {member.type}
+                            </span>
+                          </div>
+                          
+                          {member.isSent && (
+                            <span className="flex items-center text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-md">
+                              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                              Sent
+                            </span>
+                          )}
+                        </div>
+                        
                         <button
-                          onClick={() => handleSend(party)}
-                          disabled={party.isSent || !message.trim()}
-                          className={`px-3 py-1.5 rounded-md text-white transition-colors ${
-                            party.isSent || !message.trim() 
-                              ? 'bg-gray-300 cursor-not-allowed' 
-                              : 'bg-green-500 hover:bg-green-600'
+                          onClick={() => handleSend(member.id, member.phone)}
+                          disabled={member.isSent || !message.trim()}
+                          className={`w-full py-2 rounded-md text-sm font-bold transition-colors ${
+                            member.isSent || !message.trim() 
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                              : 'bg-[#25D366] text-white hover:bg-[#128C7E] shadow-sm'
                           }`}
                         >
-                          {party.isSent ? 'Sent' : 'Send WhatsApp'}
+                          {member.isSent ? 'Sent' : 'Send WhatsApp'}
                         </button>
-                      </td>
-                    </tr>
-                  ))
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-500 p-10">
+              Select or create a list to start broadcasting.
+            </div>
+          )}
+
         </div>
       </div>
+
     </div>
   );
 }
