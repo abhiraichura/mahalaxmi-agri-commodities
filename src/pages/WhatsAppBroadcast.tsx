@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../utils/firebase';
 
 interface Party {
@@ -17,6 +17,7 @@ interface ContactList {
   name: string;
   memberIds: string[];
   sentStatuses: Record<string, boolean>;
+  lastResetDate: string;
 }
 
 export default function WhatsAppBroadcast() {
@@ -37,41 +38,51 @@ export default function WhatsAppBroadcast() {
   const [broadcastSearch, setBroadcastSearch] = useState('');
   const [manageSearch, setManageSearch] = useState('');
 
-  // 1. Initial Load: Fetch Firebase Directory & Load Lists from LocalStorage
+  // 1. Initial Load: Fetch Directory & Lists from Firebase
   useEffect(() => {
     const initializeData = async () => {
       setIsLoading(true);
       try {
+        // Fetch Parties Directory
         const querySnapshot = await getDocs(collection(db, 'parties'));
-        const fetchedParties = querySnapshot.docs.map(doc => ({ 
-          id: doc.id, 
-          ...doc.data() 
+        const fetchedParties = querySnapshot.docs.map(d => ({ 
+          id: d.id, 
+          ...d.data() 
         })) as Party[];
         
         fetchedParties.sort((a, b) => a.name.localeCompare(b.name));
         setDirectory(fetchedParties);
 
-        const savedListsStr = localStorage.getItem('whatsappBroadcastLists');
-        let savedLists: ContactList[] = savedListsStr ? JSON.parse(savedListsStr) : [];
+        // Fetch WhatsApp Lists from Firebase
+        const listsSnapshot = await getDocs(collection(db, 'whatsapp_lists'));
+        const fetchedLists = listsSnapshot.docs.map(d => ({
+          id: d.id,
+          ...d.data()
+        })) as ContactList[];
 
-        const lastResetDate = localStorage.getItem('whatsappLastResetDate');
         const currentDate = new Date().toDateString();
 
-        if (lastResetDate !== currentDate) {
-          savedLists = savedLists.map(list => ({
-            ...list,
-            sentStatuses: {}
-          }));
-          localStorage.setItem('whatsappLastResetDate', currentDate);
-        }
+        // Process Midnight Reset on Firebase Data
+        const processedLists = await Promise.all(fetchedLists.map(async (list) => {
+          if (list.lastResetDate !== currentDate) {
+            const updatedList = { ...list, sentStatuses: {}, lastResetDate: currentDate };
+            // Update Firebase silently in the background
+            await updateDoc(doc(db, 'whatsapp_lists', list.id), {
+              sentStatuses: {},
+              lastResetDate: currentDate
+            });
+            return updatedList;
+          }
+          return list;
+        }));
 
-        setLists(savedLists);
-        if (savedLists.length > 0) {
-          setSelectedListId(savedLists[0].id);
+        setLists(processedLists);
+        if (processedLists.length > 0) {
+          setSelectedListId(processedLists[0].id);
         }
 
       } catch (error) {
-        console.error('Error fetching directory:', error);
+        console.error('Error fetching data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -80,57 +91,73 @@ export default function WhatsAppBroadcast() {
     initializeData();
   }, []);
 
-  useEffect(() => {
-    if (!isLoading) {
-      localStorage.setItem('whatsappBroadcastLists', JSON.stringify(lists));
-    }
-  }, [lists, isLoading]);
-
-  // --- LIST MANAGEMENT FUNCTIONS ---
-  const handleCreateList = (e: React.FormEvent) => {
+  // --- LIST MANAGEMENT FUNCTIONS (Firebase Connected) ---
+  const handleCreateList = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newListName.trim()) return;
     
+    const newListId = Date.now().toString();
     const newList: ContactList = {
-      id: Date.now().toString(),
+      id: newListId,
       name: newListName.trim(),
       memberIds: [],
-      sentStatuses: {}
+      sentStatuses: {},
+      lastResetDate: new Date().toDateString()
     };
     
+    // Optimistic UI update
     setLists([...lists, newList]);
     setEditingListId(newList.id);
     setNewListName('');
-    
     if (!selectedListId) setSelectedListId(newList.id);
+
+    // Save to Firebase
+    try {
+      await setDoc(doc(db, 'whatsapp_lists', newListId), newList);
+    } catch (error) {
+      console.error('Error creating list:', error);
+    }
   };
 
-  const handleDeleteList = (id: string) => {
-    if (window.confirm('Delete this list completely?')) {
+  const handleDeleteList = async (id: string) => {
+    if (window.confirm('Delete this list completely? This cannot be undone.')) {
+      // Optimistic UI update
       const updated = lists.filter(l => l.id !== id);
       setLists(updated);
       if (selectedListId === id) setSelectedListId(updated[0]?.id || '');
       if (editingListId === id) setEditingListId('');
+
+      // Delete from Firebase
+      try {
+        await deleteDoc(doc(db, 'whatsapp_lists', id));
+      } catch (error) {
+        console.error('Error deleting list:', error);
+      }
     }
   };
 
-  const toggleMemberInList = (listId: string, partyId: string) => {
-    setLists(lists.map(list => {
-      if (list.id === listId) {
-        const isMember = list.memberIds.includes(partyId);
-        return {
-          ...list,
-          memberIds: isMember 
-            ? list.memberIds.filter(id => id !== partyId) 
-            : [...list.memberIds, partyId]
-        };
-      }
-      return list;
-    }));
+  const toggleMemberInList = async (listId: string, partyId: string) => {
+    const list = lists.find(l => l.id === listId);
+    if (!list) return;
+
+    const isMember = list.memberIds.includes(partyId);
+    const newMemberIds = isMember 
+      ? list.memberIds.filter(id => id !== partyId) 
+      : [...list.memberIds, partyId];
+
+    // Optimistic UI update
+    setLists(lists.map(l => l.id === listId ? { ...l, memberIds: newMemberIds } : l));
+
+    // Update Firebase
+    try {
+      await updateDoc(doc(db, 'whatsapp_lists', listId), { memberIds: newMemberIds });
+    } catch (error) {
+      console.error('Error updating members:', error);
+    }
   };
 
-  // --- BROADCAST FUNCTIONS ---
-  const handleSend = (partyId: string, phone: string | undefined) => {
+  // --- BROADCAST FUNCTIONS (Firebase Connected) ---
+  const handleSend = async (partyId: string, phone: string | undefined) => {
     if (!message.trim()) {
       alert('Please enter a message first.');
       return;
@@ -144,26 +171,44 @@ export default function WhatsAppBroadcast() {
     const formattedPhone = phone.replace(/[^0-9]/g, '');
     window.open(`https://wa.me/${formattedPhone}?text=${encodedMessage}`, '_blank');
 
+    const activeList = lists.find(l => l.id === selectedListId);
+    if (!activeList) return;
+
+    const newStatuses = { ...activeList.sentStatuses, [partyId]: true };
+
+    // Optimistic UI update
     setLists(lists.map(list => {
       if (list.id === selectedListId) {
-        return {
-          ...list,
-          sentStatuses: { ...list.sentStatuses, [partyId]: true }
-        };
+        return { ...list, sentStatuses: newStatuses };
       }
       return list;
     }));
+
+    // Update Firebase
+    try {
+      await updateDoc(doc(db, 'whatsapp_lists', selectedListId), { sentStatuses: newStatuses });
+    } catch (error) {
+      console.error('Error updating status:', error);
+    }
   };
 
-  const handleManualReset = () => {
+  const handleManualReset = async () => {
     if (!activeList) return;
     if (window.confirm(`Reset all sent statuses for "${activeList.name}"?`)) {
+      // Optimistic UI update
       setLists(lists.map(list => {
         if (list.id === selectedListId) {
           return { ...list, sentStatuses: {} };
         }
         return list;
       }));
+
+      // Update Firebase
+      try {
+        await updateDoc(doc(db, 'whatsapp_lists', selectedListId), { sentStatuses: {} });
+      } catch (error) {
+        console.error('Error resetting statuses:', error);
+      }
     }
   };
 
@@ -199,7 +244,15 @@ export default function WhatsAppBroadcast() {
   };
 
   if (isLoading) {
-    return <div className="p-6 flex justify-center text-gray-500">Loading Directory...</div>;
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-[400px] text-gray-500">
+        <svg className="animate-spin h-8 w-8 mb-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Loading Data from Firebase...
+      </div>
+    );
   }
 
   return (
