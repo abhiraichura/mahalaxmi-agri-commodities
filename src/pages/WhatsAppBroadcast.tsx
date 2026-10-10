@@ -168,24 +168,27 @@ export default function WhatsAppBroadcast() {
     }
 
     const encodedMessage = encodeURIComponent(message);
-    const formattedPhone = phone.replace(/[^0-9]/g, '');
     
-    const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+    // Clean all non-numeric characters from the string
+    let formattedPhone = phone.replace(/[^0-9]/g, '');
     
-    let whatsappUrl = '';
-    
-    if (/android/i.test(userAgent)) {
-      // Android requires a specific Intent URL to bypass the browser block in home screen apps
-      whatsappUrl = `intent://send?phone=${formattedPhone}&text=${encodedMessage}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
-    } else if (/iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream) {
-      // iOS works perfectly with the raw whatsapp:// protocol
-      whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`;
-    } else {
-      // Desktop bypasses the landing page by going directly to WhatsApp Web
-      whatsappUrl = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedMessage}`;
+    // If the number is exactly 10 digits, automatically add India's '91' country code
+    if (formattedPhone.length === 10) {
+      formattedPhone = `91${formattedPhone}`;
     }
+
+    const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+    const isAndroid = /android/i.test(userAgent);
+    const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream;
     
-    window.open(whatsappUrl, '_blank');
+    if (isAndroid || isIOS) {
+      // For mobile Home Screen apps (PWAs), assign directly to location.href
+      // This bypasses Chrome's popup blocker for custom app protocols
+      window.location.href = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`;
+    } else {
+      // Desktop bypasses the landing page by going directly to WhatsApp Web in a new tab
+      window.open(`https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedMessage}`, '_blank');
+    }
 
     const activeList = lists.find(l => l.id === selectedListId);
     if (!activeList) return;
