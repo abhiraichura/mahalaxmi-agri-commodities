@@ -170,15 +170,18 @@ export default function WhatsAppBroadcast() {
     const encodedMessage = encodeURIComponent(message);
     const formattedPhone = phone.replace(/[^0-9]/g, '');
     
-    // Detect if the user is on a mobile device
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
     
     let whatsappUrl = '';
-    if (isMobile) {
-      // Opens the WhatsApp mobile app directly
+    
+    if (/android/i.test(userAgent)) {
+      // Android requires a specific Intent URL to bypass the browser block in home screen apps
+      whatsappUrl = `intent://send?phone=${formattedPhone}&text=${encodedMessage}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
+    } else if (/iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream) {
+      // iOS works perfectly with the raw whatsapp:// protocol
       whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`;
     } else {
-      // Opens WhatsApp Web directly without the intermediate landing page
+      // Desktop bypasses the landing page by going directly to WhatsApp Web
       whatsappUrl = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedMessage}`;
     }
     
