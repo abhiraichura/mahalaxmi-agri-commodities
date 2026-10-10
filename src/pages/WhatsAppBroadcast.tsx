@@ -169,7 +169,20 @@ export default function WhatsAppBroadcast() {
 
     const encodedMessage = encodeURIComponent(message);
     const formattedPhone = phone.replace(/[^0-9]/g, '');
-    window.open(`https://wa.me/${formattedPhone}?text=${encodedMessage}`, '_blank');
+    
+    // Detect if the user is on a mobile device
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    let whatsappUrl = '';
+    if (isMobile) {
+      // Opens the WhatsApp mobile app directly
+      whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`;
+    } else {
+      // Opens WhatsApp Web directly without the intermediate landing page
+      whatsappUrl = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedMessage}`;
+    }
+    
+    window.open(whatsappUrl, '_blank');
 
     const activeList = lists.find(l => l.id === selectedListId);
     if (!activeList) return;
