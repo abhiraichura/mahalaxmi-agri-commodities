@@ -24,6 +24,7 @@ import PartyMessageGenerator from './pages/PartyMessageGenerator';
 import CustomMessageGenerator from './pages/CustomMessageGenerator';
 import Todos from './pages/Todos';
 import NcdexAutomation from './pages/NcdexAutomation';
+import WhatsAppBroadcast from './pages/WhatsAppBroadcast';
 
 function App() {
   const { user, loading } = useAuthStore();
@@ -66,6 +67,7 @@ function App() {
           <Route path="/parties/edit/:id" element={<PartyForm />} />
           <Route path="/parties/gulfood" element={<GulfFoodDirectory />} />
           <Route path="/gulfood" element={<Navigate to="/parties/gulfood" replace />} />
+          <Route path="/broadcast" element={<WhatsAppBroadcast />} />
 
           <Route path="/products" element={<ProductManager />} />
           <Route path="/message-generator" element={<MessageGenerator />} />
