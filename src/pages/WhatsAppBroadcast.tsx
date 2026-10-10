@@ -16,7 +16,7 @@ interface ContactList {
   id: string;
   name: string;
   memberIds: string[];
-  sentStatuses: Record<string, boolean>; // Tracks if sent today: { partyId: true/false }
+  sentStatuses: Record<string, boolean>;
 }
 
 export default function WhatsAppBroadcast() {
@@ -32,33 +32,32 @@ export default function WhatsAppBroadcast() {
   const [message, setMessage] = useState('');
   const [newListName, setNewListName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Search States
+  const [broadcastSearch, setBroadcastSearch] = useState('');
+  const [manageSearch, setManageSearch] = useState('');
 
   // 1. Initial Load: Fetch Firebase Directory & Load Lists from LocalStorage
   useEffect(() => {
     const initializeData = async () => {
       setIsLoading(true);
       try {
-        // Fetch Parties from Firebase
         const querySnapshot = await getDocs(collection(db, 'parties'));
         const fetchedParties = querySnapshot.docs.map(doc => ({ 
           id: doc.id, 
           ...doc.data() 
         })) as Party[];
         
-        // Sort alphabetically
         fetchedParties.sort((a, b) => a.name.localeCompare(b.name));
         setDirectory(fetchedParties);
 
-        // Load Lists from Local Storage
         const savedListsStr = localStorage.getItem('whatsappBroadcastLists');
         let savedLists: ContactList[] = savedListsStr ? JSON.parse(savedListsStr) : [];
 
-        // Check Midnight Reset
         const lastResetDate = localStorage.getItem('whatsappLastResetDate');
         const currentDate = new Date().toDateString();
 
         if (lastResetDate !== currentDate) {
-          // Reset all sent statuses for a new day
           savedLists = savedLists.map(list => ({
             ...list,
             sentStatuses: {}
@@ -81,7 +80,6 @@ export default function WhatsAppBroadcast() {
     initializeData();
   }, []);
 
-  // Save lists to local storage whenever they change
   useEffect(() => {
     if (!isLoading) {
       localStorage.setItem('whatsappBroadcastLists', JSON.stringify(lists));
@@ -142,12 +140,10 @@ export default function WhatsAppBroadcast() {
       return;
     }
 
-    // Generate link and open WhatsApp
     const encodedMessage = encodeURIComponent(message);
     const formattedPhone = phone.replace(/[^0-9]/g, '');
     window.open(`https://wa.me/${formattedPhone}?text=${encodedMessage}`, '_blank');
 
-    // Mark as sent
     setLists(lists.map(list => {
       if (list.id === selectedListId) {
         return {
@@ -159,16 +155,48 @@ export default function WhatsAppBroadcast() {
     }));
   };
 
-  // Helper to get full party details for a list
-  const getListMembers = (list: ContactList | undefined) => {
-    if (!list) return [];
-    return list.memberIds
-      .map(id => directory.find(p => p.id === id))
-      .filter((p): p is Party => p !== undefined);
+  const handleManualReset = () => {
+    if (!activeList) return;
+    if (window.confirm(`Reset all sent statuses for "${activeList.name}"?`)) {
+      setLists(lists.map(list => {
+        if (list.id === selectedListId) {
+          return { ...list, sentStatuses: {} };
+        }
+        return list;
+      }));
+    }
   };
 
+  // --- FILTERING HELPERS ---
   const activeList = lists.find(l => l.id === selectedListId);
   const editingList = lists.find(l => l.id === editingListId);
+
+  const getFilteredBroadcastMembers = () => {
+    if (!activeList) return [];
+    const members = activeList.memberIds
+      .map(id => directory.find(p => p.id === id))
+      .filter((p): p is Party => p !== undefined);
+      
+    if (!broadcastSearch.trim()) return members;
+    
+    const term = broadcastSearch.toLowerCase();
+    return members.filter(m => 
+      m.name.toLowerCase().includes(term) || 
+      (m.phone && m.phone.includes(term)) ||
+      (m.mobile && m.mobile.includes(term))
+    );
+  };
+
+  const getFilteredDirectory = () => {
+    if (!manageSearch.trim()) return directory;
+    
+    const term = manageSearch.toLowerCase();
+    return directory.filter(p => 
+      p.name.toLowerCase().includes(term) || 
+      (p.phone && p.phone.includes(term)) ||
+      (p.mobile && p.mobile.includes(term))
+    );
+  };
 
   if (isLoading) {
     return <div className="p-6 flex justify-center text-gray-500">Loading Directory...</div>;
@@ -198,12 +226,11 @@ export default function WhatsAppBroadcast() {
       </div>
 
       {/* =========================================
-          TAB 1: BROADCAST VIEW (MAIN FLOW)
+          TAB 1: BROADCAST VIEW
           ========================================= */}
       {activeTab === 'broadcast' && (
         <div className="flex flex-col lg:flex-row gap-6">
           
-          {/* Left Column: List Selection & Message */}
           <div className="w-full lg:w-1/3 space-y-4">
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
               <label className="block text-sm font-bold text-gray-700 mb-2">Select List</label>
@@ -230,13 +257,32 @@ export default function WhatsAppBroadcast() {
             </div>
           </div>
 
-          {/* Right Column: Party Members & Action */}
           <div className="w-full lg:w-2/3">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 min-h-[500px]">
-              <div className="p-4 border-b border-gray-200 bg-gray-50">
-                <h2 className="text-lg font-bold text-gray-800">
-                  {activeList ? `${activeList.name} Members` : 'No List Selected'}
-                </h2>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 min-h-[500px] flex flex-col">
+              <div className="p-4 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-800">
+                    {activeList ? `${activeList.name} Members` : 'No List Selected'}
+                  </h2>
+                </div>
+                
+                {activeList && (
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <input
+                      type="text"
+                      placeholder="Search members..."
+                      className="p-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-48"
+                      value={broadcastSearch}
+                      onChange={(e) => setBroadcastSearch(e.target.value)}
+                    />
+                    <button
+                      onClick={handleManualReset}
+                      className="px-4 py-2 bg-gray-800 text-white text-sm font-medium rounded-md hover:bg-gray-900 transition-colors whitespace-nowrap"
+                    >
+                      Reset Statuses
+                    </button>
+                  </div>
+                )}
               </div>
               
               <div className="p-4 flex-1 overflow-y-auto max-h-[700px] bg-gray-50/50">
@@ -246,7 +292,7 @@ export default function WhatsAppBroadcast() {
                   <p className="text-center text-gray-500 mt-10">This list is empty. Go to "Manage Lists" to add parties.</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {getListMembers(activeList).map(member => {
+                    {getFilteredBroadcastMembers().map(member => {
                       const isSent = !!activeList.sentStatuses[member.id];
                       const contactNumber = member.phone || member.mobile || '';
 
@@ -283,6 +329,9 @@ export default function WhatsAppBroadcast() {
                         </div>
                       )
                     })}
+                    {getFilteredBroadcastMembers().length === 0 && (
+                       <p className="text-center text-gray-500 mt-10 col-span-full">No members match your search.</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -291,14 +340,12 @@ export default function WhatsAppBroadcast() {
         </div>
       )}
 
-
       {/* =========================================
-          TAB 2: MANAGE LISTS (SUBMENU/DIRECTORY)
+          TAB 2: MANAGE LISTS
           ========================================= */}
       {activeTab === 'manage' && (
         <div className="flex flex-col lg:flex-row gap-6">
           
-          {/* Left Column: Create & Select List */}
           <div className="w-full lg:w-1/3">
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
               <h2 className="text-lg font-bold mb-4 text-gray-800">Your Lists</h2>
@@ -340,24 +387,33 @@ export default function WhatsAppBroadcast() {
             </div>
           </div>
 
-          {/* Right Column: Add/Remove from Directory */}
           <div className="w-full lg:w-2/3">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-[500px]">
+              <div className="p-4 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
                 <h2 className="text-lg font-bold text-gray-800">
                   {editingList ? `Add/Remove Parties: ${editingList.name}` : 'Select a list to edit'}
                 </h2>
+                
+                {editingList && (
+                  <input
+                    type="text"
+                    placeholder="Search directory..."
+                    className="p-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-64"
+                    value={manageSearch}
+                    onChange={(e) => setManageSearch(e.target.value)}
+                  />
+                )}
               </div>
 
               {editingList ? (
-                <div className="p-4 max-h-[700px] overflow-y-auto">
+                <div className="p-4 flex-1 overflow-y-auto max-h-[700px]">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {directory.map(party => {
+                    {getFilteredDirectory().map(party => {
                       const isSelected = editingList.memberIds.includes(party.id);
                       const contactNumber = party.phone || party.mobile || 'No Number';
 
                       return (
-                        <label key={party.id} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 border-blue-400' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+                        <label key={party.id} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 border-blue-400 shadow-sm' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
                           <input 
                             type="checkbox" 
                             className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
@@ -371,6 +427,9 @@ export default function WhatsAppBroadcast() {
                         </label>
                       );
                     })}
+                    {getFilteredDirectory().length === 0 && (
+                      <p className="text-center text-gray-500 mt-10 col-span-full">No parties match your search.</p>
+                    )}
                   </div>
                 </div>
               ) : (
