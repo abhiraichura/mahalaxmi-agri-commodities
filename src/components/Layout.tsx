@@ -58,6 +58,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/notes', icon: StickyNote, label: 'Notes' },
     { to: '/todos', icon: CheckSquare, label: 'Task Planner'},
     { to: '/settings', icon: Settings, label: 'Settings' },
+    // Find where your navigation links are defined and add this block:
+    {label: 'WhatsApp Broadcast', to: '/broadcast', icon: 'MegaphoneIcon', }
   ];
 
   return (
