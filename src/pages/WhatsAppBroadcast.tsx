@@ -23,27 +23,22 @@ interface ContactList {
 export default function WhatsAppBroadcast() {
   const [activeTab, setActiveTab] = useState<'broadcast' | 'manage'>('broadcast');
   
-  // Data States
   const [directory, setDirectory] = useState<Party[]>([]);
   const [lists, setLists] = useState<ContactList[]>([]);
   
-  // UI States
   const [selectedListId, setSelectedListId] = useState<string>('');
   const [editingListId, setEditingListId] = useState<string>('');
   const [message, setMessage] = useState('');
   const [newListName, setNewListName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   
-  // Search States
   const [broadcastSearch, setBroadcastSearch] = useState('');
   const [manageSearch, setManageSearch] = useState('');
 
-  // 1. Initial Load: Fetch Directory & Lists from Firebase
   useEffect(() => {
     const initializeData = async () => {
       setIsLoading(true);
       try {
-        // Fetch Parties Directory
         const querySnapshot = await getDocs(collection(db, 'parties'));
         const fetchedParties = querySnapshot.docs.map(d => ({ 
           id: d.id, 
@@ -53,7 +48,6 @@ export default function WhatsAppBroadcast() {
         fetchedParties.sort((a, b) => a.name.localeCompare(b.name));
         setDirectory(fetchedParties);
 
-        // Fetch WhatsApp Lists from Firebase
         const listsSnapshot = await getDocs(collection(db, 'whatsapp_lists'));
         const fetchedLists = listsSnapshot.docs.map(d => ({
           id: d.id,
@@ -62,11 +56,9 @@ export default function WhatsAppBroadcast() {
 
         const currentDate = new Date().toDateString();
 
-        // Process Midnight Reset on Firebase Data
         const processedLists = await Promise.all(fetchedLists.map(async (list) => {
           if (list.lastResetDate !== currentDate) {
             const updatedList = { ...list, sentStatuses: {}, lastResetDate: currentDate };
-            // Update Firebase silently in the background
             await updateDoc(doc(db, 'whatsapp_lists', list.id), {
               sentStatuses: {},
               lastResetDate: currentDate
@@ -80,7 +72,6 @@ export default function WhatsAppBroadcast() {
         if (processedLists.length > 0) {
           setSelectedListId(processedLists[0].id);
         }
-
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -91,7 +82,6 @@ export default function WhatsAppBroadcast() {
     initializeData();
   }, []);
 
-  // --- LIST MANAGEMENT FUNCTIONS (Firebase Connected) ---
   const handleCreateList = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newListName.trim()) return;
@@ -105,13 +95,11 @@ export default function WhatsAppBroadcast() {
       lastResetDate: new Date().toDateString()
     };
     
-    // Optimistic UI update
     setLists([...lists, newList]);
     setEditingListId(newList.id);
     setNewListName('');
     if (!selectedListId) setSelectedListId(newList.id);
 
-    // Save to Firebase
     try {
       await setDoc(doc(db, 'whatsapp_lists', newListId), newList);
     } catch (error) {
@@ -121,13 +109,11 @@ export default function WhatsAppBroadcast() {
 
   const handleDeleteList = async (id: string) => {
     if (window.confirm('Delete this list completely? This cannot be undone.')) {
-      // Optimistic UI update
       const updated = lists.filter(l => l.id !== id);
       setLists(updated);
       if (selectedListId === id) setSelectedListId(updated[0]?.id || '');
       if (editingListId === id) setEditingListId('');
 
-      // Delete from Firebase
       try {
         await deleteDoc(doc(db, 'whatsapp_lists', id));
       } catch (error) {
@@ -145,10 +131,8 @@ export default function WhatsAppBroadcast() {
       ? list.memberIds.filter(id => id !== partyId) 
       : [...list.memberIds, partyId];
 
-    // Optimistic UI update
     setLists(lists.map(l => l.id === listId ? { ...l, memberIds: newMemberIds } : l));
 
-    // Update Firebase
     try {
       await updateDoc(doc(db, 'whatsapp_lists', listId), { memberIds: newMemberIds });
     } catch (error) {
@@ -156,7 +140,6 @@ export default function WhatsAppBroadcast() {
     }
   };
 
-  // --- BROADCAST FUNCTIONS (Firebase Connected) ---
   const handleSend = async (partyId: string, phone: string | undefined) => {
     if (!message.trim()) {
       alert('Please enter a message first.');
@@ -168,11 +151,8 @@ export default function WhatsAppBroadcast() {
     }
 
     const encodedMessage = encodeURIComponent(message);
-    
-    // Clean all non-numeric characters from the string
     let formattedPhone = phone.replace(/[^0-9]/g, '');
     
-    // If the number is exactly 10 digits, automatically add India's '91' country code
     if (formattedPhone.length === 10) {
       formattedPhone = `91${formattedPhone}`;
     }
@@ -182,11 +162,8 @@ export default function WhatsAppBroadcast() {
     const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream;
     
     if (isAndroid || isIOS) {
-      // For mobile Home Screen apps (PWAs), assign directly to location.href
-      // This bypasses Chrome's popup blocker for custom app protocols
       window.location.href = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`;
     } else {
-      // Desktop bypasses the landing page by going directly to WhatsApp Web in a new tab
       window.open(`https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedMessage}`, '_blank');
     }
 
@@ -195,7 +172,6 @@ export default function WhatsAppBroadcast() {
 
     const newStatuses = { ...activeList.sentStatuses, [partyId]: true };
 
-    // Optimistic UI update
     setLists(lists.map(list => {
       if (list.id === selectedListId) {
         return { ...list, sentStatuses: newStatuses };
@@ -203,7 +179,6 @@ export default function WhatsAppBroadcast() {
       return list;
     }));
 
-    // Update Firebase
     try {
       await updateDoc(doc(db, 'whatsapp_lists', selectedListId), { sentStatuses: newStatuses });
     } catch (error) {
@@ -214,7 +189,6 @@ export default function WhatsAppBroadcast() {
   const handleManualReset = async () => {
     if (!activeList) return;
     if (window.confirm(`Reset all sent statuses for "${activeList.name}"?`)) {
-      // Optimistic UI update
       setLists(lists.map(list => {
         if (list.id === selectedListId) {
           return { ...list, sentStatuses: {} };
@@ -222,7 +196,6 @@ export default function WhatsAppBroadcast() {
         return list;
       }));
 
-      // Update Firebase
       try {
         await updateDoc(doc(db, 'whatsapp_lists', selectedListId), { sentStatuses: {} });
       } catch (error) {
@@ -231,7 +204,6 @@ export default function WhatsAppBroadcast() {
     }
   };
 
-  // --- FILTERING HELPERS ---
   const activeList = lists.find(l => l.id === selectedListId);
   const editingList = lists.find(l => l.id === editingListId);
 
@@ -276,8 +248,6 @@ export default function WhatsAppBroadcast() {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      
-      {/* Navigation Tabs */}
       <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-6 w-fit">
         <button
           onClick={() => setActiveTab('broadcast')}
@@ -297,12 +267,8 @@ export default function WhatsAppBroadcast() {
         </button>
       </div>
 
-      {/* =========================================
-          TAB 1: BROADCAST VIEW
-          ========================================= */}
       {activeTab === 'broadcast' && (
         <div className="flex flex-col lg:flex-row gap-6">
-          
           <div className="w-full lg:w-1/3 space-y-4">
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
               <label className="block text-sm font-bold text-gray-700 mb-2">Select List</label>
@@ -357,46 +323,50 @@ export default function WhatsAppBroadcast() {
                 )}
               </div>
               
-              <div className="p-4 flex-1 overflow-y-auto max-h-[700px] bg-gray-50/50">
+              <div className="p-3 flex-1 overflow-y-auto max-h-[700px] bg-gray-50/50">
                 {!activeList ? (
                   <p className="text-center text-gray-500 mt-10">Please select a list from the dropdown.</p>
                 ) : activeList.memberIds.length === 0 ? (
                   <p className="text-center text-gray-500 mt-10">This list is empty. Go to "Manage Lists" to add parties.</p>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {getFilteredBroadcastMembers().map(member => {
                       const isSent = !!activeList.sentStatuses[member.id];
                       const contactNumber = member.phone || member.mobile || '';
 
                       return (
-                        <div key={member.id} className={`p-4 rounded-lg border shadow-sm flex flex-col justify-between ${isSent ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
-                          <div className="flex justify-between items-start mb-4">
-                            <div>
-                              <h3 className="font-bold text-gray-900">{member.name}</h3>
-                              <p className="text-sm text-gray-600">{contactNumber || 'No number'}</p>
-                              <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-600 bg-gray-100 rounded-full">
+                        <div key={member.id} className={`p-3 rounded-lg border flex items-center justify-between transition-colors ${isSent ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-white border-gray-200 shadow-sm'}`}>
+                          
+                          {/* Compressed Left Info Section */}
+                          <div className="flex flex-col overflow-hidden mr-3">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-bold text-gray-900 text-sm truncate">{member.name}</h3>
+                              {isSent && (
+                                <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-xs text-gray-600">{contactNumber || 'No number'}</span>
+                              <span className="text-[9px] font-semibold uppercase tracking-wider text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
                                 {member.type || member.partyType || 'Party'}
                               </span>
                             </div>
-                            
-                            {isSent && (
-                              <span className="flex items-center text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded-md">
-                                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                                Sent
-                              </span>
-                            )}
                           </div>
                           
+                          {/* Compressed Circular Send Button */}
                           <button
                             onClick={() => handleSend(member.id, contactNumber)}
                             disabled={isSent || !message.trim() || !contactNumber}
-                            className={`w-full py-2 rounded-md text-sm font-bold transition-colors ${
+                            className={`flex-shrink-0 p-2.5 rounded-full flex items-center justify-center transition-colors ${
                               isSent || !message.trim() || !contactNumber
-                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
                                 : 'bg-[#25D366] text-white hover:bg-[#128C7E] shadow-sm'
                             }`}
+                            title={isSent ? 'Sent Today' : 'Send WhatsApp'}
                           >
-                            {isSent ? 'Sent Today' : 'Send WhatsApp'}
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
+                            </svg>
                           </button>
                         </div>
                       )
@@ -412,12 +382,8 @@ export default function WhatsAppBroadcast() {
         </div>
       )}
 
-      {/* =========================================
-          TAB 2: MANAGE LISTS
-          ========================================= */}
       {activeTab === 'manage' && (
         <div className="flex flex-col lg:flex-row gap-6">
-          
           <div className="w-full lg:w-1/3">
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
               <h2 className="text-lg font-bold mb-4 text-gray-800">Your Lists</h2>
@@ -478,8 +444,8 @@ export default function WhatsAppBroadcast() {
               </div>
 
               {editingList ? (
-                <div className="p-4 flex-1 overflow-y-auto max-h-[700px]">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 flex-1 overflow-y-auto max-h-[700px]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {getFilteredDirectory().map(party => {
                       const isSelected = editingList.memberIds.includes(party.id);
                       const contactNumber = party.phone || party.mobile || 'No Number';
@@ -493,7 +459,7 @@ export default function WhatsAppBroadcast() {
                             onChange={() => toggleMemberInList(editingList.id, party.id)}
                           />
                           <div className="ml-3 flex flex-col">
-                            <span className="text-sm font-semibold text-gray-800">{party.name}</span>
+                            <span className="text-sm font-semibold text-gray-800 truncate">{party.name}</span>
                             <span className="text-xs text-gray-500">{party.type || party.partyType} • {contactNumber}</span>
                           </div>
                         </label>
