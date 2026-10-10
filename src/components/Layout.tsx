@@ -50,7 +50,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { to: '/contracts', icon: FileText, label: 'Contracts' },
     { to: '/products', icon: Package, label: 'Products' },
-    {label: 'WhatsApp Broadcast', to: '/broadcast', icon: 'MegaphoneIcon', }
+    {label: 'WhatsApp Broadcast', to: '/broadcast', icon: 'MegaphoneIcon', },
     { to: '/brokerage', icon: Receipt, label: 'Brokerage Bills' },
     { to: '/ledger', icon: BookOpen, label: 'Party Ledger' },
     { to: '/message-generator', label: 'Message Generator', icon: StickyNote },
