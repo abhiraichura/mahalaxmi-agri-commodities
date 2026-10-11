@@ -25,6 +25,7 @@ import CustomMessageGenerator from './pages/CustomMessageGenerator';
 import Todos from './pages/Todos';
 import NcdexAutomation from './pages/NcdexAutomation';
 import WhatsAppBroadcast from './pages/WhatsAppBroadcast';
+import { startBillSync } from './utils/billStore';
 
 function App() {
   const { user, loading } = useAuthStore();
@@ -38,6 +39,28 @@ function App() {
       loadSettingsFromFirebase();
       loadNotes();
     }
+  }, [user]);
+
+  // brokerage-bill payments / adjustments are kept in Firestore and shared live between devices
+  useEffect(() => {
+    if (!user) return;
+    return startBillSync();
+  }, [user]);
+
+  // when the iPhone app (or a browser tab) comes back to the front, fetch what changed on the other device
+  useEffect(() => {
+    if (!user) return;
+    let last = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - last < 30_000) return;
+      last = Date.now();
+      loadContracts();
+      loadParties();
+      loadProducts();
+      loadNotes();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [user]);
 
   if (loading) return <LoadingScreen />;

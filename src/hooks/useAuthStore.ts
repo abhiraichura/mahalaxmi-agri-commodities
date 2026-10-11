@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Party, ProductSpec, Contract, CompanySettings, Note, BrokerageBill, BillPayment } from '../types';
 import {
-  addDoc, updateDocData, deleteDocData, getColData, subscribeCol,
+  addDoc, updateDocData, deleteDocData, getColData, getDocData, subscribeCol,
   COLLECTIONS, db, Timestamp, setDocData
 } from '../utils/firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
@@ -103,7 +103,10 @@ export const useAppStore = create<AppState>()(
       },
       loadSettingsFromFirebase: async () => {
         try {
-          const data = await getColData(COLLECTIONS.SETTINGS);
+          // the settings live in the document "main" (saved with setDocData, which has no createdAt, so a
+          // sorted collection query would skip it); fall back to the old way for older data
+          const main = await getDocData(COLLECTIONS.SETTINGS, 'main');
+          const data = main ? [main] : await getColData(COLLECTIONS.SETTINGS);
           if (data && data.length > 0) {
             const loaded = { ...defaultSettings, ...data[0] };
             if (!loaded.financialYears || loaded.financialYears.length === 0) {

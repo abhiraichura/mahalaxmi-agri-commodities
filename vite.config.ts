@@ -7,6 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      includeAssets: ['apple-touch-icon.png', 'mahalaxmi-logo.svg'],
       manifest: {
         name: 'Mahalaxmi Agri Commodities',
         short_name: 'Mahalaxmi',
@@ -14,16 +15,29 @@ export default defineConfig({
         theme_color: '#e11d48',
         background_color: '#ffffff',
         display: 'standalone',
+        orientation: 'portrait',
+        scope: '/',
+        start_url: '/',
         icons: [
+          { src: '/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icon-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+        ]
+      },
+      workbox: {
+        // the PDF library chunks are large; keep them in the offline cache too
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        navigateFallbackDenylist: [/^\/api\//],
+        runtimeCaching: [
           {
-            src: '/icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
+            // the two contract-note templates (3 MB each): fetched once, then served from the device
+            urlPattern: /\/contract-templates\/.*\.pdf/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'contract-templates',
+              expiration: { maxEntries: 6 },
+              cacheableResponse: { statuses: [200] }
+            }
           }
         ]
       }

@@ -36,7 +36,9 @@ export async function clearAppCache(): Promise<void> {
       key && 
       !keysToKeep.includes(key) && 
       !key.startsWith('firebase:') && // Keep Firebase auth sessions intact
-      !key.startsWith('bill_payments_') // Keep Brokerage bill payments intact
+      !key.startsWith('bill_payments_') && // Keep Brokerage bill payments intact
+      !key.startsWith('bill_adj_') && // ...and bill adjustments
+      !key.startsWith('bill_records_') // ...and the "already copied to the cloud" marker
     ) {
       localStorage.removeItem(key);
     }

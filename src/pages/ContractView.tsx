@@ -1,12 +1,18 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
 import {
   ArrowLeft, Edit2, Trash2, Printer, Download, Share2, Phone,
-  AlertTriangle, CheckCircle, Clock
+  AlertTriangle, CheckCircle, Clock, FileText, Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { generateContractPDF, downloadPDF } from '../utils/pdfGenerator';
 import { format, isPast, parseISO, isTomorrow } from 'date-fns';
+import ContractNoteModal from '../components/ContractNoteModal';
+import { useContractNote } from '../contractNote/useContractNote';
+import { decodeOverrides } from '../contractNote/mapping';
+import { copyName, downloadBytes, noteFileName, noteTitle, printBytes, shareBytes } from '../contractNote/service';
+import type { Tag } from '../contractNote/types';
 
 export default function ContractView() {
   const { id } = useParams();
@@ -14,6 +20,11 @@ export default function ContractView() {
   const { contracts, settings, deleteContract } = useAppStore();
 
   const contract = contracts.find(c => c.id === id);
+
+  // exact-format Contract Notes (buyer + seller), prepared in the background
+  const [noteTag, setNoteTag] = useState<Tag | null>(null);
+  const savedOverrides = useMemo(() => decodeOverrides(contract?.noteOverrides), [contract?.noteOverrides]);
+  const note = useContractNote(contract, savedOverrides);
 
   if (!contract) {
     return (
@@ -33,15 +44,14 @@ export default function ContractView() {
     navigate('/contracts');
   };
 
-  const handleDownload = (type: 'buyer_copy' | 'seller_copy' | 'broker_copy') => {
-    const doc = generateContractPDF(contract, settings, type, { showTotalValue: type === 'broker_copy', isDownload: true });
-    const label = type === 'buyer_copy' ? 'Buyer' : type === 'seller_copy' ? 'Seller' : 'Broker';
-    downloadPDF(doc, `Contract_${contract.contractNo}_${label}_Copy.pdf`);
-    toast.success(`${label} copy downloaded`);
+  const handleDownload = (type: 'broker_copy') => {
+    const doc = generateContractPDF(contract, settings, type, { showTotalValue: true, isDownload: true });
+    downloadPDF(doc, `Contract_${contract.contractNo}_Broker_Copy.pdf`);
+    toast.success('Broker copy downloaded');
   };
 
-  const handlePrint = (type: 'buyer_copy' | 'seller_copy' | 'broker_copy') => {
-    const doc = generateContractPDF(contract, settings, type, { showTotalValue: type === 'broker_copy' });
+  const handlePrint = (type: 'broker_copy') => {
+    const doc = generateContractPDF(contract, settings, type, { showTotalValue: true });
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);
     const printWindow = window.open(url, '_blank');
@@ -50,32 +60,30 @@ export default function ContractView() {
         printWindow.print();
       };
     }
-    toast.success(`Opening ${type === 'buyer_copy' ? 'Buyer' : type === 'seller_copy' ? 'Seller' : 'Broker'} copy for print`);
+    toast.success('Opening Broker copy for print');
   };
 
-  const handleShare = async (type: 'buyer_copy' | 'seller_copy') => {
-    const doc = generateContractPDF(contract, settings, type, { isDownload: true });
-    const blob = doc.output('blob');
-    const file = new File([blob], `Contract_${contract.contractNo}_${type}.pdf`, { type: 'application/pdf' });
-
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: `Contract Note ${contract.contractNo}`,
-        });
-      } catch {
-        toast.error('Share cancelled');
-      }
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Contract_${contract.contractNo}_${type}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success('Downloaded for sharing');
-    }
+  // ----- exact-format Contract Note actions (Buyer = B, Seller = S) -----
+  const noteReady = (tag: Tag) => !!note.pdfs[tag] && !note.blocking[tag] && !note.rendering;
+  const noteName = (tag: Tag) => noteFileName(contract.contractNo, tag);
+  const noteShare = async (tag: Tag) => {
+    const bytes = note.pdfs[tag];
+    if (!bytes) return;
+    const r = await shareBytes(bytes, noteName(tag), noteTitle(contract.contractNo, tag));
+    if (r === 'unsupported') { downloadBytes(bytes, noteName(tag)); toast.success('Downloaded'); }
+    else if (r === 'blocked') toast.error('Could not open the share sheet. Tap Share again.');
+  };
+  const noteDownload = (tag: Tag) => {
+    const bytes = note.pdfs[tag];
+    if (!bytes) return;
+    downloadBytes(bytes, noteName(tag));
+    toast.success(`${copyName(tag)} copy downloaded`);
+  };
+  const notePrint = async (tag: Tag) => {
+    const bytes = note.pdfs[tag];
+    if (!bytes) return;
+    const r = await printBytes(bytes, noteName(tag), noteTitle(contract.contractNo, tag));
+    if (r === 'unsupported') toast.error('Printing is not available in this browser. Download the PDF and print it from there.');
   };
 
   const parsePhones = (phoneStr: string): string[] => {
@@ -151,35 +159,57 @@ export default function ContractView() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Buyer Copy</h3>
-          <div className="flex gap-2">
-            <button onClick={() => handlePrint('buyer_copy')} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200">
-              <Printer className="w-3.5 h-3.5" /> Print
-            </button>
-            <button onClick={() => handleDownload('buyer_copy')} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-50 text-rose-700 rounded-lg text-xs font-medium hover:bg-rose-100">
-              <Download className="w-3.5 h-3.5" /> Download
-            </button>
+        {(['B', 'S'] as Tag[]).map(tag => (
+          <div key={tag} className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">{copyName(tag)} Copy</h3>
+              <span className="text-[11px] text-gray-400">Contract Note PDF</span>
+            </div>
+            {note.fontMissing ? (
+              <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                Add the Verdana font once in <Link to="/settings" className="underline font-medium">Settings</Link> to create the exact-format note.
+              </div>
+            ) : note.error && !note.pdfs[tag] ? (
+              <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">{note.error}</div>
+            ) : note.blocking[tag] ? (
+              <div className="space-y-2">
+                <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+                  {note.issues[tag].find(i => i.level !== 'warn')?.msg || 'Something does not fit the note.'}
+                </p>
+                <button onClick={() => setNoteTag(tag)} className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-600 text-white rounded-lg text-xs font-medium hover:bg-rose-700">
+                  <FileText className="w-3.5 h-3.5" /> Fix &amp; review
+                </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => noteShare(tag)}
+                  disabled={!noteReady(tag)}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 bg-rose-600 text-white rounded-lg text-sm font-medium hover:bg-rose-700 disabled:opacity-50"
+                >
+                  {noteReady(tag) ? <Share2 className="w-4 h-4" /> : <Loader2 className="w-4 h-4 animate-spin" />}
+                  {noteReady(tag) ? 'Share PDF' : 'Preparing…'}
+                </button>
+                <div className="flex gap-2 mt-2">
+                  <button onClick={() => notePrint(tag)} disabled={!noteReady(tag)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200 disabled:opacity-50">
+                    <Printer className="w-3.5 h-3.5" /> Print
+                  </button>
+                  <button onClick={() => noteDownload(tag)} disabled={!noteReady(tag)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-50 text-rose-700 rounded-lg text-xs font-medium hover:bg-rose-100 disabled:opacity-50">
+                    <Download className="w-3.5 h-3.5" /> Download
+                  </button>
+                </div>
+              </>
+            )}
+            {!note.fontMissing && !note.blocking[tag] && note.issues[tag].some(i => i.level === 'warn') && (
+              <p className="mt-2 text-[11px] text-amber-700">⚠ {note.issues[tag].find(i => i.level === 'warn')!.msg}</p>
+            )}
+            {!note.fontMissing && (
+              <button onClick={() => setNoteTag(tag)} className="w-full mt-2 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-600 rounded-lg text-xs hover:bg-gray-50">
+                <FileText className="w-3.5 h-3.5" /> Preview &amp; edit text
+              </button>
+            )}
           </div>
-          <button onClick={() => handleShare('buyer_copy')} className="w-full mt-2 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-600 rounded-lg text-xs hover:bg-gray-50">
-            <Share2 className="w-3.5 h-3.5" /> Share
-          </button>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Seller Copy</h3>
-          <div className="flex gap-2">
-            <button onClick={() => handlePrint('seller_copy')} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200">
-              <Printer className="w-3.5 h-3.5" /> Print
-            </button>
-            <button onClick={() => handleDownload('seller_copy')} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-50 text-rose-700 rounded-lg text-xs font-medium hover:bg-rose-100">
-              <Download className="w-3.5 h-3.5" /> Download
-            </button>
-          </div>
-          <button onClick={() => handleShare('seller_copy')} className="w-full mt-2 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-600 rounded-lg text-xs hover:bg-gray-50">
-            <Share2 className="w-3.5 h-3.5" /> Share
-          </button>
-        </div>
+        ))}
 
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Broker Copy (Internal)</h3>
@@ -318,6 +348,8 @@ export default function ContractView() {
           <Trash2 className="w-4 h-4" /> Delete
         </button>
       </div>
+
+      {noteTag && <ContractNoteModal contract={contract} initialTag={noteTag} onClose={() => setNoteTag(null)} />}
     </div>
   );
 }

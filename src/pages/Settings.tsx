@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Upload, Save, Trash2, Plus, X, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Upload, Save, Trash2, Plus, X, AlertTriangle, RefreshCw, Type, CheckCircle } from 'lucide-react';
 import { clearAppCache, checkForUpdate, markVersionSeen } from '../utils/cacheManager';
 import toast from 'react-hot-toast';
+import { getStoredFont, saveFont, removeFont, onFontChange, type FontMeta } from '../contractNote/fontStore';
+import { checkFont, parseFont } from '../contractNote/engine';
+import { FONT_REF } from '../contractNote/data';
 
 export default function Settings() {
   const { settings, updateSettings, saveSettingsToFirebase, loadSettingsFromFirebase } = useAppStore();
@@ -16,10 +19,45 @@ export default function Settings() {
   const logoRef = useRef<HTMLInputElement>(null);
   const sigRef = useRef<HTMLInputElement>(null);
   const letterheadRef = useRef<HTMLInputElement>(null);
+  const fontRef = useRef<HTMLInputElement>(null);
+  const [fontMeta, setFontMeta] = useState<FontMeta | null | undefined>(undefined);
+  const [fontBusy, setFontBusy] = useState(false);
 
   useEffect(() => {
     loadSettingsFromFirebase();
   }, []);
+
+  useEffect(() => {
+    const load = () => getStoredFont().then(f => setFontMeta(f ? f.meta : null)).catch(() => setFontMeta(null));
+    load();
+    return onFontChange(load);
+  }, []);
+
+  const handleFontPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setFontBusy(true);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const font = await parseFont(bytes);
+      const chk = checkFont(font, FONT_REF);
+      if (!chk.ok && !confirm('This file is not identical to the font used in your contract design:\n\n- ' + chk.problems.join('\n- ') + '\n\nUse it anyway? (Spacing may differ from the original.)')) return;
+      await saveFont(bytes, file.name, font.fullName);
+      toast.success('Verdana saved. Contract notes are ready.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not read or save that font file.');
+    } finally {
+      setFontBusy(false);
+    }
+  };
+
+  const handleFontRemove = async () => {
+    if (!confirm('Remove the stored Verdana font? Contract notes cannot be created until you add it again.')) return;
+    setFontBusy(true);
+    try { await removeFont(); toast.success('Font removed'); } catch { toast.error('Could not remove'); } finally { setFontBusy(false); }
+  };
 
   useEffect(() => {
     setFormData(settings);
@@ -380,6 +418,40 @@ export default function Settings() {
               <Plus className="w-4 h-4" />
             </button>
           </div>
+        </div>
+
+        {/* Contract Note font */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-3">
+          <h3 className="font-semibold text-sm flex items-center gap-2"><Type className="w-4 h-4" /> Contract Note font (Verdana)</h3>
+          <p className="text-xs text-gray-500">
+            The exact-format Contract Note is printed in Verdana, the font of your design. Add the font file once (regular <b>Verdana.ttf</b>).
+            It is stored privately in your own Firebase, so your iPhone and the website both use it. Nothing is added to the public code.
+          </p>
+          {fontMeta ? (
+            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              <span className="flex-1 min-w-0 truncate">Added: {fontMeta.fullName || fontMeta.fileName} ({Math.round(fontMeta.size / 1024)} KB)</span>
+            </div>
+          ) : fontMeta === null ? (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+              No font added yet. On Windows it is at <code>C:\Windows\Fonts\verdana.ttf</code>; on a Mac it is in Font Book (right-click Verdana, Show in Finder) or <code>/System/Library/Fonts/Supplemental/Verdana.ttf</code>.
+            </div>
+          ) : null}
+          <div className="flex gap-2">
+            <button
+              onClick={() => fontRef.current?.click()}
+              disabled={fontBusy}
+              className="flex items-center gap-2 px-4 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700 disabled:opacity-50"
+            >
+              <Upload className="w-4 h-4" /> {fontMeta ? 'Replace font' : 'Add Verdana font'}
+            </button>
+            {fontMeta && (
+              <button onClick={handleFontRemove} disabled={fontBusy} className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-700 bg-white border border-red-200 rounded-xl hover:bg-red-50 disabled:opacity-50">
+                <Trash2 className="w-4 h-4" /> Remove
+              </button>
+            )}
+          </div>
+          <input ref={fontRef} type="file" accept=".ttf,.otf,font/ttf,font/otf,application/x-font-ttf" onChange={handleFontPick} className="hidden" />
         </div>
 
         {/* ─── SYSTEM SECTION ─── */}

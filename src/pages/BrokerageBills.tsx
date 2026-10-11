@@ -6,6 +6,9 @@ import { generateBrokerageBillPDF, downloadPDF } from '../utils/pdfGenerator';
 import { Calendar, Download, ChevronLeft, ChevronRight, Eye, DollarSign, CheckCircle, Clock, AlertCircle, Plus, X, Filter, Edit2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import {
+  getBillPayments, getBillAdjustment, saveBillPayments, saveBillAdjustment, useBillVersion
+} from '../utils/billStore';
 
 interface BillGroup {
   party: Party;
@@ -47,6 +50,7 @@ export default function BrokerageBills() {
   const [showDateRange, setShowDateRange] = useState(false);
   const [selectedPartyForRange, setSelectedPartyForRange] = useState<string>('all');
   const [refreshTick, setRefreshTick] = useState(0);
+  const billVersion = useBillVersion(); // payments / adjustments live in Firestore now
 
   const months = [
     'January','February','March','April','May','June',
@@ -58,31 +62,23 @@ export default function BrokerageBills() {
     return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
   });
 
-  const getSavedPayments = (partyId: string, month: number, year: number, billType: 'buyer' | 'seller'): BillPayment[] => {
-    const key = `bill_payments_${partyId}_${month}_${year}_${billType}`;
-    try {
-      const saved = localStorage.getItem(key);
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  };
+  // Payments and adjustments are stored in Firestore (see utils/billStore.ts), so they are shared with
+  // every device and do not disappear when the browser cache is cleared.
+  const getSavedPayments = (partyId: string, month: number, year: number, billType: 'buyer' | 'seller'): BillPayment[] =>
+    getBillPayments(partyId, month, year, billType);
 
   const savePayments = (partyId: string, month: number, year: number, billType: 'buyer' | 'seller', payments: BillPayment[]) => {
-    const key = `bill_payments_${partyId}_${month}_${year}_${billType}`;
-    localStorage.setItem(key, JSON.stringify(payments));
+    saveBillPayments(partyId, month, year, billType, payments)
+      .catch(() => toast.error('Could not save the payment to the cloud. Check your connection.'));
   };
 
-  const getSavedAdjustment = (partyId: string, month: number, year: number, billType: 'buyer' | 'seller') => {
-    const key = `bill_adj_${partyId}_${month}_${year}_${billType}`;
-    try {
-      const saved = localStorage.getItem(key);
-      return saved ? JSON.parse(saved) : { amount: 0, note: '' };
-    } catch { return { amount: 0, note: '' }; }
-  };
+  const getSavedAdjustment = (partyId: string, month: number, year: number, billType: 'buyer' | 'seller') =>
+    getBillAdjustment(partyId, month, year, billType);
 
   const saveAdjustment = () => {
     if (!editingBill) return;
-    const key = `bill_adj_${editingBill.party.id}_${selectedMonth}_${selectedYear}_${editingBill.billType}`;
-    localStorage.setItem(key, JSON.stringify(editForm));
+    saveBillAdjustment(editingBill.party.id, selectedMonth, selectedYear, editingBill.billType, editForm)
+      .catch(() => toast.error('Could not save the adjustment to the cloud. Check your connection.'));
     setRefreshTick(t => t + 1);
     
     // Update viewingBill state if currently open
@@ -175,7 +171,7 @@ export default function BrokerageBills() {
     });
 
     return Object.values(byParty);
-  }, [monthContracts, selectedMonth, selectedYear, refreshTick]);
+  }, [monthContracts, selectedMonth, selectedYear, refreshTick, billVersion]);
 
   const handleDownloadBill = (bill: BillGroup) => {
     // Generate the PDF. Using totalBrokerage. 

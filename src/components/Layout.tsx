@@ -211,7 +211,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-gray-100">
+        <div className="p-4 border-t border-gray-100" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <div className="px-4 py-2 mb-2">
             <p className="text-xs text-gray-500">{user?.email}</p>
           </div>

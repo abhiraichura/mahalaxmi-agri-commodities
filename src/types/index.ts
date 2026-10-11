@@ -100,6 +100,8 @@ export interface Contract {
   qualityId?: string;
   qualityName?: string;
   contractSpecs?: SpecField[];
+  /** edits made on the Contract Note review screen (flat field key -> text); see src/contractNote/mapping.ts */
+  noteOverrides?: Record<string, string>;
   payments: Payment[];
   createdAt: any;
   updatedAt: any;
