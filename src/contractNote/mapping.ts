@@ -76,6 +76,17 @@ export function brokerageText(product: ProductSpec | undefined, side: 'buyer' | 
   return pct(v) + '% OF BILL VALUE';
 }
 
+/** brokerage text for one side of THIS contract: the rate set on the contract, else the product's default */
+export function contractBrokerageText(c: Contract, side: 'buyer' | 'seller'): string {
+  const cfg = c.brokerage?.[side];
+  if (cfg) {
+    const v = Number(cfg.value) || 0;
+    if (!v) return '';
+    return cfg.type === 'fixed' ? 'RS. ' + v + ' FIXED' : pct(v) + '% OF BILL VALUE';
+  }
+  return brokerageText(c.product, side);
+}
+
 function qtyFromContract(c: Contract): { value: string; unit: string } {
   const unit = t(c.quantityUnit).toUpperCase();
   const q = Number(c.quantity) || 0;
@@ -111,7 +122,7 @@ export function noteValuesFromContract(c: Contract, settings?: Pick<CompanySetti
     delivery: delivery.join('\n'),
     loading: t(c.loadingCondition),
     payment: { B: pay, S: pay },
-    brokerage: { B: brokerageText(c.product, 'buyer'), S: brokerageText(c.product, 'seller') },
+    brokerage: { B: contractBrokerageText(c, 'buyer'), S: contractBrokerageText(c, 'seller') },
     other: t(c.otherTerms) || `AS PER GOVERMENT RULE, "${gst}% GST" EXTRA.`,
   };
 }

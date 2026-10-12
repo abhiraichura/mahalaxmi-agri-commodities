@@ -4,7 +4,10 @@ import { Bytes, collection, doc, getDoc, getDocs, writeBatch, deleteDoc } from '
 import { db } from '../utils/firebase';
 
 const COL = 'appFiles';
-const META_ID = 'contractFont';
+/** two font slots: the regular Verdana (needed) and Verdana Bold (optional, used for headings on bills) */
+export type FontSlot = 'regular' | 'bold';
+const META_IDS: Record<FontSlot, string> = { regular: 'contractFont', bold: 'contractFontBold' };
+const IDB_KEYS: Record<FontSlot, string> = { regular: 'font', bold: 'fontBold' };
 const CHUNK = 600_000; // bytes per Firestore document (limit is ~1 MiB)
 
 export interface FontMeta {
@@ -59,7 +62,7 @@ async function idbDel(key: string): Promise<void> {
   } catch { /* ignore */ }
 }
 
-let memo: StoredFont | null | undefined;
+const memos: Partial<Record<FontSlot, StoredFont | null>> = {};
 const listeners = new Set<() => void>();
 export function onFontChange(fn: () => void): () => void {
   listeners.add(fn);
@@ -68,9 +71,11 @@ export function onFontChange(fn: () => void): () => void {
 function emit() { listeners.forEach(f => f()); }
 
 /** The stored Verdana (or null when none has been uploaded yet). */
-export async function getStoredFont(): Promise<StoredFont | null> {
-  if (memo !== undefined) return memo;
-  const cached = await idbGet<StoredFont>('font');
+export async function getStoredFont(slot: FontSlot = 'regular'): Promise<StoredFont | null> {
+  if (memos[slot] !== undefined) return memos[slot] as StoredFont | null;
+  const META_ID = META_IDS[slot];
+  const key = IDB_KEYS[slot];
+  const cached = await idbGet<StoredFont>(key);
   let meta: FontMeta | null = null;
   let reachable = true;
   try {
@@ -78,18 +83,18 @@ export async function getStoredFont(): Promise<StoredFont | null> {
     meta = snap.exists() ? (snap.data() as FontMeta) : null;
     if (!snap.exists()) {
       // no font in the cloud: forget any stale device copy
-      if (cached) await idbDel('font');
-      memo = null;
+      if (cached) await idbDel(key);
+      memos[slot] = null;
       return null;
     }
   } catch {
     reachable = false;
   }
   if (!reachable || !meta) {
-    memo = cached || null; // offline: use what this device already has
-    return memo;
+    memos[slot] = cached || null; // offline: use what this device already has
+    return memos[slot] as StoredFont | null;
   }
-  if (cached && cached.meta.version === meta.version) { memo = cached; return cached; }
+  if (cached && cached.meta.version === meta.version) { memos[slot] = cached; return cached; }
   // download the chunks
   const snaps = await Promise.all(
     Array.from({ length: meta.chunks }, (_, i) => getDoc(doc(db, COL, `${META_ID}_${i}`))),
@@ -103,12 +108,13 @@ export async function getStoredFont(): Promise<StoredFont | null> {
   let o = 0;
   for (const p of parts) { bytes.set(p, o); o += p.length; }
   const stored = { bytes, meta };
-  await idbSet('font', stored);
-  memo = stored;
+  await idbSet(key, stored);
+  memos[slot] = stored;
   return stored;
 }
 
-export async function saveFont(bytes: Uint8Array, fileName: string, fullName?: string): Promise<FontMeta> {
+export async function saveFont(bytes: Uint8Array, fileName: string, fullName?: string, slot: FontSlot = 'regular'): Promise<FontMeta> {
+  const META_ID = META_IDS[slot];
   const chunks = Math.ceil(bytes.length / CHUNK);
   const version = Date.now();
   const meta: FontMeta = { fileName, size: bytes.length, chunks, version, ...(fullName ? { fullName } : {}) };
@@ -119,16 +125,18 @@ export async function saveFont(bytes: Uint8Array, fileName: string, fullName?: s
   batch.set(doc(db, COL, META_ID), meta); // written in the same batch: all or nothing
   await batch.commit();
   const stored = { bytes, meta };
-  await idbSet('font', stored);
-  memo = stored;
+  await idbSet(IDB_KEYS[slot], stored);
+  memos[slot] = stored;
   emit();
   return meta;
 }
 
-export async function removeFont(): Promise<void> {
+export async function removeFont(slot: FontSlot = 'regular'): Promise<void> {
+  const META_ID = META_IDS[slot];
   const snaps = await getDocs(collection(db, COL));
-  await Promise.all(snaps.docs.filter(d => d.id.startsWith(META_ID)).map(d => deleteDoc(d.ref)));
-  await idbDel('font');
-  memo = null;
+  // exact id, or "<id>_<n>" chunk documents (so removing the regular font never touches the bold one)
+  await Promise.all(snaps.docs.filter(d => d.id === META_ID || d.id.startsWith(META_ID + '_')).map(d => deleteDoc(d.ref)));
+  await idbDel(IDB_KEYS[slot]);
+  memos[slot] = null;
   emit();
 }
