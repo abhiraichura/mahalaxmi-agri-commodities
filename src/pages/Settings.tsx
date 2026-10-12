@@ -22,6 +22,8 @@ export default function Settings() {
   const fontRef = useRef<HTMLInputElement>(null);
   const [fontMeta, setFontMeta] = useState<FontMeta | null | undefined>(undefined);
   const [fontBusy, setFontBusy] = useState(false);
+  const boldRef = useRef<HTMLInputElement>(null);
+  const [boldMeta, setBoldMeta] = useState<FontMeta | null | undefined>(undefined);
 
   useEffect(() => {
     loadSettingsFromFirebase();
@@ -29,9 +31,38 @@ export default function Settings() {
 
   useEffect(() => {
     const load = () => getStoredFont().then(f => setFontMeta(f ? f.meta : null)).catch(() => setFontMeta(null));
+    const loadBold = () => getStoredFont('bold').then(f => setBoldMeta(f ? f.meta : null)).catch(() => setBoldMeta(null));
     load();
-    return onFontChange(load);
+    loadBold();
+    const off = onFontChange(() => { load(); loadBold(); });
+    return off;
   }, []);
+
+  const handleBoldPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setFontBusy(true);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const font = await parseFont(bytes);
+      const isBold = /bold/i.test((font.subfamilyName || '') + ' ' + (font.fullName || ''));
+      if (!isBold && !confirm('This does not look like a Bold font (' + (font.fullName || file.name) + '). Use it anyway for the headings on bills?')) return;
+      await saveFont(bytes, file.name, font.fullName, 'bold');
+      toast.success('Verdana Bold saved. Bills will use it for headings.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not read or save that font file.');
+    } finally {
+      setFontBusy(false);
+    }
+  };
+
+  const handleBoldRemove = async () => {
+    if (!confirm('Remove Verdana Bold? Bill headings will use a thickened regular font instead.')) return;
+    setFontBusy(true);
+    try { await removeFont('bold'); toast.success('Bold font removed'); } catch { toast.error('Could not remove'); } finally { setFontBusy(false); }
+  };
 
   const handleFontPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -95,7 +126,7 @@ export default function Settings() {
   };
 
   const handleSave = async () => {
-    updateSettings(formData);
+    updateSettings(JSON.parse(JSON.stringify(formData))); // Firestore does not accept "undefined" values
     await saveSettingsToFirebase();
     toast.success('Settings saved');
   };
@@ -320,6 +351,70 @@ export default function Settings() {
           </div>
         </div>
 
+        {/* Brokerage bills & invoices */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+          <h3 className="font-semibold text-sm">Brokerage Bills &amp; Invoices</h3>
+          <p className="text-xs text-gray-500">
+            Printed on the bills and invoices together with the PAN and bank details above. The PAN you set here is the one on the bills.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Account holder name (as in the bank)</label>
+              <input
+                value={formData.bankAccountName || ''}
+                onChange={e => setFormData({ ...formData, bankAccountName: e.target.value })}
+                placeholder="e.g. MAHALAXMI AGRI COMMODITIES"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Bank branch</label>
+              <input
+                value={formData.bankBranch || ''}
+                onChange={e => setFormData({ ...formData, bankBranch: e.target.value })}
+                placeholder="e.g. Rajkot Main Branch"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Next invoice number starts at</label>
+              <input
+                type="number"
+                min="1"
+                inputMode="numeric"
+                value={formData.invoiceStartNumber || ''}
+                onChange={e => setFormData({ ...formData, invoiceStartNumber: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
+                placeholder="1"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">Numbers continue from the highest one already used. Use this to carry on from your paper books.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Subject to ___ Jurisdiction</label>
+              <input
+                value={formData.jurisdiction || ''}
+                onChange={e => setFormData({ ...formData, jurisdiction: e.target.value })}
+                placeholder="RAJKOT"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">GST on brokerage (%)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                inputMode="decimal"
+                value={formData.brokerageGstPercent || ''}
+                onChange={e => setFormData({ ...formData, brokerageGstPercent: Math.max(0, Number(e.target.value) || 0) })}
+                placeholder="0 (none)"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">Leave empty if you do not charge GST on brokerage. It can also be changed on the Brokerage Bills screen.</p>
+            </div>
+          </div>
+        </div>
+
         {/* Default Values */}
         <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
           <h3 className="font-semibold text-sm">Default Contract Values</h3>
@@ -452,6 +547,33 @@ export default function Settings() {
             )}
           </div>
           <input ref={fontRef} type="file" accept=".ttf,.otf,font/ttf,font/otf,application/x-font-ttf" onChange={handleFontPick} className="hidden" />
+
+          <div className="pt-3 mt-1 border-t border-gray-100 space-y-2">
+            <p className="text-xs text-gray-500">
+              <b>Optional:</b> add <b>Verdana Bold</b> (<code>verdanab.ttf</code>) for the headings on Brokerage Bills and Invoices. Without it, headings use a slightly thickened regular font.
+            </p>
+            {boldMeta && (
+              <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                <span className="flex-1 min-w-0 truncate">Added: {boldMeta.fullName || boldMeta.fileName} ({Math.round(boldMeta.size / 1024)} KB)</span>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => boldRef.current?.click()}
+                disabled={fontBusy}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white text-rose-700 border border-rose-200 rounded-xl text-sm font-medium hover:bg-rose-50 disabled:opacity-50"
+              >
+                <Upload className="w-4 h-4" /> {boldMeta ? 'Replace Bold font' : 'Add Verdana Bold'}
+              </button>
+              {boldMeta && (
+                <button onClick={handleBoldRemove} disabled={fontBusy} className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-700 bg-white border border-red-200 rounded-xl hover:bg-red-50 disabled:opacity-50">
+                  <Trash2 className="w-4 h-4" /> Remove
+                </button>
+              )}
+            </div>
+            <input ref={boldRef} type="file" accept=".ttf,.otf,font/ttf,font/otf,application/x-font-ttf" onChange={handleBoldPick} className="hidden" />
+          </div>
         </div>
 
         {/* ─── SYSTEM SECTION ─── */}

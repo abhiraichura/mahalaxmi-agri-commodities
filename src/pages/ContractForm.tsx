@@ -4,7 +4,8 @@ import { useAppStore } from '../hooks/useAuthStore';
 import { ArrowLeft, Save, ChevronDown, Plus, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
-import { SpecField } from '../types';
+import { BrokerageConfig, SpecField } from '../types';
+import { brokerageAmount, goodsValue, productBrokerageDefaults } from '../billing/calc';
 
 const QUANTITY_UNITS = [
   { value: 'MT', label: 'Metric Ton (MT)', factor: 1000 },
@@ -49,6 +50,15 @@ export default function ContractForm() {
 
   const [selectedQualityId, setSelectedQualityId] = useState('');
   const [contractSpecs, setContractSpecs] = useState<SpecField[]>([]);
+
+  // Brokerage for THIS contract: starts as the product's default, can be changed per contract
+  type BrkInput = { type: 'percent' | 'fixed'; value: string };
+  const toBrkInput = (c: BrokerageConfig): BrkInput => ({ type: c.type, value: c.value ? String(c.value) : '' });
+  const [brk, setBrk] = useState<{ buyer: BrkInput; seller: BrkInput }>({
+    buyer: { type: 'percent', value: '' },
+    seller: { type: 'percent', value: '' },
+  });
+  const lastProductRef = useRef('');
 
   // Custom Dropdown States
   const [sellerDropdownOpen, setSellerDropdownOpen] = useState(false);
@@ -110,6 +120,11 @@ export default function ContractForm() {
         status: existing.status || 'confirmed',
         financialYear: existing.financialYear || currentFinancialYear
       });
+
+      // the contract's own brokerage (older contracts: the product's rate as it was saved with the contract)
+      const savedBrk = existing.brokerage || productBrokerageDefaults(existing.product);
+      setBrk({ buyer: toBrkInput(savedBrk.buyer), seller: toBrkInput(savedBrk.seller) });
+      lastProductRef.current = existing.productId || '';
 
       setSelectedQualityId(existing.qualityId || '');
       if (existing.contractSpecs && existing.contractSpecs.length > 0) {
@@ -221,6 +236,15 @@ export default function ContractForm() {
     }
   }, [selectedProduct, existing]);
 
+  // choosing a different product loads that product's default brokerage (editable below)
+  useEffect(() => {
+    if (!selectedProduct || lastProductRef.current === selectedProduct.id) return;
+    lastProductRef.current = selectedProduct.id;
+    const d = productBrokerageDefaults(selectedProduct);
+    setBrk({ buyer: toBrkInput(d.buyer), seller: toBrkInput(d.seller) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProduct]);
+
   const handleQualityChange = (qId: string) => {
     setSelectedQualityId(qId);
     if (selectedProduct?.qualities) {
@@ -237,29 +261,25 @@ export default function ContractForm() {
     setContractSpecs(updated);
   };
 
+  const brkConfig: { buyer: BrokerageConfig; seller: BrokerageConfig } = {
+    buyer: { type: brk.buyer.type, value: Number(brk.buyer.value) || 0 },
+    seller: { type: brk.seller.type, value: Number(brk.seller.value) || 0 },
+  };
+  const productDefaults = selectedProduct ? productBrokerageDefaults(selectedProduct) : null;
+  const brkChanged = !!productDefaults && (
+    brkConfig.buyer.type !== productDefaults.buyer.type || brkConfig.buyer.value !== productDefaults.buyer.value ||
+    brkConfig.seller.type !== productDefaults.seller.type || brkConfig.seller.value !== productDefaults.seller.value
+  );
+  // value of the goods = quantity (in KG) / price unit (per KG, per MT, per Quintal ...) x price
+  const goods = goodsValue(form.quantity, form.quantityUnit, form.price, form.priceUnit);
+
   const calculateBrokerages = () => {
     if (!selectedProduct || form.quantity <= 0 || form.price <= 0) {
       return { buyer: 0, seller: 0, total: 0 };
     }
-
-    const b = selectedProduct.brokerage || {
-      buyer: { type: 'percent', value: selectedProduct.defaultBrokerage || 0 },
-      seller: { type: 'percent', value: selectedProduct.defaultBrokerage || 0 }
-    };
-
-    const unitFactor = QUANTITY_UNITS.find(u => u.value === form.quantityUnit)?.factor || 1;
-    const quantityInKg = form.quantity * unitFactor;
-    const totalValue = quantityInKg * form.price;
-
-    const buyerBrokerage = b.buyer?.type === 'fixed' 
-      ? (b.buyer?.value || 0) 
-      : (totalValue * (b.buyer?.value || b.buyerPercent || 0)) / 100;
-
-    const sellerBrokerage = b.seller?.type === 'fixed'
-      ? (b.seller?.value || 0)
-      : (totalValue * (b.seller?.value || b.sellerPercent || 0)) / 100;
-
-    return { buyer: buyerBrokerage, seller: sellerBrokerage, total: buyerBrokerage + sellerBrokerage };
+    const buyerBrokerage = brokerageAmount(brkConfig.buyer, goods.value);
+    const sellerBrokerage = brokerageAmount(brkConfig.seller, goods.value);
+    return { buyer: buyerBrokerage, seller: sellerBrokerage, total: Math.round((buyerBrokerage + sellerBrokerage) * 100) / 100 };
   };
 
   const brokerages = calculateBrokerages();
@@ -303,6 +323,7 @@ export default function ContractForm() {
       seller,
       buyer,
       product,
+      brokerage: brkConfig,
       brokerageAmount: brokerages.total,
       buyerBrokerageAmount: brokerages.buyer,
       sellerBrokerageAmount: brokerages.seller,
@@ -548,8 +569,8 @@ export default function ContractForm() {
           )}
           {selectedProduct && (
             <div className="mt-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600 border border-gray-100">
-              <p>Buyer Brokerage: {selectedProduct.brokerage?.buyer?.value || selectedProduct.brokerage?.buyerPercent || selectedProduct.defaultBrokerage || 0}{selectedProduct.brokerage?.buyer?.type === 'fixed' || selectedProduct.brokerage?.buyerFixed ? ' Rs.' : '%'}</p>
-              <p>Seller Brokerage: {selectedProduct.brokerage?.seller?.value || selectedProduct.brokerage?.sellerPercent || selectedProduct.defaultBrokerage || 0}{selectedProduct.brokerage?.seller?.type === 'fixed' || selectedProduct.brokerage?.sellerFixed ? ' Rs.' : '%'}</p>
+              <p>Default buyer brokerage: {selectedProduct.brokerage?.buyer?.value || selectedProduct.brokerage?.buyerPercent || selectedProduct.defaultBrokerage || 0}{selectedProduct.brokerage?.buyer?.type === 'fixed' || selectedProduct.brokerage?.buyerFixed ? ' Rs.' : '%'}</p>
+              <p>Default seller brokerage: {selectedProduct.brokerage?.seller?.value || selectedProduct.brokerage?.sellerPercent || selectedProduct.defaultBrokerage || 0}{selectedProduct.brokerage?.seller?.type === 'fixed' || selectedProduct.brokerage?.sellerFixed ? ' Rs.' : '%'}</p>
             </div>
           )}
         </div>
@@ -661,6 +682,75 @@ export default function ContractForm() {
           </div>
         </div>
 
+        {/* Brokerage for this contract (starts from the product's default; editable per contract) */}
+        {selectedProduct && (
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-amber-900">Brokerage for this contract</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Starts from the default of {selectedProduct.name}. Change it if this client agreed a different rate. It only affects this contract.
+                </p>
+              </div>
+              {brkChanged && productDefaults && (
+                <button
+                  type="button"
+                  onClick={() => setBrk({ buyer: toBrkInput(productDefaults.buyer), seller: toBrkInput(productDefaults.seller) })}
+                  className="text-xs text-amber-800 underline shrink-0"
+                >
+                  Reset to default
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(['buyer', 'seller'] as const).map(side => {
+                const amount = side === 'buyer' ? brokerages.buyer : brokerages.seller;
+                return (
+                  <div key={side} className="bg-white rounded-xl border border-amber-200 p-3">
+                    <p className="text-xs font-medium text-gray-700 mb-2">{side === 'buyer' ? 'Buyer' : 'Seller'} brokerage</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={brk[side].value}
+                        onChange={e => setBrk({ ...brk, [side]: { ...brk[side], value: e.target.value } })}
+                        placeholder="0"
+                        className="flex-1 min-w-0 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                      />
+                      <select
+                        value={brk[side].type}
+                        onChange={e => setBrk({ ...brk, [side]: { ...brk[side], type: e.target.value as 'percent' | 'fixed' } })}
+                        className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                      >
+                        <option value="percent">% of value</option>
+                        <option value="fixed">Rs. fixed</option>
+                      </select>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1.5">
+                      = <strong>Rs. {amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</strong>
+                      {productDefaults && (productDefaults[side].type !== brkConfig[side].type || productDefaults[side].value !== brkConfig[side].value) && (
+                        <span className="text-amber-700"> (product default: {productDefaults[side].type === 'fixed' ? `Rs. ${productDefaults[side].value}` : `${productDefaults[side].value}%`})</span>
+                      )}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+            {form.quantity > 0 && form.price > 0 ? (
+              <p className="text-xs text-amber-800">
+                Goods value Rs. {goods.value.toLocaleString('en-IN', { maximumFractionDigits: 2 })} • Total brokerage <strong>Rs. {brokerages.total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</strong>
+              </p>
+            ) : (
+              <p className="text-xs text-amber-800">Enter the quantity and price to see the brokerage amount.</p>
+            )}
+            {goods.assumed && form.price > 0 && (
+              <p className="text-xs text-red-600">The price unit &ldquo;{form.priceUnit}&rdquo; is not recognised, so the price is taken as per KG. Write it as KG, MT or Quintal.</p>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Location</label>
@@ -767,19 +857,6 @@ export default function ContractForm() {
             className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
           />
         </div>
-
-        {/* Brokerage Preview */}
-        {selectedProduct && form.quantity > 0 && form.price > 0 && (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-            <p className="text-sm text-amber-800">
-              <strong>Brokerage Preview:</strong> Total Rs. {brokerages.total.toLocaleString('en-IN')}
-            </p>
-            <div className="text-xs text-amber-700 mt-1 space-y-1">
-              <p>Buyer Brokerage: Rs. {brokerages.buyer.toLocaleString('en-IN')} ({selectedProduct.brokerage?.buyer?.value || selectedProduct.brokerage?.buyerPercent || selectedProduct.defaultBrokerage || 0}{selectedProduct.brokerage?.buyer?.type === 'fixed' || selectedProduct.brokerage?.buyerFixed ? ' Rs.' : '%'})</p>
-              <p>Seller Brokerage: Rs. {brokerages.seller.toLocaleString('en-IN')} ({selectedProduct.brokerage?.seller?.value || selectedProduct.brokerage?.sellerPercent || selectedProduct.defaultBrokerage || 0}{selectedProduct.brokerage?.seller?.type === 'fixed' || selectedProduct.brokerage?.sellerFixed ? ' Rs.' : '%'})</p>
-            </div>
-          </div>
-        )}
 
         <div className="flex gap-3 pt-4">
           <button

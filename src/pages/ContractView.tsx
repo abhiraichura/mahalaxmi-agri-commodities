@@ -13,6 +13,7 @@ import { useContractNote } from '../contractNote/useContractNote';
 import { decodeOverrides } from '../contractNote/mapping';
 import { copyName, downloadBytes, noteFileName, noteTitle, printBytes, shareBytes } from '../contractNote/service';
 import type { Tag } from '../contractNote/types';
+import { contractBrokerageConfig, describeBrokerage } from '../billing/calc';
 
 export default function ContractView() {
   const { id } = useParams();
@@ -292,8 +293,8 @@ export default function ContractView() {
           )}
           
           <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-600">
-            <span className="px-2 py-1 bg-amber-50 rounded-md">Buyer Brokerage: Rs. {(contract.buyerBrokerageAmount || 0).toLocaleString('en-IN')}</span>
-            <span className="px-2 py-1 bg-amber-50 rounded-md">Seller Brokerage: Rs. {(contract.sellerBrokerageAmount || 0).toLocaleString('en-IN')}</span>
+            <span className="px-2 py-1 bg-amber-50 rounded-md">Buyer Brokerage: Rs. {(contract.buyerBrokerageAmount || 0).toLocaleString('en-IN')} ({describeBrokerage(contractBrokerageConfig(contract).buyer)})</span>
+            <span className="px-2 py-1 bg-amber-50 rounded-md">Seller Brokerage: Rs. {(contract.sellerBrokerageAmount || 0).toLocaleString('en-IN')} ({describeBrokerage(contractBrokerageConfig(contract).seller)})</span>
             <span className="px-2 py-1 bg-rose-50 text-rose-700 rounded-md font-medium">Total: Rs. {(contract.brokerageAmount || 0).toLocaleString('en-IN')}</span>
           </div>
         </div>
