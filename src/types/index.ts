@@ -102,6 +102,8 @@ export interface Contract {
   contractSpecs?: SpecField[];
   /** edits made on the Contract Note review screen (flat field key -> text); see src/contractNote/mapping.ts */
   noteOverrides?: Record<string, string>;
+  /** brokerage rate for THIS contract (starts as the product's default, can be changed per contract) */
+  brokerage?: { buyer: BrokerageConfig; seller: BrokerageConfig };
   payments: Payment[];
   createdAt: any;
   updatedAt: any;
@@ -161,6 +163,12 @@ export interface CompanySettings {
   bankName: string;
   bankAccount: string;
   bankIfsc: string;
+  /** used on brokerage bills / invoices (all optional) */
+  bankBranch?: string;
+  bankAccountName?: string;
+  invoiceStartNumber?: number;
+  jurisdiction?: string;
+  brokerageGstPercent?: number;
   termsAndConditions: string[];
   defaultGstPercent: number;
   defaultPaymentTerms: string;
