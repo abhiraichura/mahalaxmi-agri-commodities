@@ -209,18 +209,30 @@ export default function WhatsAppBroadcast() {
 
   const getFilteredBroadcastMembers = () => {
     if (!activeList) return [];
-    const members = activeList.memberIds
+    
+    // First map and filter out undefined
+    let members = activeList.memberIds
       .map(id => directory.find(p => p.id === id))
       .filter((p): p is Party => p !== undefined);
       
-    if (!broadcastSearch.trim()) return members;
-    
-    const term = broadcastSearch.toLowerCase();
-    return members.filter(m => 
-      m.name.toLowerCase().includes(term) || 
-      (m.phone && m.phone.includes(term)) ||
-      (m.mobile && m.mobile.includes(term))
-    );
+    // Then apply text search if it exists
+    if (broadcastSearch.trim()) {
+      const term = broadcastSearch.toLowerCase();
+      members = members.filter(m => 
+        m.name.toLowerCase().includes(term) || 
+        (m.phone && m.phone.includes(term)) ||
+        (m.mobile && m.mobile.includes(term))
+      );
+    }
+
+    // Finally, sort so that SENT items drop to the bottom of the list
+    return members.sort((a, b) => {
+      const aSent = !!activeList.sentStatuses[a.id];
+      const bSent = !!activeList.sentStatuses[b.id];
+      
+      if (aSent === bSent) return 0; // keep original alphabetical order if statuses are the same
+      return aSent ? 1 : -1;         // if a is sent, push it down the list (1)
+    });
   };
 
   const getFilteredDirectory = () => {
@@ -335,9 +347,8 @@ export default function WhatsAppBroadcast() {
                       const contactNumber = member.phone || member.mobile || '';
 
                       return (
-                        <div key={member.id} className={`p-3 rounded-lg border flex items-center justify-between transition-colors ${isSent ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-white border-gray-200 shadow-sm'}`}>
+                        <div key={member.id} className={`p-3 rounded-lg border flex items-center justify-between transition-all duration-300 ease-in-out ${isSent ? 'bg-green-50 border-green-200 shadow-sm opacity-60' : 'bg-white border-gray-200 shadow-sm'}`}>
                           
-                          {/* Compressed Left Info Section */}
                           <div className="flex flex-col overflow-hidden mr-3">
                             <div className="flex items-center gap-2">
                               <h3 className="font-bold text-gray-900 text-sm truncate">{member.name}</h3>
@@ -353,7 +364,6 @@ export default function WhatsAppBroadcast() {
                             </div>
                           </div>
                           
-                          {/* Compressed Circular Send Button */}
                           <button
                             onClick={() => handleSend(member.id, contactNumber)}
                             disabled={isSent || !message.trim() || !contactNumber}
