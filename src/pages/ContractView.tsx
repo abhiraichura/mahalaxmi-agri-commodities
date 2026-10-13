@@ -13,6 +13,8 @@ import { useContractNote } from '../contractNote/useContractNote';
 import { decodeOverrides } from '../contractNote/mapping';
 import { copyName, downloadBytes, noteFileName, noteTitle, printBytes, shareBytes } from '../contractNote/service';
 import type { Tag } from '../contractNote/types';
+import LetterheadToggle from '../components/LetterheadToggle';
+import { usePlainCopy } from '../utils/usePlainCopy';
 import { contractBrokerageConfig, describeBrokerage } from '../billing/calc';
 
 export default function ContractView() {
@@ -25,7 +27,8 @@ export default function ContractView() {
   // exact-format Contract Notes (buyer + seller), prepared in the background
   const [noteTag, setNoteTag] = useState<Tag | null>(null);
   const savedOverrides = useMemo(() => decodeOverrides(contract?.noteOverrides), [contract?.noteOverrides]);
-  const note = useContractNote(contract, savedOverrides);
+  const [plain] = usePlainCopy();
+  const note = useContractNote(contract, savedOverrides, 0, plain);
 
   if (!contract) {
     return (
@@ -66,11 +69,11 @@ export default function ContractView() {
 
   // ----- exact-format Contract Note actions (Buyer = B, Seller = S) -----
   const noteReady = (tag: Tag) => !!note.pdfs[tag] && !note.blocking[tag] && !note.rendering;
-  const noteName = (tag: Tag) => noteFileName(contract.contractNo, tag);
+  const noteName = (tag: Tag) => noteFileName(contract.contractNo, tag, plain);
   const noteShare = async (tag: Tag) => {
     const bytes = note.pdfs[tag];
     if (!bytes) return;
-    const r = await shareBytes(bytes, noteName(tag), noteTitle(contract.contractNo, tag));
+    const r = await shareBytes(bytes, noteName(tag), noteTitle(contract.contractNo, tag, plain));
     if (r === 'unsupported') { downloadBytes(bytes, noteName(tag)); toast.success('Downloaded'); }
     else if (r === 'blocked') toast.error('Could not open the share sheet. Tap Share again.');
   };
@@ -83,7 +86,7 @@ export default function ContractView() {
   const notePrint = async (tag: Tag) => {
     const bytes = note.pdfs[tag];
     if (!bytes) return;
-    const r = await printBytes(bytes, noteName(tag), noteTitle(contract.contractNo, tag));
+    const r = await printBytes(bytes, noteName(tag), noteTitle(contract.contractNo, tag, plain));
     if (r === 'unsupported') toast.error('Printing is not available in this browser. Download the PDF and print it from there.');
   };
 
@@ -159,12 +162,14 @@ export default function ContractView() {
         </div>
       )}
 
+      <LetterheadToggle className="mb-3 max-w-md" />
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
         {(['B', 'S'] as Tag[]).map(tag => (
           <div key={tag} className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-700">{copyName(tag)} Copy</h3>
-              <span className="text-[11px] text-gray-400">Contract Note PDF</span>
+              <span className="text-[11px] text-gray-400">{plain ? 'Print copy · no letterhead' : 'Contract Note PDF'}</span>
             </div>
             {note.fontMissing ? (
               <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">

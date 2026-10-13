@@ -27,8 +27,9 @@ const NONE: Record<Tag, NoteIssue[]> = { B: [], S: [] };
 /**
  * Prepares both contract notes (buyer + seller) for a contract.
  * `overrides` are the user's edits on top of the contract data (the saved ones, or the draft being edited).
+ * `plain` = the copies without header, footer and lotus, for printing on the printed letterhead.
  */
-export function useContractNote(contract: Contract | undefined, overrides: Overrides | null | undefined, debounceMs = 0): ContractNoteState {
+export function useContractNote(contract: Contract | undefined, overrides: Overrides | null | undefined, debounceMs = 0, plain = false): ContractNoteState {
   const gst = useAppStore(s => s.settings.defaultGstPercent);
   const [ctx, setCtx] = useState<NoteContext | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +73,7 @@ export function useContractNote(contract: Contract | undefined, overrides: Overr
         const out: Partial<Record<Tag, Uint8Array>> = {};
         for (const tag of ['B', 'S'] as Tag[]) {
           if (hasError[tag]) continue; // a character the font cannot draw: do not produce a wrong PDF
-          const bytes = await renderNote(values, tag, ctx, noteTitle(values.no, tag));
+          const bytes = await renderNote(values, tag, ctx, noteTitle(values.no, tag, plain), plain);
           if (run.current !== my) return;
           out[tag] = bytes;
         }
@@ -85,7 +86,7 @@ export function useContractNote(contract: Contract | undefined, overrides: Overr
     }, debounceMs);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx, values, errKey, debounceMs]);
+  }, [ctx, values, errKey, debounceMs, plain]);
 
   return {
     loading: ctx === undefined,

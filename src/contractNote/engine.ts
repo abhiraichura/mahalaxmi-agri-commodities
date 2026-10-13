@@ -14,7 +14,7 @@ import type {
 export const LABELS: Record<string, string> = {
   no: 'Contract number', date: 'Date',
   buyer_name: 'Buyer name', buyer_addr_a: 'Buyer address', buyer_addr_b: 'Buyer address', buyer_city: 'Buyer city', buyer_gst: 'Buyer GSTIN',
-  seller_name: 'Seller name', seller_addr: 'Seller address', seller_city: 'Seller city', seller_gst: 'Seller GSTIN',
+  seller_name: 'Seller name', seller_addr_a: 'Seller address', seller_addr_b: 'Seller address', seller_city: 'Seller city', seller_gst: 'Seller GSTIN',
   product1: 'Product', product2: 'Specification', qty: 'Quantity', price: 'Price', packing: 'Packing',
   delivery1: 'Delivery at (line 1)', delivery2: 'Delivery at (line 2)', delivery3: 'Delivery at (line 3)',
   loading: 'Loading condition', payment: 'Payment', brokerage: 'Brokerage', other: 'Other terms',
@@ -24,7 +24,7 @@ export const LABELS: Record<string, string> = {
 export const FORMKEY: Record<string, string> = {
   no: 'no', date: 'date',
   buyer_name: 'buyer.name', buyer_addr_a: 'buyer.addr', buyer_addr_b: 'buyer.addr', buyer_city: 'buyer.city', buyer_gst: 'buyer.gst',
-  seller_name: 'seller.name', seller_addr: 'seller.addr', seller_city: 'seller.city', seller_gst: 'seller.gst',
+  seller_name: 'seller.name', seller_addr_a: 'seller.addr', seller_addr_b: 'seller.addr', seller_city: 'seller.city', seller_gst: 'seller.gst',
   product1: 'product.name', product2: 'product.spec', qty: 'qty', price: 'price', packing: 'packing',
   delivery1: 'delivery', delivery2: 'delivery', delivery3: 'delivery', loading: 'loading',
   payment: 'payment', brokerage: 'brokerage', other: 'other',
@@ -152,32 +152,30 @@ export function compose(
   add('no', U(v.no));
   add('date', fmtDate(v.date));
 
-  /* ----- buyer: 5 line slots (name, address x2, city, GSTIN) ----- */
-  let bl = lines(v.buyer.addr).map(U);
-  let autoWrapped = false;
-  if (measurer && bl.length === 1) {
-    // one long address line -> wrap it onto the 2 address lines at a word boundary
-    const spec = P[tagSingle(FIELDS, tag)];
-    const [a, b] = splitToFit(bl[0], spec.maxX - spec.x, spec.size, measurer);
-    if (b) { bl = [a, b]; autoWrapped = true; }
-  }
-  if (bl.length > 2) issues.push({ level: 'error', slot: 'buyer_addr_a', key: 'buyer.addr', msg: 'Buyer address: at most 2 lines fit.' });
-  // the original ends the address with a comma before the city line; a line we broke ourselves keeps no comma at the break
-  bl = bl.map((l, i) => (endsWithPunct(l) || (autoWrapped && i < bl.length - 1) ? l : l + ','));
-  add('buyer_name', U(v.buyer.name));
-  if (bl.length === 1) add(tagSingle(FIELDS, tag), bl[0]);
-  else if (bl.length >= 2) { add('buyer_addr_a', bl[0]); add('buyer_addr_b', bl[1]); }
-  add('buyer_city', U(v.buyer.city));
-  add('buyer_gst', U(v.buyer.gst));
-
-  /* ----- seller: 4 line slots (name, one address line, city, GSTIN) ----- */
-  let sl = lines(v.seller.addr).map(U);
-  if (sl.length > 1) issues.push({ level: 'error', slot: 'seller_addr', key: 'seller.addr', msg: 'Seller address: the cell has room for 1 line only.' });
-  sl = sl.map(l => (endsWithPunct(l) ? l : l + ','));
-  add('seller_name', U(v.seller.name));
-  if (sl.length) add('seller_addr', sl[0]);
-  add('seller_city', U(v.seller.city));
-  add('seller_gst', U(v.seller.gst));
+  /* ----- buyer and seller: 5 line slots each (name, address x2, city, GSTIN) ----- */
+  const party = (p: { name: string; addr: string; city: string; gst: string }, who: 'buyer' | 'seller', single: string): string[] => {
+    const key = who + '.addr';
+    const first = who + '_addr_a';
+    let al = lines(p.addr).map(U);
+    let wrapped = false;
+    if (measurer && al.length === 1) {
+      // one long address line -> wrap it onto the 2 address lines at a word boundary
+      const spec = P[single];
+      const [a, b] = splitToFit(al[0], spec.maxX - spec.x, spec.size, measurer);
+      if (b) { al = [a, b]; wrapped = true; }
+    }
+    if (al.length > 2) issues.push({ level: 'error', slot: first, key, msg: (who === 'buyer' ? 'Buyer' : 'Seller') + ' address: at most 2 lines fit.' });
+    // the original ends the address with a comma before the city line; a line we broke ourselves keeps no comma at the break
+    al = al.map((l, i) => (endsWithPunct(l) || (wrapped && i < al.length - 1) ? l : l + ','));
+    add(who + '_name', U(p.name));
+    if (al.length === 1) add(single, al[0]);
+    else if (al.length >= 2) { add(first, al[0]); add(who + '_addr_b', al[1]); }
+    add(who + '_city', U(p.city));
+    add(who + '_gst', U(p.gst));
+    return al;
+  };
+  const bl = party(v.buyer, 'buyer', FIELDS.pages[tag].singleAddrSlot);
+  party(v.seller, 'seller', FIELDS.pages[tag].singleSellerSlot);
 
   for (const [who, g] of [['buyer', v.buyer.gst], ['seller', v.seller.gst]] as const) {
     const t = clean(g).toUpperCase();
@@ -212,10 +210,6 @@ export function compose(
     }
   }
   return { items, issues };
-}
-
-function tagSingle(FIELDS: FieldsData, tag: Tag): string {
-  return FIELDS.pages[tag].singleAddrSlot;
 }
 
 /* ---------- font check: is this the same Verdana the design uses? ---------- */

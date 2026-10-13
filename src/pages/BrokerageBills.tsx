@@ -15,6 +15,8 @@ import { renderBillDocs, dmy, inr, type BillDoc, type BillKind, type PdfAssets }
 import { loadBillAssets } from '../billing/assets';
 import { downloadFile, makeZip, previewPdf, printPdf, safeName, shareFile } from '../billing/output';
 import { getStoredFont, onFontChange } from '../contractNote/fontStore';
+import LetterheadToggle from '../components/LetterheadToggle';
+import { usePlainCopy } from '../utils/usePlainCopy';
 import {
   billedElsewhere, getPeriodView, issueBill, savePeriodAdjustment, savePeriodPayments, setInvoiceNo,
   useBillVersion, type PeriodView,
@@ -100,6 +102,7 @@ interface Ready { bytes: Uint8Array; name: string; title: string }
 export default function BrokerageBills() {
   const { contracts, parties, settings } = useAppStore();
   const billVersion = useBillVersion();
+  const [plain] = usePlainCopy(); // true = PDFs without header / footer / lotus, for the printed letterhead
 
   /* ----- period ----- */
   const [kind, setKind] = useState<PeriodKind>('month');
@@ -187,14 +190,14 @@ export default function BrokerageBills() {
 
   const ensureAssets = useCallback(async (): Promise<PdfAssets | null> => {
     try {
-      const a = await loadBillAssets(settings as CompanySettings);
+      const a = await loadBillAssets(settings as CompanySettings, !plain);
       if (!a) { toast.error('Upload your Verdana font first (Settings > Contract Note font).', { duration: 6000 }); return null; }
       return a;
     } catch (e: any) {
       toast.error(e?.message || 'Could not load the letterhead.', { duration: 6000 });
       return null;
     }
-  }, [settings]);
+  }, [settings, plain]);
 
   const docFor = (r: Row, invoiceNo: number): BillDoc => ({
     party: r.bill.party,
@@ -218,8 +221,9 @@ export default function BrokerageBills() {
     return invoiceNo;
   };
 
-  const fileName = (k: BillKind, no: number, party: string) => `${k === 'bill' ? 'Brokerage_Bill' : 'Invoice'}_${no}_${safeName(party)}.pdf`;
-  const kindTitle = (k: BillKind, no: number, party: string) => `${k === 'bill' ? 'Brokerage Bill' : 'Invoice'} ${no} - ${party}`;
+  const suffix = plain ? '_print' : '';
+  const fileName = (k: BillKind, no: number, party: string) => `${k === 'bill' ? 'Brokerage_Bill' : 'Invoice'}_${no}_${safeName(party)}${suffix}.pdf`;
+  const kindTitle = (k: BillKind, no: number, party: string) => `${k === 'bill' ? 'Brokerage Bill' : 'Invoice'} ${no} - ${party}${plain ? ' (print copy, no letterhead)' : ''}`;
 
   const showWarnings = (w: string[]) => w.forEach(m => toast(m, { icon: '⚠️', duration: 7000 }));
 
@@ -252,7 +256,7 @@ export default function BrokerageBills() {
           tick(`${k === 'bill' ? 'Brokerage Bill' : 'Invoice'}: ${name}`);
           await new Promise(res => setTimeout(res, 0)); // let the screen update between PDFs
           const title = kindTitle(k, no, name);
-          const res = await renderBillDocs(k, [docFor(r, no)], assets, title);
+          const res = await renderBillDocs(k, [docFor(r, no)], assets, title, { letterhead: !plain });
           res.warnings.forEach(w => warnings.add(w));
           out.push({ name: fileName(k, no, name), bytes: res.bytes, title });
           done++;
@@ -264,10 +268,10 @@ export default function BrokerageBills() {
         tick(k === 'bill' ? 'Brokerage Bills (one PDF)' : 'Invoices (one PDF)');
         await new Promise(res => setTimeout(res, 0));
         const label = k === 'bill' ? 'Brokerage_Bills' : 'Invoices';
-        const title = `${k === 'bill' ? 'Brokerage Bills' : 'Invoices'} ${dmy(from)} - ${dmy(to)}`;
-        const res = await renderBillDocs(k, rs.map((r, i) => docFor(r, nos[i])), assets, title);
+        const title = `${k === 'bill' ? 'Brokerage Bills' : 'Invoices'} ${dmy(from)} - ${dmy(to)}${plain ? ' (print copy, no letterhead)' : ''}`;
+        const res = await renderBillDocs(k, rs.map((r, i) => docFor(r, nos[i])), assets, title, { letterhead: !plain });
         res.warnings.forEach(w => warnings.add(w));
-        out.push({ name: `${label}_${from}_to_${to}.pdf`, bytes: res.bytes, title });
+        out.push({ name: `${label}_${from}_to_${to}${suffix}.pdf`, bytes: res.bytes, title });
         done++;
       }
     }
@@ -329,7 +333,7 @@ export default function BrokerageBills() {
       await new Promise(res => setTimeout(res, 0));
       const zip = makeZip(files.map(f => ({ name: f.name, bytes: f.bytes })));
       const label = bulkDocs === 'bill' ? 'Brokerage_Bills' : bulkDocs === 'invoice' ? 'Invoices' : 'Bills_and_Invoices';
-      await deliver(zip, `${label}_${from}_to_${to}.zip`, `${label} ${dmy(from)} - ${dmy(to)}`);
+      await deliver(zip, `${label}_${from}_to_${to}${suffix}.zip`, `${label} ${dmy(from)} - ${dmy(to)}`);
     });
   };
 
@@ -464,6 +468,9 @@ export default function BrokerageBills() {
                 />
               </div>
             </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <LetterheadToggle className="max-w-md" />
           </div>
         </div>
 
@@ -621,6 +628,7 @@ export default function BrokerageBills() {
             <button onClick={() => setShowBulk(false)} className="p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
           </div>
           <p className="text-sm text-gray-500 mb-4">{periodLabel(kind, from, to)} • bill date {dmy(effectiveBillDate)}</p>
+          <LetterheadToggle className="mb-4" />
           <label className="block text-sm font-medium text-gray-700 mb-1.5">What to make</label>
           <div className="grid grid-cols-3 gap-2 mb-4">
             {([['bill', 'Brokerage Bills'], ['invoice', 'Invoices'], ['both', 'Both']] as const).map(([v, t]) => (
@@ -631,7 +639,7 @@ export default function BrokerageBills() {
           <div className="space-y-2 mb-4">
             <button onClick={() => setBulkMode('files')} className={`w-full text-left px-3 py-2.5 rounded-xl text-sm border ${bulkMode === 'files' ? 'border-rose-400 bg-rose-50' : 'border-gray-200'}`}>
               <span className="font-medium text-gray-900">Separate file for each party (ZIP)</span>
-              <span className="block text-xs text-gray-500">To send each party their own bill. About 3 MB per file.</span>
+              <span className="block text-xs text-gray-500">To send each party their own bill. {plain ? 'Small files (no letterhead).' : 'About 3 MB per file.'}</span>
             </button>
             <button onClick={() => setBulkMode('combined')} className={`w-full text-left px-3 py-2.5 rounded-xl text-sm border ${bulkMode === 'combined' ? 'border-rose-400 bg-rose-50' : 'border-gray-200'}`}>
               <span className="font-medium text-gray-900">One PDF with every party (for printing)</span>

@@ -12,6 +12,8 @@ import {
   copyName, downloadBytes, noteFileName, noteTitle, printBytes, shareBytes,
 } from '../contractNote/service';
 import type { NoteIssue, Tag } from '../contractNote/types';
+import LetterheadToggle from './LetterheadToggle';
+import { usePlainCopy } from '../utils/usePlainCopy';
 
 interface FieldDef { key: string; label: string; rows?: number; half?: boolean; type?: string; hint?: string }
 interface Group { title: string; fields: FieldDef[] }
@@ -29,7 +31,7 @@ const GROUPS: Group[] = [
   ] },
   { title: 'Seller', fields: [
     { key: 'seller.name', label: 'Name' },
-    { key: 'seller.addr', label: 'Address (1 line)', rows: 1 },
+    { key: 'seller.addr', label: 'Address (max 2 lines)', rows: 2 },
     { key: 'seller.city', label: 'City line', hint: 'e.g. BEDI, RAJKOT, GUJARAT, 360003' },
     { key: 'seller.gst', label: 'GSTIN' },
   ] },
@@ -62,7 +64,8 @@ export default function ContractNoteModal({ contract, initialTag = 'B', onClose 
   const [ov, setOv] = useState<Overrides>(() => decodeOverrides(contract.noteOverrides));
   const [tag, setTag] = useState<Tag>(initialTag);
   const [saving, setSaving] = useState(false);
-  const note = useContractNote(contract, ov, 350);
+  const [plain] = usePlainCopy();
+  const note = useContractNote(contract, ov, 350, plain);
   const { values, base, issues, blocking, pdfs } = note;
 
   useEffect(() => {
@@ -102,8 +105,8 @@ export default function ContractNoteModal({ contract, initialTag = 'B', onClose 
   }, [base, values, contract.noteOverrides]);
 
   const ready = !!pdf && !blocking[tag] && !note.rendering;
-  const fileName = noteFileName(values?.no || contract.contractNo, tag);
-  const title = noteTitle(values?.no || contract.contractNo, tag);
+  const fileName = noteFileName(values?.no || contract.contractNo, tag, plain);
+  const title = noteTitle(values?.no || contract.contractNo, tag, plain);
 
   const doShare = async () => {
     if (!pdf) return;
@@ -138,7 +141,7 @@ export default function ContractNoteModal({ contract, initialTag = 'B', onClose 
         <button onClick={onClose} className="p-2 -ml-2 hover:bg-gray-100 rounded-lg" aria-label="Close"><X className="w-5 h-5" /></button>
         <div className="flex-1 min-w-0">
           <h2 className="font-bold text-base truncate">Contract Note #{contract.contractNo}</h2>
-          <p className="text-xs text-gray-500">Exact original format · Verdana · one page each</p>
+          <p className="text-xs text-gray-500">{plain ? 'Print copy without letterhead · same placement' : 'Exact original format · Verdana · one page each'}</p>
         </div>
         {dirty && (
           <button onClick={save} disabled={saving} className="flex items-center gap-1.5 px-3 py-2 bg-rose-600 text-white rounded-xl text-xs font-medium hover:bg-rose-700 disabled:opacity-50">
@@ -165,6 +168,8 @@ export default function ContractNoteModal({ contract, initialTag = 'B', onClose 
               <span>The stored font is not identical to the design font: {note.fontProblems.join(' ')} Spacing may differ slightly. Upload the original Verdana in Settings.</span>
             </div>
           )}
+
+          <LetterheadToggle />
 
           <div className="flex gap-2">
             {(['B', 'S'] as Tag[]).map(t => (

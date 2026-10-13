@@ -4,7 +4,7 @@ export type Tag = 'B' | 'S'; // B = buyer copy (buyer printed first), S = seller
 
 export interface NoteParty {
   name: string;
-  addr: string; // may contain a line break (buyer: up to 2 lines, seller: 1 line)
+  addr: string; // may contain a line break (up to 2 lines for the buyer and for the seller)
   city: string; // "CITY, STATE, PINCODE" line
   gst: string;
 }
@@ -35,7 +35,8 @@ export interface FieldSpec {
 }
 
 export interface PageFields {
-  singleAddrSlot: string;
+  singleAddrSlot: string; // where a one-line BUYER address is printed
+  singleSellerSlot: string; // where a one-line SELLER address is printed
   fields: Record<string, FieldSpec>;
   geo: { left: number; right: number; boxL: number; boxR: number; boxT: number; boxB: number };
 }

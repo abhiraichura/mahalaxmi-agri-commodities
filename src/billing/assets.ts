@@ -4,7 +4,7 @@ import type { CompanySettings } from '../types';
 import type { PdfAssets } from './pdf';
 
 /** bump when public/contract-templates/L.pdf changes, so devices fetch the new one */
-export const LETTERHEAD_VERSION = '1';
+export const LETTERHEAD_VERSION = '2';
 
 let letterhead: Promise<Uint8Array> | null = null;
 export function getLetterhead(): Promise<Uint8Array> {
@@ -35,9 +35,10 @@ function getFonts(): Promise<Fonts> {
   return fonts;
 }
 
-/** null = the Verdana font has not been uploaded yet (Settings -> Contract Note font) */
-export async function loadBillAssets(company: CompanySettings): Promise<PdfAssets | null> {
-  const [f, template] = await Promise.all([getFonts(), getLetterhead()]);
+/** null = the Verdana font has not been uploaded yet (Settings -> Contract Note font).
+ *  withLetterhead = false: copies for the printed letterhead need no letterhead file at all. */
+export async function loadBillAssets(company: CompanySettings, withLetterhead = true): Promise<PdfAssets | null> {
+  const [f, template] = await Promise.all([getFonts(), withLetterhead ? getLetterhead() : Promise.resolve(null)]);
   if (!f) return null;
   return { template, regular: f.regular, bold: f.bold, company };
 }

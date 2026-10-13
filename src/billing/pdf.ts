@@ -10,7 +10,12 @@
  *                    Bill Date | Vou No | Party Name | Item Name | Weight | Rate | Brokerage,
  *                    words box + Total, BANK DETAILS, "FOR, <company>" + signature.
  *
+ * The closing block (bank details / E. & O. E. + jurisdiction / "For, <company>" + signature) is pinned to the
+ * bottom of the last page, just above the letterhead footer, like on a printed invoice.
+ *
  * Many parties can be drawn into ONE pdf (each starts on a new page); the letterhead is stored only once.
+ * With `letterhead: false` the pages are drawn WITHOUT header, footer and lotus (everything else in exactly the
+ * same place), for printing on your own pre-printed letterhead.
  */
 import type { CompanySettings, Party } from '../types';
 import { billTotals, partyName, type BillLine } from './calc';
@@ -33,7 +38,7 @@ export interface BillDoc {
 }
 
 export interface PdfAssets {
-  template: Uint8Array; // letterhead (L.pdf)
+  template: Uint8Array | null; // letterhead (L.pdf); not needed for copies without letterhead
   regular: Uint8Array;  // Verdana regular
   bold?: Uint8Array;    // Verdana Bold (optional; headings are drawn with a faux bold when missing)
   company: CompanySettings;
@@ -76,7 +81,8 @@ const L = 52;            // left edge of the content area (aligned with the lett
 const R = 527.5;         // right edge
 const CW = R - L;
 const FIRST_TOP = 152;   // just under the letterhead rule
-const BOTTOM = 640;      // above the letterhead footer
+const BOTTOM = 640;      // table rows stop here (the letterhead footer starts at about 680)
+const BLOCK_BOTTOM = 668; // the closing block (bank details / signature) ends here, just above the footer
 const SIZE = 7.5;        // table text
 const LEAD = 9.6;
 const PADY = 4.5;
@@ -95,7 +101,9 @@ interface Ctx {
   warnings: Set<string>;
 }
 
-export async function renderBillDocs(kind: BillKind, docs: BillDoc[], assets: PdfAssets, title: string): Promise<PdfResult> {
+export async function renderBillDocs(kind: BillKind, docs: BillDoc[], assets: PdfAssets, title: string, opts: { letterhead?: boolean } = {}): Promise<PdfResult> {
+  const withLetterhead = opts.letterhead !== false;
+  if (withLetterhead && !assets.template) throw new Error('The letterhead file is missing.');
   const [pdfLib, fontkit] = await Promise.all([import('pdf-lib'), loadFontkit()]);
   const { PDFDocument, rgb, ParseSpeeds, pushGraphicsState, popGraphicsState, setTextRenderingMode, TextRenderingMode, setLineWidth } = pdfLib;
   type PDFPage = import('pdf-lib').PDFPage;
@@ -109,8 +117,11 @@ export async function renderBillDocs(kind: BillKind, docs: BillDoc[], assets: Pd
   out.registerFontkit(fontkit as any);
   const reg: PDFFont = await out.embedFont(assets.regular, { subset: true, features: NO_FEATURES } as any);
   const bold: PDFFont | null = assets.bold ? await out.embedFont(assets.bold, { subset: true, features: NO_FEATURES } as any) : null;
-  const src = await PDFDocument.load(assets.template, { updateMetadata: false, parseSpeed: ParseSpeeds.Fastest });
-  const [letterhead] = await out.embedPages([src.getPage(0)]);
+  let letterhead: Awaited<ReturnType<typeof out.embedPages>>[number] | null = null;
+  if (withLetterhead) {
+    const src = await PDFDocument.load(assets.template!, { updateMetadata: false, parseSpeed: ParseSpeeds.Fastest });
+    [letterhead] = await out.embedPages([src.getPage(0)]);
+  }
 
   // signature picture (a data URL saved in Settings)
   let sig: { img: import('pdf-lib').PDFImage; w: number; h: number } | null = null;
@@ -192,7 +203,7 @@ export async function renderBillDocs(kind: BillKind, docs: BillDoc[], assets: Pd
   }
   const newPage = (): Pen => {
     const page = out.addPage([W, H]);
-    page.drawPage(letterhead, { x: 0, y: 0, width: W, height: H });
+    if (letterhead) page.drawPage(letterhead, { x: 0, y: 0, width: W, height: H });
     return new Pen(page);
   };
 
@@ -242,8 +253,9 @@ export async function renderBillDocs(kind: BillKind, docs: BillDoc[], assets: Pd
     return y + row.h;
   }
 
-  /** which rows go on which page; the totals block is never left alone on a page */
-  function paginate(rows: Row[], firstStart: number, contStart: number, footerH: number): number[][] {
+  /** which rows go on which page. The totals follow the table; the closing block (blockH high) is pinned to the
+   *  bottom of the last page, so the last page must have room for the totals ABOVE it. The totals are never left alone. */
+  function paginate(rows: Row[], firstStart: number, contStart: number, totalsH: number, blockH: number): number[][] {
     const pages: number[][] = [];
     let cur: number[] = [];
     let y = firstStart;
@@ -252,7 +264,7 @@ export async function renderBillDocs(kind: BillKind, docs: BillDoc[], assets: Pd
       cur.push(i);
       y += r.h;
     });
-    if (y + footerH > BOTTOM) {
+    if (y + totalsH > BLOCK_BOTTOM - blockH) {
       if (cur.length > 1) { const last = cur.pop()!; pages.push(cur); cur = [last]; }
       else { pages.push(cur); cur = []; } // the totals go on a page of their own
     }
@@ -320,8 +332,9 @@ export async function renderBillDocs(kind: BillKind, docs: BillDoc[], assets: Pd
     const showNet = extras.length > 0;
     const grand = t.total;
     const words = wrap(wordsOf(grand), 8.5, CW - 8 - wid('Rupees : ', 8.5, true), true);
-    const footerH = 18 + extras.length * 13 + (showNet ? 18 : 0) + 8 + Math.max(words.length * 11, 12) + 10 + SIGN_H;
-    const pages = paginate(rows, firstTableTop + hdrH, FIRST_TOP + 22 + hdrH, footerH);
+    const totalsH = 18 + extras.length * 13 + (showNet ? 18 : 0) + 8 + Math.max(words.length * 11, 12) + 10;
+    const blockTop = BLOCK_BOTTOM - SIGN_H;
+    const pages = paginate(rows, firstTableTop + hdrH, FIRST_TOP + 22 + hdrH, totalsH, SIGN_H);
 
     pages.forEach((idx, p) => {
       const pen = newPage();
@@ -377,10 +390,10 @@ export async function renderBillDocs(kind: BillKind, docs: BillDoc[], assets: Pd
       const wx = L + PADX;
       pen.text('Rupees : ', wx, y + 9, 8.5, { bold: true });
       words.forEach((w, i) => pen.text(w, wx + wid('Rupees : ', 8.5, true), y + 9 + i * 11, 8.5, { bold: true }));
-      y += Math.max(words.length * 11, 12) + 10;
-      pen.text('E. & O. E.  THANK YOU.', L + PADX, y + 22, 8);
-      pen.text(`Subject To ${jurisdiction} Jurisdiction`, L + PADX, y + 36, 8);
-      signBlock(pen, y, 'For,');
+      // --- closing block, pinned above the footer
+      pen.text('E. & O. E.  THANK YOU.', L + PADX, blockTop + 22, 8);
+      pen.text(`Subject To ${jurisdiction} Jurisdiction`, L + PADX, blockTop + 36, 8);
+      signBlock(pen, blockTop, 'For,');
     });
   }
 
@@ -433,8 +446,9 @@ export async function renderBillDocs(kind: BillKind, docs: BillDoc[], assets: Pd
       ['PAN NO.', up(company.pan)],
     ].filter(([, v]) => v);
     const bankH = 16 + bank.length * 11.5;
-    const footerH = sumH + 12 + Math.max(bankH, SIGN_H);
-    const pages = paginate(rows, firstTableTop + hdrH, FIRST_TOP + 22 + hdrH, footerH);
+    const blockH = Math.max(bankH, SIGN_H);
+    const blockTop = BLOCK_BOTTOM - blockH;
+    const pages = paginate(rows, firstTableTop + hdrH, FIRST_TOP + 22 + hdrH, sumH, blockH);
 
     pages.forEach((idx, p) => {
       const pen = newPage();
@@ -482,8 +496,8 @@ export async function renderBillDocs(kind: BillKind, docs: BillDoc[], assets: Pd
         } else pen.text(it.label, edges[6] - PADX, base, 8, { bold: it.strong, align: 'r' });
         pen.text(inr(it.amount), edges[7] - PADX, base, 8.5, { bold: it.strong, align: 'r' });
       });
-      y = top + sumH + 12;
-      // --- bank details (left) + signature (right)
+      // --- bank details (left) + signature (right), pinned above the footer
+      y = blockTop;
       pen.text('BANK DETAILS', L + 2, y + 9, 8.5, { bold: true });
       pen.line(L + 2, y + 11.5, L + 2 + wid('BANK DETAILS', 8.5, true), y + 11.5, 0.5);
       bank.forEach(([k, v], i) => {
