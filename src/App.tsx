@@ -25,6 +25,7 @@ import CustomMessageGenerator from './pages/CustomMessageGenerator';
 import Todos from './pages/Todos';
 import NcdexAutomation from './pages/NcdexAutomation';
 import WhatsAppBroadcast from './pages/WhatsAppBroadcast';
+import RatesDesk from './pages/RatesDesk';
 import { startBillSync } from './utils/billStore';
 
 function App() {
@@ -97,6 +98,7 @@ function App() {
           <Route path="/party-message" element={<PartyMessageGenerator />} />
           <Route path="/custom-message" element={<CustomMessageGenerator />} />
           <Route path="/ncdex-automation" element={<NcdexAutomation />} />
+          <Route path="/rates" element={<RatesDesk />} />
           <Route path="/brokerage" element={<BrokerageBills />} />
           <Route path="/ledger" element={<PartyLedger />} />
           <Route path="/notes" element={<Notes />} />

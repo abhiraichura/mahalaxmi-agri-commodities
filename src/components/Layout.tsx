@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
 import {
   LayoutDashboard, FileText, Users, Package, Receipt, Settings, LogOut,
-  BookOpen, StickyNote, ChevronDown, ChevronRight, FolderOpen, Menu, X, RefreshCw, Search, CheckSquare, Type
+  BookOpen, StickyNote, ChevronDown, ChevronRight, FolderOpen, Menu, X, RefreshCw, Search, CheckSquare, Type, TrendingUp, Megaphone
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { checkForUpdate, markVersionSeen, clearAppCache } from '../utils/cacheManager';
@@ -50,7 +50,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { to: '/contracts', icon: FileText, label: 'Contracts' },
     { to: '/products', icon: Package, label: 'Products' },
-    {label: 'WhatsApp Broadcast', to: '/broadcast', icon: 'MegaphoneIcon', },
+    { to: '/rates', icon: TrendingUp, label: 'Rates Desk' },
+    { label: 'WhatsApp Broadcast', to: '/broadcast', icon: Megaphone },
     { to: '/brokerage', icon: Receipt, label: 'Brokerage Bills' },
     { to: '/ledger', icon: BookOpen, label: 'Party Ledger' },
     { to: '/message-generator', label: 'Message Generator', icon: StickyNote },

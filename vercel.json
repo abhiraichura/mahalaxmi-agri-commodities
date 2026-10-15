@@ -17,6 +17,16 @@
       "headers": [
         { "key": "Cache-Control", "value": "s-maxage=0, no-cache, no-store, must-revalidate" }
       ]
+    },
+    {
+      "source": "/push-sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "s-maxage=0, no-cache, no-store, must-revalidate" }
+      ]
     }
-  ]
+  ],
+  "regions": ["bom1"],
+  "functions": {
+    "api/*.js": { "maxDuration": 60 }
+  }
 }

@@ -28,6 +28,8 @@ export default defineConfig({
         // the PDF library chunks are large; keep them in the offline cache too
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         navigateFallbackDenylist: [/^\/api\//],
+        // phone notifications for the Rates Desk (push handler lives in public/push-sw.js)
+        importScripts: ['push-sw.js'],
         runtimeCaching: [
           {
             // the two contract-note templates (3 MB each): fetched once, then served from the device

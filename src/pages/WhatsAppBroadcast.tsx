@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { useLocation } from 'react-router-dom';
 import { db } from '../utils/firebase';
 
 interface Party {
@@ -32,6 +33,13 @@ export default function WhatsAppBroadcast() {
   const [newListName, setNewListName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   
+  // the Rates Desk can hand over a ready rate message ("Send to my client lists")
+  const location = useLocation();
+  useEffect(() => {
+    const m = (location.state as { rateMessage?: string } | null)?.rateMessage;
+    if (typeof m === 'string' && m) setMessage(m);
+  }, [location.state]);
+
   const [broadcastSearch, setBroadcastSearch] = useState('');
   const [manageSearch, setManageSearch] = useState('');
 
