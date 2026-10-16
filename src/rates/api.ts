@@ -33,6 +33,9 @@ export interface RateUpdate {
   boardTime?: string | null;
   picks?: Picks;
   movement?: { mode: string; label?: string; values?: Record<string, number> };
+  movementAuto?: { mode: string; label?: string; values?: Record<string, number> };
+  movementEdited?: boolean;
+  keys?: CommodityKey[];
   warnings?: string[];
   reason?: string | null;
   kind?: string | null;
@@ -45,7 +48,7 @@ export interface RatesConfig {
   includeTurmeric: boolean;
   maxBoardAgeMin: number;
   requireBoardTime: boolean;
-  phoneDelivery?: boolean;
+  showMovement?: boolean;
   company: { name: string; tagline: string; place: string; phones: string };
 }
 

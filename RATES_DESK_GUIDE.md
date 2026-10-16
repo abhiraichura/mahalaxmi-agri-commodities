@@ -1,16 +1,22 @@
 # Rates Desk guide (live rates message, phone notifications, one-tap WhatsApp)
 
-## Update 2 (read this first if you already uploaded the first Rates Desk)
+## Update 3 (read this first if you already uploaded the first Rates Desk)
 
-Your connection check showed: **"HTTP 200, 4212 bytes, board time not found, commodities read: none."** That means the server did reach NCDEX but received a tiny 4 KB page with no rates in it. The real Live Quotes page is many times bigger. So NCDEX (or the protection layer in front of it) does not show the board to the server, even though it shows it fine to your phone. It is not something the app did wrong, and the app correctly refused to send anything.
+**1. What your last screenshot means.** The check showed the same small page three times: `HTTP 200, 4212 bytes`, containing a loading spinner and "checking your browser" code. NCDEX puts a **browser check** in front of the Live Quotes page. A real browser (like your Brave) runs the check in a split second and then shows the board. A server cannot run it, so it only ever sees the spinner page. The app correctly refused to send anything.
 
-What this update does about it:
+I will **not** build anything that tries to get past that check (for example a hidden automated browser). It would be the kind of "bot" behaviour that gets a site to block you harder, and it may breach NCDEX's terms. Because of that, I cannot honestly promise a fully automatic fetch from the NCDEX website. What I built instead keeps you to **one click**:
 
-1. **The check now tells us exactly what came back.** If the page is not the board, the server tries again on the other address, and then shows "page came back but it does not contain the rates board", the first part of what it saw, and where the server runs. Tap **Copy details** and send it to me. That is what lets me see the real reason.
-2. **Your own phone can hand the board to the app** (new section below, "If NCDEX does not show the board to the server"). Your phone visits the NCDEX page like any normal visitor, so this does not depend on the server being allowed in. It uses the same freshness checks, message, notification and WhatsApp buttons.
-3. **One-tap clipboard paste.** In **Get rates now > Paste board text** there is now **Paste from clipboard and read**: copy the NCDEX page on your phone, press that button, and the numbers are read straight away.
-4. **A bug found and fixed.** While testing the reader against the real column layout of the NCDEX table (Product, Expiry, Open, Low, LTP, High, Close, Change, Change %, ATP, Spot, Best Buy, Best Sell, OI), I found that the first version could, on a pasted full board, pick up a **neighbouring product's row** (for example Pepper's price shown as Dhaniya) when that product had an earlier expiry. It now decides each row's product from the name printed right before that row, never from the row above, and a filter drop-down can no longer claim a row. **Please do not use the Paste feature of the first version; use this update.** The automatic server fetch could not have sent a wrong number because it never got the board.
+**2. One-click "send what my browser is showing".** You open the NCDEX Live Quotes page in your own browser (you pass the check as usual), click a bookmark, and the app takes the text of that page, runs the same checks as before (today's board time, numbers must add up), makes the message, notifies all your devices and (if set) posts to Telegram. Details in the section "If NCDEX does not show the board to the server" below. The older **Paste from clipboard and read** button still works too.
 
+(Update 2 had an iPhone Shortcut that *downloads* the page. It would receive the same spinner page, so it is replaced by the Share-sheet version below, which uses the page already open in Safari.)
+
+**3. The "Movement Since Previous Update" section is now optional and editable.** It is still worked out automatically. Under the message, in **Movement since previous update**, you can:
+- **Edit the numbers**: choose Up or Down and type the rupees for each commodity, and what it is compared with (for example "12 PM" or "prev close"). The message and the Hindi outlook are rebuilt with your numbers. Nothing else in the message changes.
+- **Leave it out of the message**: the whole section disappears (the rates and outlook stay). Hindi outlook then uses today's change against yesterday's close.
+- **Back to automatic** / **Show it again**: returns to the automatically calculated numbers (they are always kept).
+- In **Message settings**, untick "Include the Movement section in new messages" if you want new messages to start without it.
+
+**4. Earlier fixes still apply:** the reader picks each row's product from the name printed right before it (so Pepper can never be read as Dhaniya), and the connection check shows what kind of page came back (**Copy details**).
 
 ## What is new
 
@@ -26,20 +32,18 @@ Also fixed on the way: the "WhatsApp Broadcast" menu item had a wrong icon name,
 
 ## Files in this zip (upload all, same folders, replace when asked)
 
-This is **update 2**. If you uploaded the first Rates Desk, these files replace the older ones:
+This is **update 3**. These files replace the older ones:
 
 ```
 RATES_DESK_GUIDE.md                    (this guide)
-server/rates/parse.js                  (reader: row ownership fix)
-server/rates/fetchBoard.js             (retries on a stub page, records what came back)
-server/rates/service.js                (board sent by your phone, alert hold)
-server/rates/handler.js                (the address your phone sends the page to)
-server/rates/message.js                (new setting default)
-src/rates/api.ts                       (new setting)
-src/pages/RatesDesk.tsx                (clipboard paste, phone address, richer check result)
+server/rates/message.js                (movement section can be left out or typed)
+server/rates/service.js                (change movement, board sent from your browser)
+server/rates/handler.js                (the "send this page" address, change-movement action)
+src/rates/api.ts                       (new fields)
+src/pages/RatesDesk.tsx                (bookmark, movement editor, settings)
 ```
 
-The first Rates Desk update (not repeated here) added everything else: `api/rates.js`, the other `server/rates/*` files, `public/push-sw.js`, `src/rates/push.ts`, the `/rates` route, the menu item, and small edits to `package.json`, `vercel.json`, `vite.config.ts` and `WhatsAppBroadcast.tsx`. Nothing else in the app was touched, and nothing needs to be set up again.
+Everything else from the earlier Rates Desk updates stays as it is (`parse.js`, `fetchBoard.js` and the rest). Nothing needs to be set up again.
 
 ## One-time setup (about 15 minutes)
 
@@ -75,7 +79,7 @@ The rates server is not affected by these (it uses the admin key from Step 2). T
 1. Open the app, **Rates Desk**, scroll to **Automatic updates**, tap **Check the NCDEX connection**.
 2. What the result means:
    - **Green, "Connected", with Jeera and Dhaniya numbers**: the server can read NCDEX live. Everything can run by itself.
-   - **"page came back but it does not contain the rates board"** (what you saw: a tiny page): NCDEX is not showing the board to the server. Use the phone route below.
+   - **"page came back but it does not contain the rates board"** (what you saw: a tiny page): NCDEX is showing the server its browser-check page (a spinner). Use the one-click browser route below.
    - **"Not today" / "old"**: the page the server got is an old copy, or the market is closed today (holiday).
    - **"Could not read the board"** with a real-sized page: the layout changed. Send me the details.
 3. Tap **Copy details** and send it to me if it is not green. It shows what kind of page the server received, which is all I need.
@@ -95,32 +99,43 @@ Vercel's free plan cannot run jobs every few hours, so a free outside scheduler 
 1. Create a free account at **cron-job.org**.
 2. Click **Create cronjob**. Title: `Mahalaxmi rates`.
 3. **URL**: in the app, **Rates Desk**, **Automatic updates**, tap the copy button next to the long address and paste it here. The address contains a secret key, so do not share it. It can only start a rates update, nothing else.
-4. **Execution schedule**: choose **Custom**. Time zone: **Asia/Kolkata**. Hours: `10, 12, 14, 16, 17`. Minutes: `0` and `8` (the second try, at 8 minutes past, is a safety net and is required if you use the phone route; if the first try worked, the second does nothing). Days of week: Monday to Friday.
+4. **Execution schedule**: choose **Custom**. Time zone: **Asia/Kolkata**. Hours: `10, 12, 14, 16, 17`. Minutes: `0` and `8` (the second try, at 8 minutes past, is a safety net; if the first try worked, the second does nothing). Days of week: Monday to Friday.
 5. Save. In cron-job.org, use **Test run** once and then look at the Rates Desk page.
 6. Notes: the app ignores repeats, so the same update is never sent twice. On exchange holidays it says "market closed today" once at 10 AM and stays quiet for the rest of the day.
 
-## If NCDEX does not show the board to the server: let your phone fetch it
+## If NCDEX does not show the board to the server: send it from your own browser
 
-Your phone is an ordinary visitor, so NCDEX shows it the board. The phone downloads the NCDEX page and sends it to your app. The app then does everything else (freshness check, message, notification, WhatsApp button). If the server is later allowed in, nothing needs to change: whichever arrives first wins, and the second does nothing.
+Do this once, then each update takes one click.
 
-**iPhone (Shortcuts app), about 5 minutes, once:**
-1. In the app, **Rates Desk > Automatic updates**, copy the address under **"If NCDEX does not show the board to the server"** (the phone address).
-2. Open the **Shortcuts** app, tap **+**, name it `Send rates`.
-3. Add action **Get Contents of URL**. URL: `https://www.ncdex.com/market-watch/live_quotes` (method GET, leave the rest).
-4. Add a second action **Get Contents of URL**. URL: paste the phone address. Tap **Show More**: Method **POST**, Request Body **File**, and for File choose **Contents of URL** (the result of step 3).
-5. Tap the play button to test. The answer should show `"ok":true` and `"status":"ready"` and your app gets a "ready" notification. If it says "Nothing (or too little) was received", change the second action's Request Body to **JSON**, add a **Text** item named `text`, and choose **Contents of URL** as its value. Tell me what you get if it still fails.
-6. To run it on its own: Shortcuts > **Automation** tab > **+** > **Time of Day** > 10:00 AM, **Repeat: Weekly**, Monday to Friday > **Run Shortcut: Send rates** > switch **Ask Before Running** off. Repeat for 12:00 PM, 2:00 PM, 4:00 PM and 5:00 PM. (You can also just tap the Shortcut yourself whenever you want an update.)
-7. In the Rates Desk, **Message settings**, tick **My phone also sends the board**, press **Save settings**. With this on, the "needs you" alert waits until 8 minutes past the hour, so you are not alerted when your phone is about to deliver. **This needs the 8-minute retry in cron-job.org (Step 6, minutes 0 and 8).**
+**Computer (Brave or Chrome):**
+1. In the app, **Rates Desk > Automatic updates**, press **Copy the bookmark**.
+2. In Brave: Bookmarks > **Add bookmark** (or press Cmd+D). Name it `Send rates`. Replace the address with what you copied (paste) and save. (Tip: show the bookmarks bar with Shift+Cmd+B so it is always one click away.)
+3. Whenever you want an update (or after the app's "needs you" notification): open **ncdex.com > Market Watch > Live Quotes**, check the board shows today's time (reload if not), click **Send rates**.
+4. A small message appears: "✅ Update ready in your Rates Desk ..." or the reason it was not accepted (for example "board is 40 minutes old, refresh the NCDEX page"). Open the Rates Desk and press **Send on WhatsApp**. Your phone and other devices also get the "ready" notification.
+5. If your browser or NCDEX blocks the bookmark from sending, it copies the page text instead and tells you. Then use **Paste board text > Paste from clipboard and read** in the Rates Desk.
 
-Honest notes: the phone must be on and online at those times, and iPhone may run an automation a minute or two late. I could not test this on your phone; the test in step 5 shows quickly whether it works. On Android, an app such as "HTTP Shortcuts" does the same job; tell me which phone you use and I will write the steps.
+**iPhone (Share-sheet Shortcut), about 5 minutes, once:**
+1. In the app copy the address (**Copy the address**) and send it to your iPhone (for example in your own Notes or WhatsApp chat with yourself).
+2. iPhone **Settings > Shortcuts > Advanced > Allow Running Scripts** switch on (if you do not see it, it appears the first time you run the Shortcut).
+3. Open the **Shortcuts** app, tap **+**, name it `Send rates`. Tap the **(i)** button and switch on **Show in Share Sheet**, with **Safari web pages** as the accepted type.
+4. Add action **Run JavaScript on Web Page**. In the script box type exactly: `completion(document.body.innerText);`
+5. Add action **Get Contents of URL**. URL: the address you copied. Tap **Show More**: Method **POST**, Request Body **JSON**. Add a field of type **Text**, name `text`, and as its value choose **JavaScript Result**.
+6. Add action **Get Dictionary Value**: Get **Value** for `message` in **Contents of URL**. Then add **Show Result**.
+7. To use it: open the NCDEX Live Quotes page in Safari, check it shows today's time, tap **Share**, choose **Send rates**. It shows "✅ Update ready ..." or the reason.
 
-**No setup at all (always works):** Rates Desk > **Get rates now** > **Paste board text** > open the NCDEX Live Quotes page, select all, copy, then press **Paste from clipboard and read**, check, **Prepare message**. About 30 seconds.
+I could not try the iPhone steps on your phone, so test them once and tell me exactly what the result says if it fails. Android works similarly with an app such as "HTTP Shortcuts"; tell me if you need that.
+
+**Why this is allowed to work:** you open the page yourself in a normal browser and the app only reads what is on your screen, the same as copy and paste, only faster. Please keep the address private: it contains your secret key (anyone who has it can send a rates page to your app, but cannot read anything).
+
+**If the server is ever let in again** (for example after a licence from NCDEX), the automatic fetch simply starts working and you do nothing different.
+
+**No setup at all (always works):** Rates Desk > **Get rates now** > **Paste board text** > open NCDEX Live Quotes, select all, copy, then **Paste from clipboard and read**, check, **Prepare message**. About 30 seconds.
 
 ## How the message is built
 
 - **Contract chosen**: nearest expiry that has not expired (Jeera and Dhaniya; Turmeric can be switched on in **Message settings**). Option rows (CE / PE) are ignored.
 - **Numbers**: LTP, change and change % are checked against each other (previous close + change must equal LTP, change % must match). A number that does not add up is refused, not sent.
-- **Movement Since Previous Update**: compared with the latest earlier scheduled update of the same day (for example 2 PM against 12 PM). The first update of the day has no earlier update, so it shows the change against yesterday's close and says "(vs prev close)".
+- **Movement Since Previous Update**: compared with the latest earlier scheduled update of the same day (for example 2 PM against 12 PM). The first update of the day has no earlier update, so it shows the change against yesterday's close and says "(vs prev close)". You can edit these numbers, leave the section out, or go back to automatic on each update (see Update 3 above).
 - **Quick Outlook (Hindi)**: written from fixed Hindi sentences chosen by the size of the movement since the last update: under 0.10% "Steady", under 0.40% "Mild", more than that "Strong". It always says "भाव" and never gives a buy or sell call. The wording is different from update to update. It is not AI-generated, so it cannot make anything up.
 - **Freshness check**: the app reads the "As on ..." time printed on the NCDEX board. If it is not today, or older than 30 minutes (changeable in Message settings), the update is **not** prepared and you get a "needs you" notification instead.
 
@@ -148,7 +163,7 @@ In Vercel, Environment Variables, add `TELEGRAM_BOT_TOKEN` (from the @BotFather 
 | "Please sign in again" | Log out and log in again. |
 | No notification arrives | iPhone: open from the Home Screen icon, turn notifications on again, check Settings > Notifications > the app. Android: check the notification permission for the app/Chrome. Tap **Send a test notification**. |
 | No automatic update at 10 AM | Check cron-job.org (the job's history shows success or failure), and Rates Desk, Recent updates, for the reason. |
-| Check says "does not contain the rates board" | NCDEX is not showing the board to the server. Use the phone route or Paste from clipboard, and send me **Copy details**. |
+| Check says "does not contain the rates board" | NCDEX is showing the server its browser-check page. Use the **Send rates** bookmark (or Paste from clipboard) from your own browser. |
 | "Not today" on a normal trading day | NCDEX page copy is old or the board is not updating yet. Use **Paste board text**. |
 | Message shows a number that looks wrong | Do not send. Tell me and send the **Copy details** text. |
 

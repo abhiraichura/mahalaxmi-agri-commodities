@@ -44,9 +44,9 @@ export function createService({
   async function getBoard({ now = clock(), cfg, html = null } = {}) {
     cfg = cfg || await store.getConfig();
     if (html != null) {
-      // the board was delivered by the owner's own phone/computer: same checks, no server fetch
+      // the board text was sent from the owner's own browser: same checks, no server fetch
       const j = judgeBoard(String(html), { now, maxAgeMin: cfg.maxBoardAgeMin, requireBoardTime: cfg.requireBoardTime !== false });
-      return { ...j, log: [{ url: 'sent by your phone', status: 200, bytes: String(html).length }] };
+      return { ...j, log: [{ url: 'sent from your browser', status: 200, bytes: String(html).length }] };
     }
     const got = await fetchBoard();
     if (!got.ok) return { ok: false, kind: got.blocked ? 'blocked' : 'unreachable', reason: got.reason, log: got.log };
@@ -69,6 +69,9 @@ export function createService({
     } catch {
       movement = { mode: 'unavailable' };
     }
+    const movementAuto = movement;
+    // the default can be "do not show this section"; the automatic numbers are still kept so it can be switched on later
+    if (cfg.showMovement === false) movement = { mode: 'off', label: movement.label, values: movement.values || {} };
     const msg = buildMessage({ slot: slotHour, parts, picks, movement, config: cfg });
 
     const reading = { atMs, slot: slotHour, picks: {} };
@@ -79,7 +82,7 @@ export function createService({
       id, date: parts.dateKey, slot: slotKey, slotHour: slotHour ?? null,
       title: msg.title, text: msg.text, summary: msg.summary,
       status: 'ready', source, trigger, createdAtMs: atMs,
-      boardTime: boardTimeText || null, picks, movement, warnings,
+      boardTime: boardTimeText || null, picks, movement, movementAuto, movementEdited: false, keys: msg.keys, warnings,
       error: null, reason: null,
     };
     await store.putUpdate(id, doc);
@@ -134,7 +137,7 @@ export function createService({
       const out = {};
       if (typeof patch.includeTurmeric === 'boolean') out.includeTurmeric = patch.includeTurmeric;
       if (typeof patch.requireBoardTime === 'boolean') out.requireBoardTime = patch.requireBoardTime;
-      if (typeof patch.phoneDelivery === 'boolean') out.phoneDelivery = patch.phoneDelivery;
+      if (typeof patch.showMovement === 'boolean') out.showMovement = patch.showMovement;
       const age = num(patch.maxBoardAgeMin);
       if (age !== null) out.maxBoardAgeMin = Math.min(240, Math.max(5, Math.round(age)));
       if (patch.company && typeof patch.company === 'object') {
@@ -198,21 +201,23 @@ export function createService({
 
       if (!got.ok) {
         const skip = got.kind === 'not_today';
-        // when the owner's phone also delivers the board, the "needs you" alert waits for the 8-minute retry
-        const holdAlert = !skip && trigger === 'cron' && cfg.phoneDelivery === true && slotHour != null && parts.minute < 6;
+        // a failed attempt by the user must never damage an update that is already ready
+        if (trigger !== 'cron' && existing && existing.status === 'ready') {
+          return { ok: false, reason: got.reason, kind: got.kind, update: existing, diag: got.diag || null, log: got.log || [] };
+        }
         const doc = await failUpdate({
           parts, slotHour, now, status: skip ? 'skipped' : 'failed', reason: got.reason, kind: got.kind, diag: got.diag || { log: got.log },
-          trigger, notifyUser: trigger === 'cron' && !holdAlert && (!skip || (slotHour === SLOTS[0] && !(existing && existing.skipNotified))),
+          trigger, notifyUser: trigger === 'cron' && (!skip || (slotHour === SLOTS[0] && !(existing && existing.skipNotified))),
         });
         return { ok: false, reason: got.reason, kind: got.kind, update: doc, diag: got.diag || null, log: got.log || [] };
       }
 
       const doc = await prepare({
-        parts, now, slotHour, picks: got.board.picks, source: via === 'phone' ? 'phone' : 'ncdex', trigger,
+        parts, now, slotHour, picks: got.board.picks, source: via === 'browser' ? 'browser' : 'ncdex', trigger,
         boardTimeText: got.diag.boardTime, warnings: got.board.warnings, cfg,
       });
 
-      if (trigger === 'cron') {
+      if (trigger === 'cron' || via === 'browser') {
         const label = slotHour != null ? hourLabel(slotHour) : 'Rates';
         await notify(doc, { title: `📊 ${label} update ready`, body: `${doc.summary}\nTap to send on WhatsApp`, url: `/rates?u=${doc.id}`, tag: `rates-${doc.slot}` });
         const tg = await telegram(doc.text, { env });
@@ -258,6 +263,43 @@ export function createService({
       }
       const doc = await prepare({ parts, now, slotHour, picks, source, trigger: 'user', boardTimeText: boardTime, cfg });
       return { ok: true, update: doc };
+    },
+
+    /**
+     * Change the "Movement Since Previous Update" section of one ready update.
+     *   mode 'auto'   - back to the automatic numbers
+     *   mode 'manual' - the owner's own numbers (rupees, + or -) and an optional "compared with" label
+     *   mode 'off'    - leave the section out of the message
+     */
+    async setMovement({ id, mode, values = {}, label = '' } = {}) {
+      if (!id) throw new UserError('Missing update id.');
+      const doc = await store.getUpdate(id);
+      if (!doc || doc.status !== 'ready' || !doc.picks) throw new UserError('This update is not ready, so its movement cannot be changed.');
+      if (!['auto', 'manual', 'off'].includes(mode)) throw new UserError('Unknown movement choice.');
+      const cfg = await store.getConfig();
+      const keys = Array.isArray(doc.keys) && doc.keys.length ? doc.keys : (String(doc.text || '').includes('*Turmeric ') ? ['jeera', 'dhaniya', 'turmeric'] : ['jeera', 'dhaniya']);
+      const auto = doc.movementAuto || doc.movement || { mode: 'unavailable' };
+      let movement;
+      if (mode === 'auto') {
+        movement = auto;
+      } else if (mode === 'off') {
+        movement = { mode: 'off', label: auto.label || 'previous update', values: auto.values || {} };
+      } else {
+        const v = {};
+        for (const k of keys) {
+          const n = num(values && values[k]);
+          if (n === null) throw new UserError(`${DISPLAY[k]}: enter the movement in rupees (for example 40 or -25).`);
+          if (Math.abs(n) > doc.picks[k].ltp * 0.25) throw new UserError(`${DISPLAY[k]}: that movement is more than 25% of the price. Please check the number.`);
+          v[k] = Math.round(n);
+        }
+        movement = { mode: 'manual', label: String(label || '').trim().slice(0, 24) || auto.label || 'previous update', values: v };
+      }
+      const msg = buildMessage({
+        slot: doc.slotHour, parts: istParts(new Date(doc.createdAtMs)), picks: doc.picks, movement,
+        config: { ...cfg, includeTurmeric: keys.includes('turmeric') },
+      });
+      await store.putUpdate(id, { text: msg.text, movement, movementAuto: auto, movementEdited: mode !== 'auto', keys: msg.keys });
+      return { ok: true, update: await store.getUpdate(id) };
     },
 
     async listUpdates(limit = 20) { return store.listUpdates(Math.min(60, Math.max(1, limit))); },

@@ -22,7 +22,7 @@ export const DEFAULT_CONFIG = {
   includeTurmeric: false, // the Grok template shows Jeera and Dhaniya only
   maxBoardAgeMin: 30,
   requireBoardTime: true, // send only when the NCDEX board shows today's time
-  phoneDelivery: false, // the owner's phone also hands the board to the app (then the 'needs you' alert waits for the retry)
+  showMovement: true, // new updates include the 'Movement Since Previous Update' section (it can still be edited or hidden per update)
   company: {
     name: 'MAHALAXMI AGRI COMMODITIES',
     tagline: 'Commodity Broker & Commission Agent',
@@ -101,21 +101,27 @@ export function buildMessage({ slot, parts, picks, movement, config = DEFAULT_CO
     return `*${DISPLAY[k]} ${p.expiryLabel}* — ₹${inr(p.ltp)} | ${icon(chg)} ${fmtSigned(chg)} (${fmtPct(p.changePct)}) | OI ${p.oi == null ? '—' : inr(p.oi)}`;
   });
 
-  let movementLine;
+  // movement.mode: 'since' | 'prevclose' (worked out by the app), 'manual' (typed by the owner), 'off' (section hidden), 'unavailable'
+  const shown = movement.mode !== 'off';
+  let movementLine = '';
   if (movement.mode === 'unavailable') {
     movementLine = 'Movement unavailable (history not reachable)';
-  } else {
+  } else if (shown) {
     movementLine = keys.map((k) => `${icon(movement.values[k])} ${DISPLAY[k]} ${fmtMove(movement.values[k])}`).join(' | ')
       + ` (vs ${movement.label})`;
   }
+  const movementBlock = shown ? ['*Movement Since Previous Update*', movementLine, ''] : [];
 
+  // the Hindi outlook follows the same numbers; with the section hidden it uses the board's own change vs yesterday's close
+  const outlookMode = movement.mode === 'manual' ? (/prev|close|कल/i.test(movement.label || '') ? 'prevclose' : 'since')
+    : movement.mode === 'off' ? 'prevclose' : movement.mode;
   const seed = `${parts.dateKey}|${slot}`;
   const outlooks = keys.map((k, i) => {
     const p = picks[k];
     const o = outlook({
       key: k,
-      movement: movement.mode === 'unavailable' ? 0 : movement.values[k],
-      mode: movement.mode,
+      movement: movement.mode === 'unavailable' ? 0 : movement.mode === 'off' ? Math.round(p.change) : movement.values[k],
+      mode: outlookMode,
       boardChange: p.change,
       ltp: p.ltp,
       seed,
@@ -135,9 +141,7 @@ export function buildMessage({ slot, parts, picks, movement, config = DEFAULT_CO
     '📊 **COMMODITY RATES**',
     ...rateLines,
     '',
-    '*Movement Since Previous Update*',
-    movementLine,
-    '',
+    ...movementBlock,
     '📈 **QUICK OUTLOOK**',
     ...outlooks,
     '',

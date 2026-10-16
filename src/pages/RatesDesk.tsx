@@ -223,6 +223,21 @@ export default function RatesDesk() {
   };
 
   // ---- actions
+  // the movement section of one update: 'auto' (worked out by the app), 'manual' (typed) or 'off' (left out)
+  const applyMovement = async (mode: 'auto' | 'manual' | 'off', values?: Record<string, number>, label?: string): Promise<boolean> => {
+    if (!selected) return false;
+    setBusy('move');
+    try {
+      await ratesCall('movement', { id: selected.id, mode, values, label });
+      await loadUpdates();
+      toast.success(mode === 'off' ? 'Movement section hidden' : mode === 'auto' ? 'Movement is automatic again' : 'Movement updated');
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+      return false;
+    } finally { setBusy(null); }
+  };
+
   const fetchNow = () => guard('fetch', async () => {
     setFetchProblem(null);
     const r = await ratesCall<{ ok: boolean; update?: RateUpdate; reason?: string; diag?: any }>('run', { slot });
@@ -324,7 +339,11 @@ export default function RatesDesk() {
   });
 
   const cronUrl = status ? `${window.location.origin}/api/rates?action=run&slot=auto&key=${status.cronKey}` : '';
-  const phoneUrl = status ? `${window.location.origin}/api/rates?action=ingest&slot=auto&key=${status.cronKey}` : '';
+  const sendUrl = status ? `${window.location.origin}/api/rates?action=ingest&slot=auto&key=${status.cronKey}` : '';
+  // a bookmark that sends the text of the NCDEX page (as shown in the person's own browser) to this app
+  const bookmarklet = sendUrl
+    ? `javascript:(function(){var u='${sendUrl}';var t=document.body.innerText;fetch(u,{method:'POST',headers:{'Content-Type':'text/plain'},body:t}).then(function(r){return r.json()}).then(function(j){alert(j.message||(j.ok?'Sent':'Not accepted'))}).catch(function(){try{navigator.clipboard.writeText(t).then(function(){alert('Could not send directly from this page. The page text is copied. In Rates Desk press Paste board text, then Paste from clipboard and read.')})}catch(e){alert('Could not send from this page.')}})})();`
+    : '';
 
   // ------------------------------------------------------------ render
   if (setup) return <SetupNeeded message={setup.message} missing={setup.missing} onRetry={() => { loadStatus(); loadUpdates(); }} />;
@@ -355,7 +374,7 @@ export default function RatesDesk() {
           <>
             <div className="text-xs text-gray-500 mb-2 flex flex-wrap gap-x-3 gap-y-1">
               <span>{slotName(selected)} · {dayIst(selected.createdAtMs)} {timeIst(selected.createdAtMs)}</span>
-              <span>Source: {selected.source === 'ncdex' ? 'NCDEX board' : selected.source === 'phone' ? 'NCDEX board (sent by your phone)' : selected.source === 'paste' ? 'pasted board' : 'typed by hand'}</span>
+              <span>Source: {selected.source === 'ncdex' ? 'NCDEX board' : selected.source === 'browser' ? 'NCDEX board (sent from your browser)' : selected.source === 'paste' ? 'pasted board' : 'typed by hand'}</span>
               {selected.boardTime && <span>Board time: {selected.boardTime}</span>}
               {selected.sent?.whatsapp && <span className="text-green-700">Opened in WhatsApp {timeIst(selected.sent.whatsapp)}</span>}
             </div>
@@ -365,6 +384,7 @@ export default function RatesDesk() {
             {selected.warnings && selected.warnings.length > 0 && (
               <p className="mt-2 text-xs text-amber-700">Notes: {selected.warnings.join('; ')}</p>
             )}
+            <MovementEditor key={`${selected.id}-${selected.movement?.mode}`} update={selected} busy={busy === 'move'} onApply={applyMovement} />
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button onClick={() => sendWhatsApp(selected)} className="col-span-2 sm:col-span-2 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold">
                 <Send size={16} /> Send on WhatsApp
@@ -499,10 +519,15 @@ export default function RatesDesk() {
         {status && (
           <div className="mt-3 rounded-xl bg-gray-50 border border-gray-200 p-3">
             <p className="text-sm font-medium text-gray-800">If NCDEX does not show the board to the server</p>
-            <p className="mt-0.5 text-xs text-gray-600">Your own phone can fetch the NCDEX page like any visitor and hand it to the app (an iPhone Shortcut does this in two steps; see the guide). Use this address as the place where the phone sends the page:</p>
+            <p className="mt-0.5 text-xs text-gray-600">NCDEX shows servers a "checking your browser" page, so the automatic fetch may not work. Your own browser passes that check, so you can send the page from there with one click. The app then makes the message, notifies your devices and posts it as usual.</p>
+            <ol className="mt-2 text-xs text-gray-700 list-decimal ml-4 space-y-1">
+              <li>Press <b>Copy the bookmark</b>. In Brave or Chrome open Bookmarks &gt; Add bookmark, name it <i>Send rates</i> and paste into the address box.</li>
+              <li>Open the NCDEX Live Quotes page, check it shows today's time, and click that bookmark. A message tells you if the update is ready.</li>
+              <li>iPhone: the same address is used by a Share-sheet Shortcut (steps are in the guide).</li>
+            </ol>
             <div className="mt-2 flex gap-2">
-              <input readOnly value={phoneUrl} onFocus={e => e.currentTarget.select()} className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono bg-white" />
-              <button onClick={() => copyWithToast(phoneUrl, 'Phone address copied')} className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"><Copy size={14} /></button>
+              <button onClick={() => copyWithToast(bookmarklet, 'Bookmark copied. Paste it as the address of a new bookmark.')} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium"><Copy size={14} /> Copy the bookmark</button>
+              <button onClick={() => copyWithToast(sendUrl, 'Address copied')} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-white text-sm"><Copy size={14} /> Copy the address</button>
             </div>
           </div>
         )}
@@ -538,7 +563,7 @@ export default function RatesDesk() {
         <Card title="Message settings" icon={<Settings2 size={16} className="text-rose-600" />}>
           <div className="space-y-3 text-sm">
             <label className="flex items-center gap-2"><input type="checkbox" checked={cfg.includeTurmeric} onChange={e => setCfg({ ...cfg, includeTurmeric: e.target.checked })} /> Include Turmeric in the message</label>
-            <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={cfg.phoneDelivery === true} onChange={e => setCfg({ ...cfg, phoneDelivery: e.target.checked })} /> <span>My phone also sends the board (the "needs you" alert then waits until 8 minutes past the hour, so you are not alerted when the phone is about to deliver)</span></label>
+            <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={cfg.showMovement !== false} onChange={e => setCfg({ ...cfg, showMovement: e.target.checked })} /> <span>Include the "Movement Since Previous Update" section in new messages (you can still edit or hide it on each update)</span></label>
             <label className="flex items-center gap-2"><input type="checkbox" checked={cfg.requireBoardTime !== false} onChange={e => setCfg({ ...cfg, requireBoardTime: e.target.checked })} /> Only send when the NCDEX board shows today's time (recommended)</label>
             <div className="flex items-center gap-2">
               <span>Board may be at most</span>
@@ -592,6 +617,92 @@ function DiagView({ diag }: { diag: any }) {
         )}
         <button onClick={copy} className="mt-2 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50">Copy details</button>
       </div>
+    </div>
+  );
+}
+
+const rupee = (v: number) => (v > 0 ? `+₹${inr(v)}` : v < 0 ? `−₹${inr(Math.abs(v))}` : '₹0');
+
+/** Movement since the previous update: worked out by the app, but the owner can change the numbers, hide it, or go back. */
+function MovementEditor({ update, busy, onApply }: {
+  update: RateUpdate; busy: boolean;
+  onApply: (mode: 'auto' | 'manual' | 'off', values?: Record<string, number>, label?: string) => Promise<boolean>;
+}) {
+  const keys = (update.keys && update.keys.length ? update.keys : (update.text || '').includes('*Turmeric ') ? ['jeera', 'dhaniya', 'turmeric'] : ['jeera', 'dhaniya']) as CommodityKey[];
+  const m = update.movement;
+  const auto = update.movementAuto || update.movement;
+  const hidden = m?.mode === 'off';
+  const manual = m?.mode === 'manual';
+  const start = (m && m.mode !== 'off' && m.values ? m : auto) || undefined;
+  const [open, setOpen] = useState(false);
+  const [dir, setDir] = useState<Record<string, 'up' | 'down'>>({});
+  const [amt, setAmt] = useState<Record<string, string>>({});
+  const [label, setLabel] = useState('');
+  const hour = update.slotHour ?? 24;
+  const earlier = SLOTS.filter(h => h < hour).map(hourLabel);
+
+  const begin = () => {
+    const d: Record<string, 'up' | 'down'> = {}; const a: Record<string, string> = {};
+    for (const k of keys) { const v = start?.values?.[k] ?? 0; d[k] = v < 0 ? 'down' : 'up'; a[k] = String(Math.abs(v)); }
+    setDir(d); setAmt(a); setLabel(start?.label || ''); setOpen(true);
+  };
+  const save = async () => {
+    const values: Record<string, number> = {};
+    for (const k of keys) {
+      const n = Number(String(amt[k] ?? '').replace(/[,\s₹]/g, ''));
+      if (!Number.isFinite(n) || String(amt[k] ?? '').trim() === '') { toast.error(`${NAMES[k]}: type the amount in rupees (for example 40).`); return; }
+      values[k] = (dir[k] === 'down' ? -1 : 1) * Math.abs(n);
+    }
+    if (await onApply('manual', values, label)) setOpen(false);
+  };
+
+  const line = keys.map(k => `${NAMES[k]} ${m?.values?.[k] != null ? rupee(m.values[k]) : '—'}`).join(' · ');
+  return (
+    <div className="mt-3 rounded-xl border border-gray-200 bg-white p-3 text-sm">
+      <p className="font-medium text-gray-800">Movement since previous update</p>
+      {hidden && <p className="text-xs text-gray-500">Hidden: this message does not include the movement section.</p>}
+      {!hidden && m?.mode === 'unavailable' && <p className="text-xs text-amber-700">Could not be worked out (no earlier reading). You can type it.</p>}
+      {!hidden && m?.mode !== 'unavailable' && <p className="text-xs text-gray-600">{manual ? 'Typed by you' : 'Worked out automatically'} (vs {m?.label}): {line}</p>}
+
+      {!open && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button onClick={begin} disabled={busy} className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-medium disabled:opacity-50">Edit the numbers</button>
+          {hidden
+            ? <button onClick={() => onApply('auto')} disabled={busy} className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-medium disabled:opacity-50">Show it again</button>
+            : <button onClick={() => onApply('off')} disabled={busy} className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-medium disabled:opacity-50">Leave it out of the message</button>}
+          {(manual || (hidden && update.movementEdited)) && !hidden && <button onClick={() => onApply('auto')} disabled={busy} className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-medium disabled:opacity-50">Back to automatic</button>}
+        </div>
+      )}
+
+      {open && (
+        <div className="mt-3 space-y-3">
+          {keys.map(k => (
+            <div key={k} className="flex items-center gap-2">
+              <span className="w-20 text-sm text-gray-800">{NAMES[k]}</span>
+              <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-xs">
+                <button type="button" onClick={() => setDir(d => ({ ...d, [k]: 'up' }))} className={`px-3 py-2 ${dir[k] === 'up' ? 'bg-green-600 text-white' : 'bg-white text-gray-700'}`}>▲ Up</button>
+                <button type="button" onClick={() => setDir(d => ({ ...d, [k]: 'down' }))} className={`px-3 py-2 ${dir[k] === 'down' ? 'bg-red-600 text-white' : 'bg-white text-gray-700'}`}>▼ Down</button>
+              </div>
+              <span className="text-gray-500">₹</span>
+              <input value={amt[k] ?? ''} onChange={e => setAmt(a => ({ ...a, [k]: e.target.value }))} inputMode="numeric" aria-label={`${NAMES[k]} movement in rupees`} className="w-24 px-2 py-2 border border-gray-300 rounded-lg" />
+            </div>
+          ))}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Compared with</label>
+            <input value={label} onChange={e => setLabel(e.target.value)} maxLength={24} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {[...earlier, 'prev close'].map(c => (
+                <button key={c} type="button" onClick={() => setLabel(c)} className="px-2.5 py-1 rounded-full border border-gray-200 text-xs text-gray-600 hover:bg-gray-50">{c}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={save} disabled={busy} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium disabled:opacity-50">{busy && <Loader2 size={14} className="animate-spin" />} Save movement</button>
+            <button onClick={() => setOpen(false)} disabled={busy} className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm">Cancel</button>
+            <button onClick={async () => { if (await onApply('auto')) setOpen(false); }} disabled={busy} className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm">Use the automatic numbers</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
