@@ -12,6 +12,19 @@ const same = (a, b) => {
   return x.length === y.length && timingSafeEqual(x, y);
 };
 
+/** The page text delivered by the owner's phone (raw HTML / text, or JSON like {"text": "..."}). */
+function bodyText(req) {
+  const b = req.body;
+  if (b == null) return '';
+  if (Buffer.isBuffer(b)) return b.toString('utf8');
+  if (typeof b === 'string') {
+    if (b.trimStart().startsWith('{')) { try { const o = JSON.parse(b); return String(o.text || o.html || o.body || ''); } catch { /* it is the page itself */ } }
+    return b;
+  }
+  if (typeof b === 'object') return String(b.text || b.html || b.body || '');
+  return '';
+}
+
 function readBody(req) {
   const b = req.body;
   if (!b) return {};
@@ -46,8 +59,16 @@ export function makeHandler(deps) {
 
       // ---- the scheduler may only run the scheduled update
       if (who.kind === 'cron') {
-        if (action !== 'run') return send(403, { ok: false, code: 'AUTH', error: 'The automation key can only run updates.' });
         const slot = url.searchParams.get('slot') || 'auto';
+        if (action === 'ingest') {
+          // the owner's own phone/computer fetched the NCDEX page and hands it over; same checks as a server fetch
+          if (req.method !== 'POST') return send(405, { ok: false, code: 'BAD', error: 'Send the page with POST.' });
+          const html = bodyText(req).slice(0, 4000000);
+          if (html.trim().length < 200) return send(200, { ok: false, skipped: false, reason: 'Nothing (or too little) was received.' });
+          const out = await service.run({ slot, trigger: 'cron', force: url.searchParams.get('force') === '1', html, via: 'phone' });
+          return send(200, summarise(out));
+        }
+        if (action !== 'run') return send(403, { ok: false, code: 'AUTH', error: 'The automation key can only run updates.' });
         const out = await service.run({ slot, trigger: 'cron', force: url.searchParams.get('force') === '1' });
         return send(200, summarise(out));
       }

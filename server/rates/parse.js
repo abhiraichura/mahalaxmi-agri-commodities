@@ -142,6 +142,31 @@ function classify(raw) {
 
 const approx = (a, b, tol) => Math.abs(a - b) <= tol;
 
+const NOISE_WORDS = new Set([...KNOWN_CAPS].map((w) => w.toLowerCase()).concat(['futures', 'future', 'options', 'option', 'opt', 'inr', 'rs']));
+
+/** A word that could be part of a product name ("Guar", "Seed", "Pepper", "(Farmer"), i.e. not a column label. */
+function isNameWord(raw) {
+  const w = String(raw).replace(/^[("'\[]+|[)"'\].,;:]+$/g, '');
+  if (!/[A-Za-z]{2,}/.test(w)) return false;
+  const lower = w.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+  return !!lower && !LABELS.has(lower) && !NOISE_WORDS.has(lower);
+}
+
+/**
+ * Whose row does the next expiry date belong to?  Decided only from the words printed since the previous number:
+ *  - our commodity's name/symbol right before the date (at most 3 qualifier words after it, like "(Farmer Polished)")
+ *  - some other product name ("Pepper", "Guar seed", ...) => not ours, so its numbers are never used
+ *  - nothing but column labels => same commodity as the row above (names printed once per commodity)
+ * This also stops a commodity name in a filter drop-down from claiming the first row of the table.
+ */
+function decideSymbol(lead, previous) {
+  for (let i = lead.length - 1; i >= 0; i--) {
+    if (lead[i].type === 'sym') return lead.length - 1 - i <= 3 ? lead[i].key : null;
+  }
+  return lead.length ? null : previous;
+}
+
+
 /** Reads one row (the tokens between one expiry date and the next). */
 function decodeRow(items) {
   const warnings = [];
@@ -259,23 +284,32 @@ export function parseBoard(input, { now = new Date() } = {}) {
   const today = istParts(now).dateKey;
 
   const tokens = text.split(/\s+/).filter(Boolean);
-  let sym = null;
+  let sym = null;      // commodity of the row being read (kept for layouts that print the name only once)
   let cur = null;
+  let lead = [];       // words seen since the last number: they decide whose row the next expiry date starts
   const segments = [];
   const flush = () => { if (cur) { segments.push(cur); cur = null; } };
 
   for (const raw of tokens) {
     if (cur && /^(?:CE|PE|CALL|PUT)$/i.test(raw)) { cur.option = true; continue; }
     const c = classify(raw);
-    if (!c) continue;
-    if (c.kind === 'symbol') { flush(); sym = c.key; continue; }
-    if (c.kind === 'expiry') { flush(); cur = sym ? { sym, iso: c.iso, items: [] } : null; continue; }
+    if (!c) { if (isNameWord(raw)) lead.push({ type: 'name' }); continue; }
+    if (c.kind === 'symbol') { flush(); lead.push({ type: 'sym', key: c.key }); continue; }
+    if (c.kind === 'expiry') {
+      flush();
+      sym = decideSymbol(lead, sym);
+      lead = [];
+      cur = sym ? { sym, iso: c.iso, items: [] } : null;
+      continue;
+    }
     if (c.kind === 'other') {
+      if (isNameWord(raw)) lead.push({ type: 'name' });
       if (c.caps) { flush(); sym = null; continue; } // another commodity (GUARGUM5, CASTOR ...)
       // a plain word: ends a finished row (footer text), otherwise ignore
       if (cur && cur.items.filter(i => i.kind === 'num').length >= 8) flush();
       continue;
     }
+    if (c.kind === 'num') lead = [];
     if (cur) cur.items.push(c);
   }
   flush();

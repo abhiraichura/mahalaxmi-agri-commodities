@@ -41,8 +41,13 @@ export function createService({
   }
   const slotKeyOf = (hour, parts) => (hour != null ? String(hour) : `x${pad2(parts.hour)}${pad2(parts.minute)}`);
 
-  async function getBoard({ now = clock(), cfg } = {}) {
+  async function getBoard({ now = clock(), cfg, html = null } = {}) {
     cfg = cfg || await store.getConfig();
+    if (html != null) {
+      // the board was delivered by the owner's own phone/computer: same checks, no server fetch
+      const j = judgeBoard(String(html), { now, maxAgeMin: cfg.maxBoardAgeMin, requireBoardTime: cfg.requireBoardTime !== false });
+      return { ...j, log: [{ url: 'sent by your phone', status: 200, bytes: String(html).length }] };
+    }
     const got = await fetchBoard();
     if (!got.ok) return { ok: false, kind: got.blocked ? 'blocked' : 'unreachable', reason: got.reason, log: got.log };
     const j = judgeBoard(got.html, { now, maxAgeMin: cfg.maxBoardAgeMin, requireBoardTime: cfg.requireBoardTime !== false });
@@ -129,6 +134,7 @@ export function createService({
       const out = {};
       if (typeof patch.includeTurmeric === 'boolean') out.includeTurmeric = patch.includeTurmeric;
       if (typeof patch.requireBoardTime === 'boolean') out.requireBoardTime = patch.requireBoardTime;
+      if (typeof patch.phoneDelivery === 'boolean') out.phoneDelivery = patch.phoneDelivery;
       const age = num(patch.maxBoardAgeMin);
       if (age !== null) out.maxBoardAgeMin = Math.min(240, Math.max(5, Math.round(age)));
       if (patch.company && typeof patch.company === 'object') {
@@ -147,6 +153,7 @@ export function createService({
       const got = await getBoard({ now, cfg });
       return {
         ok: !!got.ok, reason: got.reason || null, kind: got.kind || null, log: got.log || [],
+        region: env.VERCEL_REGION || null,
         diag: got.diag || null,
         picks: got.board ? got.board.picks : {},
       };
@@ -168,7 +175,7 @@ export function createService({
      * Fetch from NCDEX, verify, and prepare the update for a slot.
      * trigger: 'cron' (scheduled) or 'user' (button)
      */
-    async run({ slot = 'auto', trigger = 'user', force = false } = {}) {
+    async run({ slot = 'auto', trigger = 'user', force = false, html = null, via = null } = {}) {
       const now = clock();
       const parts = istParts(now);
       const slotHour = resolveSlot(slot, parts, trigger);
@@ -187,19 +194,21 @@ export function createService({
       }
 
       const cfg = await store.getConfig();
-      const got = await getBoard({ now, cfg });
+      const got = await getBoard({ now, cfg, html });
 
       if (!got.ok) {
         const skip = got.kind === 'not_today';
+        // when the owner's phone also delivers the board, the "needs you" alert waits for the 8-minute retry
+        const holdAlert = !skip && trigger === 'cron' && cfg.phoneDelivery === true && slotHour != null && parts.minute < 6;
         const doc = await failUpdate({
           parts, slotHour, now, status: skip ? 'skipped' : 'failed', reason: got.reason, kind: got.kind, diag: got.diag || { log: got.log },
-          trigger, notifyUser: trigger === 'cron' && (!skip || (slotHour === SLOTS[0] && !(existing && existing.skipNotified))),
+          trigger, notifyUser: trigger === 'cron' && !holdAlert && (!skip || (slotHour === SLOTS[0] && !(existing && existing.skipNotified))),
         });
         return { ok: false, reason: got.reason, kind: got.kind, update: doc, diag: got.diag || null, log: got.log || [] };
       }
 
       const doc = await prepare({
-        parts, now, slotHour, picks: got.board.picks, source: 'ncdex', trigger,
+        parts, now, slotHour, picks: got.board.picks, source: via === 'phone' ? 'phone' : 'ncdex', trigger,
         boardTimeText: got.diag.boardTime, warnings: got.board.warnings, cfg,
       });
 

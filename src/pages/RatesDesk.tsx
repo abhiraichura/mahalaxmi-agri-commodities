@@ -235,8 +235,19 @@ export default function RatesDesk() {
     setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   });
 
-  const readPaste = () => guard('paste', async () => {
-    const r = await ratesCall<{ ok: boolean; errors: string[]; warnings: string[]; picks: Picks; boardTime: string | null; ageMin: number | null }>('paste', { text: pasteText });
+  const readPaste = () => guard('paste', () => readPasteText(pasteText));
+
+  // one tap: take whatever is on the clipboard (the copied NCDEX page) and read it
+  const pasteFromClipboard = () => guard('paste', async () => {
+    let text = '';
+    try { text = await navigator.clipboard.readText(); } catch { throw new Error('The phone did not allow reading the clipboard. Touch and hold in the box below, choose Paste, then press "Read the pasted text".'); }
+    if (!text.trim()) throw new Error('Nothing is copied yet. Copy the NCDEX page first.');
+    setPasteText(text);
+    await readPasteText(text);
+  });
+
+  const readPasteText = async (text: string) => {
+    const r = await ratesCall<{ ok: boolean; errors: string[]; warnings: string[]; picks: Picks; boardTime: string | null; ageMin: number | null }>('paste', { text });
     if (Object.keys(r.picks || {}).length) setForm(f => ({ ...f, ...picksToForm(r.picks) }));
     if (r.ok) {
       const age = r.ageMin != null ? ` (${r.ageMin} min old)` : '';
@@ -246,7 +257,7 @@ export default function RatesDesk() {
       setPasteInfo(`Could not read everything: ${r.errors.join('; ')}. Fill in the missing numbers below.`);
       setTab('type');
     }
-  });
+  };
 
   const prepareFromForm = () => guard('commit', async () => {
     const picks: Record<string, unknown> = {};
@@ -313,6 +324,7 @@ export default function RatesDesk() {
   });
 
   const cronUrl = status ? `${window.location.origin}/api/rates?action=run&slot=auto&key=${status.cronKey}` : '';
+  const phoneUrl = status ? `${window.location.origin}/api/rates?action=ingest&slot=auto&key=${status.cronKey}` : '';
 
   // ------------------------------------------------------------ render
   if (setup) return <SetupNeeded message={setup.message} missing={setup.missing} onRetry={() => { loadStatus(); loadUpdates(); }} />;
@@ -343,7 +355,7 @@ export default function RatesDesk() {
           <>
             <div className="text-xs text-gray-500 mb-2 flex flex-wrap gap-x-3 gap-y-1">
               <span>{slotName(selected)} · {dayIst(selected.createdAtMs)} {timeIst(selected.createdAtMs)}</span>
-              <span>Source: {selected.source === 'ncdex' ? 'NCDEX board' : selected.source === 'paste' ? 'pasted board' : 'typed by hand'}</span>
+              <span>Source: {selected.source === 'ncdex' ? 'NCDEX board' : selected.source === 'phone' ? 'NCDEX board (sent by your phone)' : selected.source === 'paste' ? 'pasted board' : 'typed by hand'}</span>
               {selected.boardTime && <span>Board time: {selected.boardTime}</span>}
               {selected.sent?.whatsapp && <span className="text-green-700">Opened in WhatsApp {timeIst(selected.sent.whatsapp)}</span>}
             </div>
@@ -419,8 +431,11 @@ export default function RatesDesk() {
         {tab === 'paste' && (
           <div className="mt-3">
             <p className="text-xs text-gray-500 mb-1.5">Open ncdex.com &gt; Market Watch &gt; Live Quotes, select the table (or the whole page) and copy it. Paste it here.</p>
-            <textarea value={pasteText} onChange={e => setPasteText(e.target.value)} rows={6} placeholder="Paste the NCDEX Live Quotes text here..." className="w-full p-3 border border-gray-300 rounded-xl text-xs font-mono" />
-            <button onClick={readPaste} disabled={!pasteText.trim() || busy === 'paste'} className="mt-2 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium disabled:opacity-50">
+            <button onClick={pasteFromClipboard} disabled={busy === 'paste'} className="mb-2 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium disabled:opacity-50">
+              {busy === 'paste' ? <Loader2 size={14} className="animate-spin" /> : <Clipboard size={14} />} Paste from clipboard and read
+            </button>
+            <textarea value={pasteText} onChange={e => setPasteText(e.target.value)} rows={6} placeholder="Or paste the NCDEX Live Quotes text here..." className="w-full p-3 border border-gray-300 rounded-xl text-xs font-mono" />
+            <button onClick={readPaste} disabled={!pasteText.trim() || busy === 'paste'} className="mt-2 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-300 text-gray-800 text-sm font-medium disabled:opacity-50">
               {busy === 'paste' && <Loader2 size={14} className="animate-spin" />} Read the pasted text
             </button>
           </div>
@@ -481,6 +496,16 @@ export default function RatesDesk() {
           </div>
         )}
         <p className="mt-1 text-xs text-gray-400">This address contains a secret key. Do not share it.</p>
+        {status && (
+          <div className="mt-3 rounded-xl bg-gray-50 border border-gray-200 p-3">
+            <p className="text-sm font-medium text-gray-800">If NCDEX does not show the board to the server</p>
+            <p className="mt-0.5 text-xs text-gray-600">Your own phone can fetch the NCDEX page like any visitor and hand it to the app (an iPhone Shortcut does this in two steps; see the guide). Use this address as the place where the phone sends the page:</p>
+            <div className="mt-2 flex gap-2">
+              <input readOnly value={phoneUrl} onFocus={e => e.currentTarget.select()} className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono bg-white" />
+              <button onClick={() => copyWithToast(phoneUrl, 'Phone address copied')} className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"><Copy size={14} /></button>
+            </div>
+          </div>
+        )}
         <div className="mt-3 flex flex-wrap gap-2">
           <button onClick={diagnose} disabled={busy === 'diag'} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-50">
             {busy === 'diag' && <Loader2 size={14} className="animate-spin" />} Check the NCDEX connection
@@ -513,6 +538,7 @@ export default function RatesDesk() {
         <Card title="Message settings" icon={<Settings2 size={16} className="text-rose-600" />}>
           <div className="space-y-3 text-sm">
             <label className="flex items-center gap-2"><input type="checkbox" checked={cfg.includeTurmeric} onChange={e => setCfg({ ...cfg, includeTurmeric: e.target.checked })} /> Include Turmeric in the message</label>
+            <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={cfg.phoneDelivery === true} onChange={e => setCfg({ ...cfg, phoneDelivery: e.target.checked })} /> <span>My phone also sends the board (the "needs you" alert then waits until 8 minutes past the hour, so you are not alerted when the phone is about to deliver)</span></label>
             <label className="flex items-center gap-2"><input type="checkbox" checked={cfg.requireBoardTime !== false} onChange={e => setCfg({ ...cfg, requireBoardTime: e.target.checked })} /> Only send when the NCDEX board shows today's time (recommended)</label>
             <div className="flex items-center gap-2">
               <span>Board may be at most</span>
@@ -550,8 +576,13 @@ function DiagView({ diag }: { diag: any }) {
       </div>
       <div className="p-3 space-y-1 text-gray-700">
         {(diag.log || []).map((l: any, i: number) => (
-          <p key={i}>Try {i + 1}: {l.error ? l.error : `HTTP ${l.status}, ${l.bytes ?? 0} bytes`}{l.ms ? `, ${l.ms} ms` : ''}{l.note ? ` (${l.note})` : ''}</p>
+          <div key={i}>
+            <p>Try {i + 1}: {l.error ? l.error : `HTTP ${l.status}, ${l.bytes ?? 0} bytes`}{l.ms ? `, ${l.ms} ms` : ''}</p>
+            {l.note && <p className="text-amber-800">{l.note}</p>}
+            {l.head && <p className="text-gray-500 break-words">What the server saw: {String(l.head).slice(0, 220)}{String(l.head).length > 220 ? '...' : ''}</p>}
+          </div>
         ))}
+        {diag.region && <p className="text-gray-500">Server location: {diag.region}</p>}
         {d && (
           <>
             <p>Board time: {d.boardTime || 'not found'}{d.ageMin != null ? ` (${d.ageMin} min old)` : ''}</p>

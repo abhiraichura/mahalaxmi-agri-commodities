@@ -22,6 +22,7 @@ export const DEFAULT_CONFIG = {
   includeTurmeric: false, // the Grok template shows Jeera and Dhaniya only
   maxBoardAgeMin: 30,
   requireBoardTime: true, // send only when the NCDEX board shows today's time
+  phoneDelivery: false, // the owner's phone also hands the board to the app (then the 'needs you' alert waits for the retry)
   company: {
     name: 'MAHALAXMI AGRI COMMODITIES',
     tagline: 'Commodity Broker & Commission Agent',

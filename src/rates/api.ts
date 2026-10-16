@@ -45,6 +45,7 @@ export interface RatesConfig {
   includeTurmeric: boolean;
   maxBoardAgeMin: number;
   requireBoardTime: boolean;
+  phoneDelivery?: boolean;
   company: { name: string; tagline: string; place: string; phones: string };
 }
 

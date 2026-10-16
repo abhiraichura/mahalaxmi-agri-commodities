@@ -13,6 +13,29 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 
 const BLOCK_RE = /access denied|request unsuccessful|captcha|just a moment|attention required|unusual traffic|bot detected|pardon our interruption|incapsula|akamai/i;
 
+const KEEP_HEADERS = ['server', 'content-type', 'via', 'x-cache', 'age', 'cf-ray', 'x-amz-cf-id', 'x-sucuri-id', 'x-iinfo', 'retry-after', 'location', 'x-powered-by'];
+
+/** True when the page really contains the rates board (not an error / protection / empty page). */
+export function looksLikeBoard(html) {
+  const s = String(html || '');
+  return /jeera/i.test(s) && /dhaniya|coriander/i.test(s) && /\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{4,6}\.\d{2}/.test(s);
+}
+
+/** A short look at what came back, so a developer can see what kind of page it was (the page's secret token is removed). */
+function describePage(html) {
+  const raw = String(html || '');
+  return {
+    head: raw.replace(/\s+/g, ' ').replace(/(content=")[^"]{12,}(")/gi, '$1...$2').slice(0, 900),
+    shape: {
+      scripts: (raw.match(/<script\b/gi) || []).length,
+      tables: (raw.match(/<table\b/gi) || []).length,
+      rows: (raw.match(/<tr\b/gi) || []).length,
+      forms: (raw.match(/<form\b/gi) || []).length,
+      iframes: (raw.match(/<iframe\b/gi) || []).length,
+    },
+  };
+}
+
 export async function fetchBoardHtml({
   fetchImpl = fetch, attempts = 3, timeoutMs = 9000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
 } = {}) {
@@ -37,8 +60,20 @@ export async function fetchBoardHtml({
       const html = await res.text();
       const entry = { url: url.replace(/\?_=\d+$/, ''), status: res.status, ms: Date.now() - t0, bytes: html.length };
       log.push(entry);
-      if (res.ok && html.length > 1500 && !(BLOCK_RE.test(html.slice(0, 4000)) && html.length < 20000)) return { ok: true, html, log };
-      if (res.ok) entry.note = 'page came back but looks like a block / error page';
+      if (res.ok && html.length > 1500 && !(BLOCK_RE.test(html.slice(0, 4000)) && html.length < 20000) && looksLikeBoard(html)) return { ok: true, html, log };
+      // not the board: keep what we learned about the answer (no secrets)
+      try {
+        const h = res.headers;
+        entry.finalUrl = res.url && res.url.replace(/\?_=\d+$/, '') !== entry.url ? res.url : undefined;
+        entry.headers = {};
+        for (const k of KEEP_HEADERS) { const v = h.get && h.get(k); if (v) entry.headers[k] = String(v).slice(0, 120); }
+        const sc = h.getSetCookie ? h.getSetCookie() : [];
+        if (sc.length) entry.cookies = sc.map((c) => String(c).split('=')[0].slice(0, 40));
+      } catch { /* details are optional */ }
+      Object.assign(entry, describePage(html));
+      if (res.ok) {
+        entry.note = BLOCK_RE.test(html.slice(0, 6000)) ? 'page came back but looks like a block / error page' : 'page came back but it does not contain the rates board';
+      }
     } catch (e) {
       log.push({ url: url.replace(/\?_=\d+$/, ''), error: e && e.name === 'AbortError' ? 'timed out' : String((e && e.message) || e), ms: Date.now() - t0 });
     } finally {
@@ -48,8 +83,10 @@ export async function fetchBoardHtml({
   }
   const blocked = log.some((l) => [401, 403, 406, 429, 503].includes(l.status) || l.note);
   return {
-    ok: false, html: '', log,
-    reason: blocked ? 'NCDEX refused the request from the server (looks like a block).' : 'Could not reach the NCDEX page from the server.',
+    ok: false, html: '', log, region: (typeof process !== 'undefined' && process.env && process.env.VERCEL_REGION) || null,
+    reason: blocked
+      ? 'NCDEX did not show the rates board to the server (it answered with a small or protection page instead).'
+      : 'Could not reach the NCDEX page from the server.',
     blocked,
   };
 }
