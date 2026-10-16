@@ -37,6 +37,7 @@ export function makeHandler(deps) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
     const send = (code, obj) => res.status(code).json(obj);
+    let feedText = false; // the feed address can answer in one plain line (easy for Grok to read)
     try {
       const url = new URL(req.url || '/', 'http://localhost');
       const body = req.method === 'POST' ? readBody(req) : {};
@@ -53,6 +54,28 @@ export function makeHandler(deps) {
       if (action === 'ping') return send(200, { ok: true, setup: setupStatus() });
 
       const { service, auth } = await deps();
+
+      // ---- the feed: Grok (or any other source) sends the numbers; it has a key of its own that can do nothing else
+      if (action === 'feed') {
+        const asText = url.searchParams.get('format') === 'text';
+        feedText = asText;
+        const sendText = (code, text) => {
+          res.status(code); res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+          return typeof res.send === 'function' ? res.send(text) : res.end(text);
+        };
+        const reply = (code, obj, line) => (asText ? sendText(code, line) : send(code, obj));
+        const given = url.searchParams.get('key') || String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+        if (!given || !same(given, await service.feedKey())) return reply(401, { ok: false, code: 'AUTH', error: 'Wrong or missing key.' }, 'ERROR: wrong or missing key.');
+        if (url.searchParams.get('test') === '1') { // "does this address work?" without saving anything
+          const line = 'OK: the feed address works and the key is accepted. Nothing was saved.';
+          return reply(200, { ok: true, test: true, message: line }, line);
+        }
+        const values = {};
+        for (const [k, v] of url.searchParams) if (!['action', 'key', 'format', 'slot', 'force', 'test'].includes(k)) values[k.toLowerCase()] = v;
+        if (body && typeof body === 'object' && !Buffer.isBuffer(body)) for (const [k, v] of Object.entries(body)) if (!['action', 'key'].includes(k)) values[k.toLowerCase()] = v;
+        const out = await service.feed({ slot: url.searchParams.get('slot') || 'auto', values, force: url.searchParams.get('force') === '1' });
+        return reply(200, { ...summarise(out), message: feedLine(out) }, feedLine(out));
+      }
 
       // ---- who is calling?
       const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
@@ -89,6 +112,7 @@ export function makeHandler(deps) {
         case 'run': return send(200, await service.run({ slot: body.slot || 'auto', trigger: 'user', force: true }));
         case 'paste': return send(200, service.paste(body.text));
         case 'commit': return send(200, await service.commit({ slot: body.slot || 'auto', picks: body.picks, source: body.source === 'paste' ? 'paste' : 'manual', boardTime: body.boardTime || null }));
+        case 'regen-feed-key': return send(200, await service.regenFeedKey());
         case 'movement': return send(200, await service.setMovement({ id: body.id, mode: body.mode, values: body.values, label: body.label }));
         case 'list': return send(200, { ok: true, updates: await service.listUpdates(Number(body.limit || url.searchParams.get('limit') || 20)) });
         case 'sent': return send(200, await service.markSent(body.id, body.channel || 'whatsapp'));
@@ -98,11 +122,28 @@ export function makeHandler(deps) {
         default: return send(400, { ok: false, code: 'BAD', error: 'Unknown action.' });
       }
     } catch (e) {
+      if (feedText) {
+        res.status(e instanceof SetupError ? 503 : e instanceof UserError ? 200 : 500);
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        const line = `ERROR: ${String((e && e.message) || e).slice(0, 300)}`;
+        return typeof res.send === 'function' ? res.send(line) : res.end(line);
+      }
       if (e instanceof SetupError) return send(503, { ok: false, code: 'SETUP', error: e.message, missing: e.missing, setup: setupStatus() });
       if (e instanceof UserError) return send(200, { ok: false, code: 'USER', error: e.message });
       return send(500, { ok: false, code: 'ERROR', error: String((e && e.message) || e) });
     }
   };
+}
+
+// the one line Grok reads back
+function feedLine(out) {
+  if (!out) return 'ERROR: not accepted.';
+  if (out.ok && out.already) return 'OK: this update was already saved.';
+  if (out.ok && out.skipped) return `OK: skipped. ${out.reason}`;
+  if (out.ok && out.update) return `OK: saved. ${out.update.summary || out.update.id}`;
+  const hint = out.kind === 'stale' || out.kind === 'no_time' ? ' Refresh the NCDEX page, read the "As on" time again and open the address once more.'
+    : out.kind === 'bad_numbers' ? ' Read those numbers again from the NCDEX board and open the address once more.' : '';
+  return `ERROR: ${out.reason || 'not accepted.'}${hint}`;
 }
 
 // a plain sentence for the person who pressed the "send this page" button

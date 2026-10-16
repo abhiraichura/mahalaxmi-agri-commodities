@@ -49,6 +49,8 @@ export interface RatesConfig {
   maxBoardAgeMin: number;
   requireBoardTime: boolean;
   showMovement?: boolean;
+  rateSource?: 'server' | 'feed';
+  feedWaitMin?: number;
   company: { name: string; tagline: string; place: string; phones: string };
 }
 
@@ -57,6 +59,7 @@ export interface RatesStatus {
   config: RatesConfig;
   subscribers: number;
   cronKey: string;
+  feedKey: string;
   vapidPublicKey: string;
   telegram: boolean;
   slots: number[];

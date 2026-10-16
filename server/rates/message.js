@@ -23,6 +23,8 @@ export const DEFAULT_CONFIG = {
   maxBoardAgeMin: 30,
   requireBoardTime: true, // send only when the NCDEX board shows today's time
   showMovement: true, // new updates include the 'Movement Since Previous Update' section (it can still be edited or hidden per update)
+  rateSource: 'server', // 'server' = the server reads NCDEX itself, 'feed' = the rates are sent to the app (for example by Grok) and the scheduler only checks that they arrived
+  feedWaitMin: 10, // feed mode: alert when nothing has arrived this many minutes after the update time
   company: {
     name: 'MAHALAXMI AGRI COMMODITIES',
     tagline: 'Commodity Broker & Commission Agent',

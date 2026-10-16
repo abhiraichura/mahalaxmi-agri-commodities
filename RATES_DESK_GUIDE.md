@@ -1,6 +1,36 @@
 # Rates Desk guide (live rates message, phone notifications, one-tap WhatsApp)
 
-## Update 3 (read this first if you already uploaded the first Rates Desk)
+## Update 4: the Grok feed (read this first; it is the fastest way)
+
+**The idea.** Your Grok automation already gets through the NCDEX browser check. So instead of the app trying to read NCDEX, **Grok sends the numbers to the app**. Nothing sits in between (no Google Drive, no database to poll): when Grok finishes reading the board it opens one web address that belongs to your app, with the numbers written in it. At that moment the app:
+
+1. checks the board time Grok read ("As on ..."): it must be today and not older than the limit in Message settings (30 minutes),
+2. checks that the numbers add up, for each commodity: previous close + change = LTP, and change % matches the change (this catches a mistyped or misread digit),
+3. builds the message in your exact format (Hindi outlook, movement section and all),
+4. sends a "📊 12 PM update ready" notification to your devices (and Telegram if set up),
+5. replies to Grok with one line, `OK: saved...` or `ERROR: ...` saying which number to read again. Grok then reads that number again and opens the address once more.
+
+**Why this is better than Drive or a database in between.** A Drive file or a database would still need something to *check* it every minute and would add a delay (and a second place that can fail). Here the app is the receiver, so the message is ready within a second of Grok finishing. The waiting you described (Grok sometimes needs 3 to 5 minutes) is handled by a **watchdog**: the free scheduler checks a few minutes after each update time. If the numbers are there, it stays silent. If not, you get "⚠️ 10 AM rates need you" and can use the bookmark, **Paste board text** or **Type the numbers**. If Grok arrives late (even after the alert) its numbers are still accepted and replace the alert.
+
+**Set up (about 10 minutes, once):**
+
+1. Upload the files of this zip (list at the bottom) and let Vercel build.
+2. Open **Rates Desk**. In the new card **Grok feed (fastest way)** press **Show the Grok instructions**, then **Copy the instructions**.
+3. Open your Grok automation, replace the old live-rates instructions with the copied text and save. (The text tells Grok to read the board, then open your feed address once with the numbers filled in. It already contains your private key.)
+4. Back in Rates Desk press **Check that the address works**. You should see "The feed address works."
+5. Tick **Use the Grok feed as my main source**, keep 10 minutes (or change it), press **Save feed settings**.
+6. In cron-job.org change your job's **Minutes** from `0` and `8` to `10` and `20` (hours stay `10, 12, 14, 16, 17`, Monday to Friday). The scheduler now only checks that Grok's numbers arrived. Do this **after** step 5; with the old minutes it would never raise the alert in feed mode.
+7. Run Grok's automation once during market hours and watch the card: "Last delivery from the feed: ... Accepted."
+
+**Good to know:**
+- The feed key can **only** send rates. It cannot read your data, run updates or change settings. If the address ever leaks, press **Make a new key** and paste the new instructions into Grok (the old address stops working at once).
+- A refused delivery (wrong digit, old board time) does not touch an update that is already ready. It only tells you, and Grok sees the reason in its reply.
+- Holiday: Grok sends the board time it sees (yesterday's). The app says "market closed" once at 10 AM and the watchdog stays quiet.
+- If Grok also runs at other hours (11, 1, 3 ...), each delivery becomes an **Extra update** with its own notification. Only the five update times are watched for lateness.
+- "Fetch from NCDEX", the browser bookmark and Paste board text all still work, even with the feed on.
+- Please be aware of the limits: this depends on Grok continuing to read the NCDEX page correctly. The app can catch stale boards and numbers that do not add up, but it cannot know if Grok read the wrong contract row consistently, so glance at the first few messages. And as noted at the end of this guide, sending exchange prices to clients can fall under NCDEX's data rules.
+
+## Update 3 (earlier update, still applies)
 
 **1. What your last screenshot means.** The check showed the same small page three times: `HTTP 200, 4212 bytes`, containing a loading spinner and "checking your browser" code. NCDEX puts a **browser check** in front of the Live Quotes page. A real browser (like your Brave) runs the check in a split second and then shows the board. A server cannot run it, so it only ever sees the spinner page. The app correctly refused to send anything.
 
@@ -32,15 +62,15 @@ Also fixed on the way: the "WhatsApp Broadcast" menu item had a wrong icon name,
 
 ## Files in this zip (upload all, same folders, replace when asked)
 
-This is **update 3**. These files replace the older ones:
+This is **update 4**. These files replace the older ones:
 
 ```
 RATES_DESK_GUIDE.md                    (this guide)
-server/rates/message.js                (movement section can be left out or typed)
-server/rates/service.js                (change movement, board sent from your browser)
-server/rates/handler.js                (the "send this page" address, change-movement action)
+server/rates/message.js                (new settings: feed on/off, waiting minutes)
+server/rates/service.js                (the Grok feed, the watchdog, number checks)
+server/rates/handler.js                (the feed address and its own key, plain one-line replies)
 src/rates/api.ts                       (new fields)
-src/pages/RatesDesk.tsx                (bookmark, movement editor, settings)
+src/pages/RatesDesk.tsx                (Grok feed card, instructions to copy, settings)
 ```
 
 Everything else from the earlier Rates Desk updates stays as it is (`parse.js`, `fetchBoard.js` and the rest). Nothing needs to be set up again.
@@ -99,7 +129,7 @@ Vercel's free plan cannot run jobs every few hours, so a free outside scheduler 
 1. Create a free account at **cron-job.org**.
 2. Click **Create cronjob**. Title: `Mahalaxmi rates`.
 3. **URL**: in the app, **Rates Desk**, **Automatic updates**, tap the copy button next to the long address and paste it here. The address contains a secret key, so do not share it. It can only start a rates update, nothing else.
-4. **Execution schedule**: choose **Custom**. Time zone: **Asia/Kolkata**. Hours: `10, 12, 14, 16, 17`. Minutes: `0` and `8` (the second try, at 8 minutes past, is a safety net; if the first try worked, the second does nothing). Days of week: Monday to Friday.
+4. **Execution schedule**: choose **Custom**. Time zone: **Asia/Kolkata**. Hours: `10, 12, 14, 16, 17`. Minutes: `0` and `8` (the second try, at 8 minutes past, is a safety net; if the first try worked, the second does nothing). Days of week: Monday to Friday. (If you use the Grok feed from Update 4, use minutes `10` and `20` instead.)
 5. Save. In cron-job.org, use **Test run** once and then look at the Rates Desk page.
 6. Notes: the app ignores repeats, so the same update is never sent twice. On exchange holidays it says "market closed today" once at 10 AM and stays quiet for the rest of the day.
 
@@ -162,6 +192,8 @@ In Vercel, Environment Variables, add `TELEGRAM_BOT_TOKEN` (from the @BotFather 
 | "Setup needed" panel | Step 2 is not done, or you did not redeploy after adding the variable. |
 | "Please sign in again" | Log out and log in again. |
 | No notification arrives | iPhone: open from the Home Screen icon, turn notifications on again, check Settings > Notifications > the app. Android: check the notification permission for the app/Chrome. Tap **Send a test notification**. |
+| "10 AM rates have not arrived from your feed" | Grok did not open the feed address in time. Open Grok's automation and see why it did not run or what it answered (the reply line starts with ERROR when a number was refused). Meanwhile use the bookmark, Paste board text or Type the numbers. A late delivery from Grok is still accepted. |
+| Grok's reply says ERROR | The reply names the number or the time that was refused. Grok should read it again and open the address once more. If it keeps failing, copy the instructions again from Rates Desk (the key may have been changed). |
 | No automatic update at 10 AM | Check cron-job.org (the job's history shows success or failure), and Rates Desk, Recent updates, for the reason. |
 | Check says "does not contain the rates board" | NCDEX is showing the server its browser-check page. Use the **Send rates** bookmark (or Paste from clipboard) from your own browser. |
 | "Not today" on a normal trading day | NCDEX page copy is old or the board is not updating yet. Use **Paste board text**. |

@@ -7,7 +7,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   TrendingUp, RefreshCw, Send, Copy, Share2, Bell, BellOff, CheckCircle2, AlertTriangle, Info, Clipboard, Pencil,
-  Wifi, History, Settings2, Clock, Loader2,
+  Wifi, History, Settings2, Clock, Loader2, Zap,
 } from 'lucide-react';
 import {
   ratesCall, RatesApiError,
@@ -74,6 +74,29 @@ function openWhatsApp(text: string) {
   const enc = encodeURIComponent(text);
   if (mobile) window.location.href = `whatsapp://send?text=${enc}`;
   else window.open(`https://wa.me/?text=${enc}`, '_blank');
+}
+
+
+const COMMODITY_ON_BOARD: Record<CommodityKey, string> = { jeera: 'JEERAUNJHA (Jeera)', dhaniya: 'DHANIYA (Dhaniya)', turmeric: 'TMCFGRNZM (Turmeric)' };
+
+/** The instructions that go into the Grok automation. Grok opens the address once with the numbers filled in. */
+function grokInstructions(feedUrl: string, keys: CommodityKey[]): string {
+  const fields = keys.map(k => `${k}_exp=[MONTH]&${k}_open=[OPEN]&${k}_prev=[CLOSE]&${k}=[LTP]&${k}_chg=[CHANGE]&${k}_pct=[CHANGE %]&${k}_oi=[OI]`).join('&');
+  const names = keys.map(k => COMMODITY_ON_BOARD[k]).join(', ');
+  return [
+    'Every weekday (Monday to Friday) at 10:00, 12:00, 14:00, 16:00 and 17:00 Indian time, do this:',
+    '',
+    '1. Open the NCDEX Live Quotes page: https://www.ncdex.com/market-watch/live_quotes',
+    '2. Note the "As on" date and time printed at the top of the board, exactly as written (for example: Friday, Oct 16 2026 10:02 AM).',
+    `3. For ${names}, take the nearest expiry that has not passed yet and read these values from its row: expiry month (for example Oct), Open, Close (this is the previous close), LTP, Change (use a minus sign when it is negative), Change %, OI.`,
+    '4. Open this web address ONCE, with every [..] replaced by the value you read. Write numbers without commas and without the rupee sign. In the As on text write + instead of spaces:',
+    '',
+    `${feedUrl}&asof=[AS ON TEXT]&${fields}`,
+    '',
+    '5. The reply is one line. If it starts with OK you are finished. If it starts with ERROR, read the number it complains about again from the board and open the address again.',
+    '6. Do not write any message for me and do not calculate or guess any number: copy the values exactly as the board shows them.',
+    '7. If the board date is not today (market holiday), still open the address with the As on text exactly as shown.',
+  ].join('\n');
 }
 
 // ---------------------------------------------------------------- manual / paste form
@@ -164,6 +187,7 @@ export default function RatesDesk() {
   const [diag, setDiag] = useState<any>(null);
   const [cfg, setCfg] = useState<RatesConfig | null>(null);
   const [subscribed, setSubscribed] = useState(false);
+  const [showGrok, setShowGrok] = useState(false);
   const support = useMemo(() => pushSupport(), []);
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -338,6 +362,22 @@ export default function RatesDesk() {
     toast.success('Saved');
   });
 
+
+  // the feed address: Grok opens it with the numbers; it has a key of its own that can do nothing else
+  const feedUrl = status ? `${window.location.origin}/api/rates?action=feed&format=text&key=${status.feedKey}` : '';
+  const checkFeed = () => guard('feedcheck', async () => {
+    let text = '';
+    try { text = await (await fetch(`${feedUrl}&test=1`)).text(); } catch { throw new Error('Could not reach the server. Check your internet connection.'); }
+    if (/^OK/.test(text)) toast.success('The feed address works.'); else toast.error(text.slice(0, 160) || 'The feed address did not answer.');
+  });
+  const newFeedKey = () => guard('feedkey', async () => {
+    if (!window.confirm('Make a new feed key? The old address stops working at once, so the new address must be put into your Grok automation.')) return;
+    await ratesCall('regen-feed-key');
+    await loadStatus();
+    toast.success('New key made. Copy the new instructions into Grok.');
+  });
+  const lastFeed = useMemo(() => updates.find(u => u.trigger === 'feed'), [updates]);
+
   const cronUrl = status ? `${window.location.origin}/api/rates?action=run&slot=auto&key=${status.cronKey}` : '';
   const sendUrl = status ? `${window.location.origin}/api/rates?action=ingest&slot=auto&key=${status.cronKey}` : '';
   // a bookmark that sends the text of the NCDEX page (as shown in the person's own browser) to this app
@@ -374,7 +414,7 @@ export default function RatesDesk() {
           <>
             <div className="text-xs text-gray-500 mb-2 flex flex-wrap gap-x-3 gap-y-1">
               <span>{slotName(selected)} · {dayIst(selected.createdAtMs)} {timeIst(selected.createdAtMs)}</span>
-              <span>Source: {selected.source === 'ncdex' ? 'NCDEX board' : selected.source === 'browser' ? 'NCDEX board (sent from your browser)' : selected.source === 'paste' ? 'pasted board' : 'typed by hand'}</span>
+              <span>Source: {selected.source === 'ncdex' ? 'NCDEX board' : selected.source === 'browser' ? 'NCDEX board (sent from your browser)' : selected.source === 'feed' ? 'Grok feed' : selected.source === 'paste' ? 'pasted board' : 'typed by hand'}</span>
               {selected.boardTime && <span>Board time: {selected.boardTime}</span>}
               {selected.sent?.whatsapp && <span className="text-green-700">Opened in WhatsApp {timeIst(selected.sent.whatsapp)}</span>}
             </div>
@@ -506,9 +546,55 @@ export default function RatesDesk() {
         </div>
       </Card>
 
+      {/* ---- the Grok feed */}
+      {status && cfg && (
+        <Card title="Grok feed (fastest way)" icon={<Zap size={16} className="text-rose-600" />}
+          right={<Chip tone={cfg.rateSource === 'feed' ? 'green' : 'gray'}>{cfg.rateSource === 'feed' ? 'On' : 'Off'}</Chip>}>
+          <p className="text-sm text-gray-600">Grok already reads the NCDEX board in its own browser. Let it send the numbers straight to this app, with nothing in between (no Drive, no database). The numbers arrive the moment Grok finishes. The app checks that they add up, builds the message and notifies your devices. If nothing has arrived after a few minutes you get an alert.</p>
+          <div className="mt-3 space-y-2 text-sm">
+            <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={cfg.rateSource === 'feed'} onChange={e => setCfg({ ...cfg, rateSource: e.target.checked ? 'feed' : 'server' })} /> <span>Use the Grok feed as my main source (the scheduler then only checks that the numbers arrived)</span></label>
+            <div className="flex flex-wrap items-center gap-2">
+              <span>Alert me if nothing has arrived</span>
+              <input type="number" min={3} max={30} value={cfg.feedWaitMin ?? 10} onChange={e => setCfg({ ...cfg, feedWaitMin: Number(e.target.value) })} className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg" aria-label="Minutes to wait for the feed" />
+              <span>minutes after the update time</span>
+            </div>
+            <button onClick={saveConfig} disabled={busy === 'cfg'} className="px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium disabled:opacity-50">Save feed settings</button>
+          </div>
+
+          <div className="mt-3 rounded-xl bg-gray-50 border border-gray-200 p-3 text-xs">
+            {lastFeed ? (
+              <p className="text-gray-700">
+                Last delivery from the feed: <b>{slotName(lastFeed)}</b> at {dayIst(lastFeed.createdAtMs)} {timeIst(lastFeed.createdAtMs)}.{' '}
+                {lastFeed.status === 'ready' ? <span className="text-green-700">Accepted.</span> : lastFeed.status === 'skipped' ? <span className="text-amber-700">Skipped: {lastFeed.reason}</span> : <span className="text-red-700">Refused: {lastFeed.reason}</span>}
+              </p>
+            ) : <p className="text-gray-600">Nothing has arrived from the feed yet.</p>}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button onClick={() => setShowGrok(v => !v)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold">{showGrok ? 'Hide the Grok instructions' : 'Show the Grok instructions'}</button>
+            <button onClick={checkFeed} disabled={busy === 'feedcheck'} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-50">{busy === 'feedcheck' && <Loader2 size={14} className="animate-spin" />} Check that the address works</button>
+          </div>
+
+          {showGrok && (
+            <div className="mt-3">
+              <p className="text-xs text-gray-600 mb-1.5">Copy this into your Grok automation (replace the old live-rates instructions). It tells Grok to read the board and open the address below once, with the numbers filled in.</p>
+              <textarea readOnly value={grokInstructions(feedUrl, keys)} rows={14} onFocus={e => e.currentTarget.select()} aria-label="Instructions for Grok" className="w-full p-3 border border-gray-300 rounded-xl text-xs font-mono bg-gray-50" />
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button onClick={() => copyWithToast(grokInstructions(feedUrl, keys), 'Instructions copied. Paste them into Grok.')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium"><Copy size={14} /> Copy the instructions</button>
+                <button onClick={() => copyWithToast(feedUrl, 'Address copied')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"><Copy size={14} /> Copy only the address</button>
+                <button onClick={newFeedKey} disabled={busy === 'feedkey'} className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-50">Make a new key</button>
+              </div>
+              <p className="mt-1 text-xs text-gray-400">The address contains a secret key that can only send rates, nothing else. Do not share it. If it leaks, press Make a new key.</p>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* ---- automation */}
       <Card title="Automatic updates" icon={<Clock size={16} className="text-rose-600" />}>
-        <p className="text-sm text-gray-600">A free scheduler calls this address at 10:00, 12:00, 14:00, 16:00 and 17:00 (Indian time, Monday to Friday). Setup steps are in the guide that came with this update.</p>
+        {cfg?.rateSource === 'feed'
+          ? <p className="text-sm text-gray-600">The Grok feed is your main source. A free scheduler calls this address about {cfg.feedWaitMin ?? 10} minutes after 10:00, 12:00, 14:00, 16:00 and 17:00 (Indian time, Monday to Friday) and only checks that the numbers arrived. If they did not, it alerts you. Setup steps are in the guide.</p>
+          : <p className="text-sm text-gray-600">A free scheduler calls this address at 10:00, 12:00, 14:00, 16:00 and 17:00 (Indian time, Monday to Friday). Setup steps are in the guide that came with this update.</p>}
         {status && (
           <div className="mt-2 flex gap-2">
             <input readOnly value={cronUrl} onFocus={e => e.currentTarget.select()} className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono bg-gray-50" />
