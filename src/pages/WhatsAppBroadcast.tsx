@@ -5,6 +5,7 @@ import { db } from '../utils/firebase';
 interface Party {
   id: string;
   name: string;
+  legalName?: string;
   phone?: string;
   mobile?: string; 
   type?: string;
@@ -50,7 +51,6 @@ export default function WhatsAppBroadcast() {
           ...d.data() 
         })) as Party[];
         
-        // SAFE SORT: Added fallback for missing names
         fetchedParties.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         setDirectory(fetchedParties);
 
@@ -151,8 +151,9 @@ export default function WhatsAppBroadcast() {
     if (!newContactName.trim() || !newContactPhone.trim() || !editingListId) return;
 
     try {
-      // 1. Create party in Firebase
+      // 1. Create party in Firebase (Saving both legalName and name)
       const docRef = await addDoc(collection(db, 'parties'), {
+        legalName: newContactName.trim(),
         name: newContactName.trim(),
         phone: newContactPhone.trim(),
         type: 'Broadcast Contact',
@@ -161,6 +162,7 @@ export default function WhatsAppBroadcast() {
 
       const newParty: Party = {
         id: docRef.id,
+        legalName: newContactName.trim(),
         name: newContactName.trim(),
         phone: newContactPhone.trim(),
         type: 'Broadcast Contact'
@@ -266,6 +268,7 @@ export default function WhatsAppBroadcast() {
       const term = broadcastSearch.toLowerCase();
       members = members.filter(m => 
         (m.name || '').toLowerCase().includes(term) || 
+        (m.legalName || '').toLowerCase().includes(term) ||
         (m.phone && m.phone.includes(term)) ||
         (m.mobile && m.mobile.includes(term))
       );
@@ -284,6 +287,7 @@ export default function WhatsAppBroadcast() {
     const term = manageSearch.toLowerCase();
     return directory.filter(p => 
       (p.name || '').toLowerCase().includes(term) || 
+      (p.legalName || '').toLowerCase().includes(term) ||
       (p.phone && p.phone.includes(term)) ||
       (p.mobile && p.mobile.includes(term))
     );
@@ -394,14 +398,16 @@ export default function WhatsAppBroadcast() {
                           
                           <div className="flex flex-col overflow-hidden mr-3">
                             <div className="flex items-center gap-2">
-                              <h3 className="font-bold text-gray-900 text-sm truncate">{member.name || 'Unnamed Party'}</h3>
+                              <h3 className="font-bold text-gray-900 text-sm truncate">
+                                {member.legalName || member.name || 'Unnamed Party'}
+                              </h3>
                               {isSent && (
                                 <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span className="text-xs text-gray-600">{contactNumber || 'No number'}</span>
-                              <span className="text-[9px] font-semibold uppercase tracking-wider text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                              <span className="text-[9px] font-semibold uppercase tracking-wider text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded truncate max-w-[100px]">
                                 {member.type || member.partyType || 'Party'}
                               </span>
                             </div>
@@ -549,9 +555,11 @@ export default function WhatsAppBroadcast() {
                             checked={isSelected}
                             onChange={() => toggleMemberInList(editingList.id, party.id)}
                           />
-                          <div className="ml-3 flex flex-col">
-                            <span className="text-sm font-semibold text-gray-800 truncate">{party.name || 'Unnamed Party'}</span>
-                            <span className="text-xs text-gray-500">{party.type || party.partyType} • {contactNumber}</span>
+                          <div className="ml-3 flex flex-col overflow-hidden">
+                            <span className="text-sm font-semibold text-gray-800 truncate">
+                              {party.legalName || party.name || 'Unnamed Party'}
+                            </span>
+                            <span className="text-xs text-gray-500 truncate">{party.type || party.partyType} • {contactNumber}</span>
                           </div>
                         </label>
                       );
