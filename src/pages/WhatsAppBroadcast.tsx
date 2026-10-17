@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { useLocation } from 'react-router-dom';
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, addDoc } from 'firebase/firestore';
 import { db } from '../utils/firebase';
 
 interface Party {
@@ -33,15 +32,13 @@ export default function WhatsAppBroadcast() {
   const [newListName, setNewListName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   
-  // the Rates Desk can hand over a ready rate message ("Send to my client lists")
-  const location = useLocation();
-  useEffect(() => {
-    const m = (location.state as { rateMessage?: string } | null)?.rateMessage;
-    if (typeof m === 'string' && m) setMessage(m);
-  }, [location.state]);
-
   const [broadcastSearch, setBroadcastSearch] = useState('');
   const [manageSearch, setManageSearch] = useState('');
+
+  // New Contact States
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [newContactName, setNewContactName] = useState('');
+  const [newContactPhone, setNewContactPhone] = useState('');
 
   useEffect(() => {
     const initializeData = async () => {
@@ -148,6 +145,48 @@ export default function WhatsAppBroadcast() {
     }
   };
 
+  const handleAddNewContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newContactName.trim() || !newContactPhone.trim() || !editingListId) return;
+
+    try {
+      // 1. Create party in Firebase
+      const docRef = await addDoc(collection(db, 'parties'), {
+        name: newContactName.trim(),
+        phone: newContactPhone.trim(),
+        type: 'Broadcast Contact',
+        createdAt: new Date().toISOString(),
+      });
+
+      const newParty: Party = {
+        id: docRef.id,
+        name: newContactName.trim(),
+        phone: newContactPhone.trim(),
+        type: 'Broadcast Contact'
+      };
+
+      // 2. Add to local directory state and sort
+      setDirectory(prev => [...prev, newParty].sort((a, b) => a.name.localeCompare(b.name)));
+
+      // 3. Auto-add to the currently editing list
+      const list = lists.find(l => l.id === editingListId);
+      if (list) {
+        const newMemberIds = [...list.memberIds, docRef.id];
+        setLists(lists.map(l => l.id === editingListId ? { ...l, memberIds: newMemberIds } : l));
+        await updateDoc(doc(db, 'whatsapp_lists', editingListId), { memberIds: newMemberIds });
+      }
+
+      // 4. Reset Form
+      setNewContactName('');
+      setNewContactPhone('');
+      setShowAddContact(false);
+
+    } catch (error) {
+      console.error('Error adding new contact:', error);
+      alert('Failed to add new contact.');
+    }
+  };
+
   const handleSend = async (partyId: string, phone: string | undefined) => {
     if (!message.trim()) {
       alert('Please enter a message first.');
@@ -218,12 +257,10 @@ export default function WhatsAppBroadcast() {
   const getFilteredBroadcastMembers = () => {
     if (!activeList) return [];
     
-    // First map and filter out undefined
     let members = activeList.memberIds
       .map(id => directory.find(p => p.id === id))
       .filter((p): p is Party => p !== undefined);
       
-    // Then apply text search if it exists
     if (broadcastSearch.trim()) {
       const term = broadcastSearch.toLowerCase();
       members = members.filter(m => 
@@ -233,19 +270,16 @@ export default function WhatsAppBroadcast() {
       );
     }
 
-    // Finally, sort so that SENT items drop to the bottom of the list
     return members.sort((a, b) => {
       const aSent = !!activeList.sentStatuses[a.id];
       const bSent = !!activeList.sentStatuses[b.id];
-      
-      if (aSent === bSent) return 0; // keep original alphabetical order if statuses are the same
-      return aSent ? 1 : -1;         // if a is sent, push it down the list (1)
+      if (aSent === bSent) return 0;
+      return aSent ? 1 : -1;
     });
   };
 
   const getFilteredDirectory = () => {
     if (!manageSearch.trim()) return directory;
-    
     const term = manageSearch.toLowerCase();
     return directory.filter(p => 
       p.name.toLowerCase().includes(term) || 
@@ -451,18 +485,56 @@ export default function WhatsAppBroadcast() {
                 </h2>
                 
                 {editingList && (
-                  <input
-                    type="text"
-                    placeholder="Search directory..."
-                    className="p-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-64"
-                    value={manageSearch}
-                    onChange={(e) => setManageSearch(e.target.value)}
-                  />
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <input
+                      type="text"
+                      placeholder="Search directory..."
+                      className="p-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-48"
+                      value={manageSearch}
+                      onChange={(e) => setManageSearch(e.target.value)}
+                    />
+                    <button
+                      onClick={() => setShowAddContact(!showAddContact)}
+                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap"
+                    >
+                      {showAddContact ? 'Cancel' : '+ Add New'}
+                    </button>
+                  </div>
                 )}
               </div>
 
               {editingList ? (
                 <div className="p-3 flex-1 overflow-y-auto max-h-[700px]">
+                  
+                  {/* Add New Contact Inline Form */}
+                  {showAddContact && (
+                    <form onSubmit={handleAddNewContact} className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                      <div className="w-full sm:flex-1">
+                        <input
+                          type="text"
+                          placeholder="Contact Name"
+                          required
+                          value={newContactName}
+                          onChange={(e) => setNewContactName(e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <div className="w-full sm:flex-1">
+                        <input
+                          type="text"
+                          placeholder="Phone Number (10 digits)"
+                          required
+                          value={newContactPhone}
+                          onChange={(e) => setNewContactPhone(e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <button type="submit" className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700">
+                        Save & Add to List
+                      </button>
+                    </form>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {getFilteredDirectory().map(party => {
                       const isSelected = editingList.memberIds.includes(party.id);
@@ -483,7 +555,7 @@ export default function WhatsAppBroadcast() {
                         </label>
                       );
                     })}
-                    {getFilteredDirectory().length === 0 && (
+                    {getFilteredDirectory().length === 0 && !showAddContact && (
                       <p className="text-center text-gray-500 mt-10 col-span-full">No parties match your search.</p>
                     )}
                   </div>
