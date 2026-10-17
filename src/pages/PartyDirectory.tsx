@@ -43,10 +43,16 @@ export default function PartyDirectory() {
     setDeleteStep(0);
   };
 
+  // 100% SAFE SORT for Products
   const sortedProducts = useMemo(() => {
-    return [...products].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return [...products].sort((a, b) => {
+      const nameA = a?.name || '';
+      const nameB = b?.name || '';
+      return nameA.localeCompare(nameB);
+    });
   }, [products]);
 
+  // 100% SAFE SORT for Parties
   const filtered = useMemo(() => {
     let result = parties.filter(p => {
       const searchLower = search.toLowerCase().trim();
@@ -80,8 +86,12 @@ export default function PartyDirectory() {
       return matchesSearch && matchesType && matchesProduct;
     });
 
-    // SAFE SORT FIX APPLIED HERE
-    result.sort((a, b) => (a.legalName || '').localeCompare(b.legalName || ''));
+    result.sort((a, b) => {
+      const nameA = a?.legalName || a?.name || '';
+      const nameB = b?.legalName || b?.name || '';
+      return nameA.localeCompare(nameB);
+    });
+    
     return result;
   }, [parties, products, search, filterType, productFilter]);
 
@@ -157,14 +167,13 @@ export default function PartyDirectory() {
     }
   };
 
-  // Transform parties data to match specialized ExportPartyModal data mapping schema
   const transformedPartiesForExport = useMemo(() => {
     return parties.map(p => ({
       id: p.id,
       name: p.legalName || p.name,
       type: p.type as 'buyer' | 'seller' | 'both',
       phone: p.phone,
-      contactPerson: p.contactPerson || '', // Mapped contact person name instead of email
+      contactPerson: p.contactPerson || '',
       city: p.city,
       products: (p.productIds || [])
         .map(pid => products.find(prod => prod.id === pid)?.name || '')
@@ -444,7 +453,7 @@ export default function PartyDirectory() {
                       )}
                       <div className="flex-1">
                         <h3 className="font-semibold text-gray-900 group-hover:text-rose-700 transition-colors line-clamp-1">
-                          {party.legalName}
+                          {party.legalName || 'Unnamed Party'}
                         </h3>
                         {party.name !== party.legalName && (
                           <p className="text-xs text-gray-500 truncate">{party.name}</p>
@@ -555,7 +564,7 @@ export default function PartyDirectory() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setViewingParty(null)}>
              <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">{viewingParty.legalName}</h2>
+                <h2 className="text-xl font-bold text-gray-900">{viewingParty.legalName || 'Unnamed Party'}</h2>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleCopyStructural(viewingParty)}
@@ -786,7 +795,6 @@ export default function PartyDirectory() {
 
       </div>
 
-      {/* Export Party Pop-up Modal Component Link */}
       <ExportPartyModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
