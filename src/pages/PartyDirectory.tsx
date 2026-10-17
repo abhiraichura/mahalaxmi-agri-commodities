@@ -1,4 +1,3 @@
-// src/pages/PartyDirectory.tsx
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
@@ -81,7 +80,8 @@ export default function PartyDirectory() {
       return matchesSearch && matchesType && matchesProduct;
     });
 
-    result.sort((a, b) => a.legalName.localeCompare(b.legalName));
+    // SAFE SORT FIX APPLIED HERE
+    result.sort((a, b) => (a.legalName || '').localeCompare(b.legalName || ''));
     return result;
   }, [parties, products, search, filterType, productFilter]);
 
