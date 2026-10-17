@@ -36,14 +36,12 @@ export default function PartyDirectory() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Cancel selection mode cleanly
   const cancelSelectionMode = () => {
     setIsSelectionMode(false);
     setSelectedIds([]);
     setDeleteStep(0);
   };
 
-  // 100% SAFE SORT for Products
   const sortedProducts = useMemo(() => {
     return [...products].sort((a, b) => {
       const nameA = a?.name || '';
@@ -52,7 +50,6 @@ export default function PartyDirectory() {
     });
   }, [products]);
 
-  // 100% SAFE SORT for Parties
   const filtered = useMemo(() => {
     let result = parties.filter(p => {
       const searchLower = search.toLowerCase().trim();
@@ -95,7 +92,6 @@ export default function PartyDirectory() {
     return result;
   }, [parties, products, search, filterType, productFilter]);
 
-  // Bulk Selection Logic
   const handleSelectAll = () => {
     if (selectedIds.length === filtered.length) {
       setSelectedIds([]);
@@ -430,6 +426,9 @@ export default function PartyDirectory() {
                 .filter(Boolean);
 
               const isSelected = selectedIds.includes(party.id);
+              
+              const addressParts = [party.address, party.city, party.state].filter(Boolean);
+              const displayAddress = addressParts.length > 0 ? addressParts.join(', ') : 'No Address Provided';
 
               return (
                 <div
@@ -451,16 +450,16 @@ export default function PartyDirectory() {
                           />
                         </div>
                       )}
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900 group-hover:text-rose-700 transition-colors line-clamp-1">
-                          {party.legalName || 'Unnamed Party'}
+                      <div className="flex-1 overflow-hidden">
+                        <h3 className="font-semibold text-gray-900 group-hover:text-rose-700 transition-colors truncate">
+                          {party.legalName || party.name || 'Unnamed Party'}
                         </h3>
-                        {party.name !== party.legalName && (
+                        {party.name && party.name !== party.legalName && (
                           <p className="text-xs text-gray-500 truncate">{party.name}</p>
                         )}
                       </div>
-                      <div className="flex items-center gap-1">
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 ${
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium truncate max-w-[120px] ${
                           party.type === 'buyer' ? 'bg-blue-50 text-blue-600' :
                           party.type === 'seller' ? 'bg-green-50 text-green-600' :
                           'bg-purple-50 text-purple-600'
@@ -505,12 +504,12 @@ export default function PartyDirectory() {
                     <div className="flex items-start gap-1.5 text-sm text-gray-500 mb-2">
                       <MapPin size={14} className="flex-shrink-0 mt-0.5" />
                       <span className="line-clamp-2 flex-1">
-                        {party.address ? `${party.address}, ${party.city}, ${party.state}` : `${party.city}, ${party.state}`}
+                        {displayAddress}
                       </span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleCopy(party.address ? `${party.address}, ${party.city}, ${party.state}` : `${party.city}, ${party.state}`);
+                          handleCopy(displayAddress);
                         }}
                         className="p-1 text-gray-400 hover:text-rose-600 rounded flex-shrink-0"
                         title="Copy Address"
@@ -564,7 +563,7 @@ export default function PartyDirectory() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setViewingParty(null)}>
              <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">{viewingParty.legalName || 'Unnamed Party'}</h2>
+                <h2 className="text-xl font-bold text-gray-900">{viewingParty.legalName || viewingParty.name || 'Unnamed Party'}</h2>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleCopyStructural(viewingParty)}
@@ -580,7 +579,7 @@ export default function PartyDirectory() {
               </div>
 
               <div className="space-y-3 text-sm">
-                {viewingParty.name !== viewingParty.legalName && (
+                {viewingParty.name && viewingParty.name !== viewingParty.legalName && (
                   <p className="text-gray-500">Display Name: {viewingParty.name}</p>
                 )}
 
@@ -647,16 +646,22 @@ export default function PartyDirectory() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <p><span className="text-gray-500">Type:</span> <span className="capitalize">{viewingParty.type}</span></p>
-                  <p><span className="text-gray-500">City:</span> {viewingParty.city}, {viewingParty.state}</p>
+                  {(viewingParty.city || viewingParty.state) && (
+                    <p>
+                      <span className="text-gray-500">City:</span> {[viewingParty.city, viewingParty.state].filter(Boolean).join(', ')}
+                    </p>
+                  )}
                 </div>
                 
                 <div className="flex items-start gap-2 text-gray-600 mt-2">
                   <div className="flex-1">
-                    <p>Address: {viewingParty.address}</p>
-                    <p>{viewingParty.city}, {viewingParty.state} - {viewingParty.pincode}</p>
+                    <p>Address: {viewingParty.address || 'Not Provided'}</p>
+                    {(viewingParty.city || viewingParty.state || viewingParty.pincode) && (
+                      <p>{[viewingParty.city, viewingParty.state].filter(Boolean).join(', ')} {viewingParty.pincode ? `- ${viewingParty.pincode}` : ''}</p>
+                    )}
                   </div>
                   <button
-                    onClick={() => handleCopy(`${viewingParty.address ? viewingParty.address + '\n' : ''}${viewingParty.city}, ${viewingParty.state} - ${viewingParty.pincode}`)}
+                    onClick={() => handleCopy(`${viewingParty.address ? viewingParty.address + '\n' : ''}${[viewingParty.city, viewingParty.state].filter(Boolean).join(', ')} ${viewingParty.pincode ? `- ${viewingParty.pincode}` : ''}`)}
                     className="p-1 text-gray-400 hover:text-rose-600 rounded mt-1"
                     title="Copy Address"
                   >
