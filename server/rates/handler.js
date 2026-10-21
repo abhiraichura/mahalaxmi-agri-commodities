@@ -65,15 +65,20 @@ export function makeHandler(deps) {
         };
         const reply = (code, obj, line) => (asText ? sendText(code, line) : send(code, obj));
         const given = url.searchParams.get('key') || String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-        if (!given || !same(given, await service.feedKey())) return reply(401, { ok: false, code: 'AUTH', error: 'Wrong or missing key.' }, 'ERROR: wrong or missing key.');
+        const ua = String(req.headers['user-agent'] || '').slice(0, 100);
+        if (!given || !same(given, await service.feedKey())) {
+          if (service.noteWrongKey) await service.noteWrongKey({ ua }); // so the page can say "something called with a wrong key"
+          return reply(401, { ok: false, code: 'AUTH', error: 'Wrong or missing key.' }, 'ERROR: wrong or missing key.');
+        }
         if (url.searchParams.get('test') === '1') { // "does this address work?" without saving anything
           const line = 'OK: the feed address works and the key is accepted. Nothing was saved.';
+          if (service.logEvent) await service.logEvent({ kind: 'feed', result: 'test', ok: true, message: 'Address check: the address and the key are right. Nothing was saved.', ua });
           return reply(200, { ok: true, test: true, message: line }, line);
         }
         const values = {};
         for (const [k, v] of url.searchParams) if (!['action', 'key', 'format', 'slot', 'force', 'test'].includes(k)) values[k.toLowerCase()] = v;
         if (body && typeof body === 'object' && !Buffer.isBuffer(body)) for (const [k, v] of Object.entries(body)) if (!['action', 'key'].includes(k)) values[k.toLowerCase()] = v;
-        const out = await service.feed({ slot: url.searchParams.get('slot') || 'auto', values, force: url.searchParams.get('force') === '1' });
+        const out = await service.feed({ slot: url.searchParams.get('slot') || 'auto', values, force: url.searchParams.get('force') === '1', meta: { ua } });
         return reply(200, { ...summarise(out), message: feedLine(out) }, feedLine(out));
       }
 
@@ -112,6 +117,7 @@ export function makeHandler(deps) {
         case 'run': return send(200, await service.run({ slot: body.slot || 'auto', trigger: 'user', force: true }));
         case 'paste': return send(200, service.paste(body.text));
         case 'commit': return send(200, await service.commit({ slot: body.slot || 'auto', picks: body.picks, source: body.source === 'paste' ? 'paste' : 'manual', boardTime: body.boardTime || null }));
+        case 'activity': return send(200, await service.activity());
         case 'regen-feed-key': return send(200, await service.regenFeedKey());
         case 'movement': return send(200, await service.setMovement({ id: body.id, mode: body.mode, values: body.values, label: body.label }));
         case 'list': return send(200, { ok: true, updates: await service.listUpdates(Number(body.limit || url.searchParams.get('limit') || 20)) });
@@ -157,7 +163,7 @@ function ingestMessage(out) {
 function summarise(out) {
   if (!out) return { ok: false };
   return {
-    ok: !!out.ok, skipped: !!out.skipped, already: !!out.already, reason: out.reason || null,
+    ok: !!out.ok, skipped: !!out.skipped, already: !!out.already, reason: out.reason || null, code: out.code || out.kind || null,
     id: out.update ? out.update.id : null, status: out.update ? out.update.status : null,
   };
 }

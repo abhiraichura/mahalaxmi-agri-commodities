@@ -76,6 +76,21 @@ export function makeStore(db) {
       });
     },
 
+    // the activity log: one small document for every call to the feed / scheduler / browser button and for every notification sent
+    async addLog(entry) { await col('rateLog').add(clean(entry)); },
+    async listLog(limit = 60) {
+      const q = await col('rateLog').orderBy('atMs', 'desc').limit(limit).get();
+      return q.docs.map((d) => ({ ...d.data(), id: d.id }));
+    },
+    /** removes entries older than the given time (called now and then, so the log never grows without end) */
+    async pruneLog(beforeMs) {
+      const q = await col('rateLog').where('atMs', '<', beforeMs).limit(100).get();
+      await Promise.all(q.docs.map((d) => d.ref.delete()));
+      return q.size;
+    },
+    async getMeta(name) { const s = await col('rateMeta').doc(name).get(); return s.exists ? s.data() : null; },
+    async putMeta(name, data) { await col('rateMeta').doc(name).set(clean(data), { merge: true }); },
+
     async listSubs() { const q = await col('ratePushSubs').get(); return q.docs.map((d) => ({ id: d.id, ...d.data() })); },
     async addSub(sub) { const id = subId(sub.subscription.endpoint); await col('ratePushSubs').doc(id).set(clean({ ...sub, updatedAtMs: Date.now() }), { merge: true }); return id; },
     async removeSub(id) { await col('ratePushSubs').doc(id).delete(); },

@@ -9,6 +9,7 @@ import {
 } from './message.js';
 import { sendTelegram } from './telegram.js';
 import { newSecret } from './store.js';
+import { buildHealth } from './health.js';
 
 export class UserError extends Error {
   constructor(msg) { super(msg); this.name = 'UserError'; }
@@ -175,14 +176,40 @@ export function createService({
     return doc;
   }
 
-  async function notify(doc, payload) {
+  /** One line in the activity log. Never throws: a log problem must not stop an update. */
+  async function logEvent(e) {
+    if (!store.addLog) return;
     try {
-      const r = await push.sendAll(payload);
-      await store.putUpdate(doc.id, { pushed: { ...r, atMs: clock().getTime() } });
-      return r;
-    } catch (e) {
-      return { error: String((e && e.message) || e) };
-    }
+      const now = clock();
+      const parts = istParts(now);
+      await store.addLog({ atMs: now.getTime(), day: parts.dateKey, time: `${pad2(parts.hour)}:${pad2(parts.minute)}`, ...e });
+      if (store.pruneLog && Math.random() < 0.03) await store.pruneLog(now.getTime() - 21 * 86400000);
+    } catch { /* ignore */ }
+  }
+
+  /** A short sentence about what happened to a notification (shown in the app). */
+  function pushSentence(p) {
+    if (p.error) return `Could not send: ${p.error}`;
+    if (!p.total) return 'Nobody was notified: no device has notifications turned on.';
+    const base = `Sent to ${p.sent} of ${p.total} device${p.total === 1 ? '' : 's'}.`;
+    return p.failed ? `${base} ${p.errors && p.errors.length ? p.errors.join('; ') : `${p.failed} failed.`}` : base;
+  }
+
+  async function sendAndLog(title, payload, id) {
+    let r;
+    try { r = await push.sendAll(payload); } catch (e) { r = { error: String((e && e.message) || e).slice(0, 200) }; }
+    const pushed = {
+      sent: r.sent | 0, failed: r.failed | 0, removed: r.removed | 0, total: r.total | 0, atMs: clock().getTime(), title,
+      ...(r.error ? { error: r.error } : {}), ...(r.errors && r.errors.length ? { errors: r.errors } : {}),
+    };
+    await logEvent({ kind: 'alert', result: pushed.error ? 'error' : !pushed.total ? 'nobody' : pushed.sent ? 'sent' : 'failed', ok: !pushed.error && pushed.sent > 0, message: `${title} — ${pushSentence(pushed)}`, updateId: id || null, pushed });
+    return { r, pushed };
+  }
+
+  async function notify(doc, payload) {
+    const { r, pushed } = await sendAndLog(payload.title, payload, doc.id);
+    try { await store.putUpdate(doc.id, { pushed }); } catch { /* the notification itself is already out */ }
+    return r;
   }
 
   async function failUpdate({ parts, slotHour, now, status, reason, kind, diag, trigger, notifyUser }) {
@@ -206,7 +233,7 @@ export function createService({
     return doc;
   }
 
-  return {
+  const api = {
     cronKey,
     feedKey,
 
@@ -220,7 +247,8 @@ export function createService({
       const [config, subs, key, vapid, fKey] = await Promise.all([store.getConfig(), store.listSubs(), cronKey(), push.publicKey(), feedKey()]);
       const parts = istParts(clock());
       return {
-        config, subscribers: subs.length, cronKey: key, feedKey: fKey, vapidPublicKey: vapid,
+        config, subscribers: subs.length, devices: subs.map((x) => ({ label: x.label || '', createdAtMs: x.createdAtMs || null })),
+        cronKey: key, feedKey: fKey, vapidPublicKey: vapid,
         telegram: !!(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID),
         slots: SLOTS, nowIst: { dateKey: parts.dateKey, hour: parts.hour, minute: parts.minute, weekday: parts.weekday },
       };
@@ -231,7 +259,7 @@ export function createService({
       if (typeof patch.includeTurmeric === 'boolean') out.includeTurmeric = patch.includeTurmeric;
       if (typeof patch.requireBoardTime === 'boolean') out.requireBoardTime = patch.requireBoardTime;
       if (typeof patch.showMovement === 'boolean') out.showMovement = patch.showMovement;
-      if (patch.rateSource === 'feed' || patch.rateSource === 'server') out.rateSource = patch.rateSource;
+      if (patch.rateSource === 'feed' || patch.rateSource === 'server' || patch.rateSource === 'browser') out.rateSource = patch.rateSource;
       const wait = num(patch.feedWaitMin);
       if (wait !== null) out.feedWaitMin = Math.min(30, Math.max(3, Math.round(wait)));
       const age = num(patch.maxBoardAgeMin);
@@ -274,35 +302,37 @@ export function createService({
      * Fetch from NCDEX, verify, and prepare the update for a slot.
      * trigger: 'cron' (scheduled) or 'user' (button)
      */
-    async run({ slot = 'auto', trigger = 'user', force = false, html = null, via = null } = {}) {
+    async _run({ slot = 'auto', trigger = 'user', force = false, html = null, via = null } = {}) {
       const now = clock();
       const parts = istParts(now);
       const slotHour = resolveSlot(slot, parts, trigger);
 
       if (trigger === 'cron') {
-        if (slotHour == null) return { ok: true, skipped: true, reason: 'Not a scheduled update time.' };
-        if (parts.weekday === 0 || parts.weekday === 6) return { ok: true, skipped: true, reason: 'Weekend: NCDEX is closed.' };
+        if (slotHour == null) return { ok: true, skipped: true, code: 'idle', reason: 'Not a scheduled update time.' };
+        if (parts.weekday === 0 || parts.weekday === 6) return { ok: true, skipped: true, code: 'weekend', reason: 'Weekend: NCDEX is closed.' };
       }
       const slotKey = slotKeyOf(slotHour, parts);
       const id = `${parts.dateKey}_${slotKey}`;
 
       const existing = await store.getUpdate(id);
       if (existing && existing.status === 'ready' && !force) return { ok: true, already: true, update: existing };
-      // when the rates come from the feed (Grok), the scheduler only checks that they arrived
+      // when the rates come from outside (the Grok feed, or your own browser), the scheduler only checks that they arrived
       if (trigger === 'cron') {
         const cfg0 = await store.getConfig();
-        if (cfg0.rateSource === 'feed') {
-          if (existing) return { ok: true, skipped: true, reason: existing.reason || 'Already handled.', update: existing };
+        if (cfg0.rateSource === 'feed' || cfg0.rateSource === 'browser') {
+          if (existing) return { ok: true, skipped: true, code: 'handled', reason: existing.reason || 'Already handled.', update: existing };
           const waited = parts.minutesOfDay - slotHour * 60;
           const limit = Math.min(30, Math.max(3, Math.round(Number(cfg0.feedWaitMin) || 10)));
-          if (waited < limit) return { ok: true, skipped: true, reason: `Waiting for the feed (${waited} of ${limit} minutes).` };
-          const reason = `${hourLabel(slotHour)} rates have not arrived from your feed after ${waited} minutes.`;
+          if (waited < limit) return { ok: true, skipped: true, code: 'waiting', reason: `Waiting for the feed (${waited} of ${limit} minutes).` };
+          const reason = cfg0.rateSource === 'browser'
+            ? `${hourLabel(slotHour)} rates have not been sent from your browser after ${waited} minutes.`
+            : `${hourLabel(slotHour)} rates have not arrived from your feed after ${waited} minutes.`;
           const doc = await failUpdate({ parts, slotHour, now, status: 'failed', reason, kind: 'late', diag: null, trigger, notifyUser: true });
-          return { ok: false, reason, kind: 'late', update: doc };
+          return { ok: false, reason, kind: 'late', code: 'alerted', update: doc };
         }
       }
       if (trigger === 'cron' && !(await store.claim(id, { nowMs: now.getTime() }))) {
-        return { ok: true, skipped: true, reason: 'Another run is already in progress.' };
+        return { ok: true, skipped: true, code: 'busy', reason: 'Another run is already in progress.' };
       }
 
       const cfg = await store.getConfig();
@@ -339,7 +369,7 @@ export function createService({
      * The numbers sent by the feed (Grok, or anything else that can open a web address).
      * values: { asof, jeera, jeera_prev, jeera_chg, jeera_pct, jeera_open, jeera_oi, jeera_exp, dhaniya... }
      */
-    async feed({ values = {}, slot = 'auto', force = false } = {}) {
+    async _feed({ values = {}, slot = 'auto', force = false } = {}) {
       const now = clock();
       const parts = istParts(now);
       const cfg = await store.getConfig();
@@ -377,6 +407,8 @@ export function createService({
         parts, now, slotHour, picks, source: 'feed', trigger: 'feed',
         boardTimeText: bt ? bt.label : null, warnings: bt ? [] : ['board time not sent'], cfg,
       });
+      // it replaced a "did not arrive" card: remember that it came late
+      if (existing && existing.status === 'failed' && existing.kind === 'late') await store.putUpdate(id, { arrivedLate: true });
       const label = slotHour != null ? hourLabel(slotHour) : 'Rates';
       await notify(doc, { title: `📊 ${label} update ready`, body: `${doc.summary}\nTap to send on WhatsApp`, url: `/rates?u=${doc.id}`, tag: `rates-${doc.slot}` });
       const tg = await telegram(doc.text, { env });
@@ -420,6 +452,7 @@ export function createService({
         };
       }
       const doc = await prepare({ parts, now, slotHour, picks, source, trigger: 'user', boardTimeText: boardTime, cfg });
+      await logEvent({ kind: 'you', result: 'saved', ok: true, message: `You ${source === 'paste' ? 'pasted the board' : 'typed the numbers'}: ${slotHour != null ? hourLabel(slotHour) : 'extra'} update saved.`, slot: doc.slot, updateId: doc.id });
       return { ok: true, update: doc };
     },
 
@@ -483,8 +516,90 @@ export function createService({
     },
 
     async testPush() {
-      const r = await push.sendAll({ title: '✅ Rates Desk notifications work', body: 'You will get a message like this when each rate update is ready.', url: '/rates', tag: 'rates-test' });
-      return { ok: true, ...r };
+      const { pushed } = await sendAndLog('✅ Rates Desk notifications work', { title: '✅ Rates Desk notifications work', body: 'You will get a message like this when each rate update is ready.', url: '/rates', tag: 'rates-test' }, null);
+      return { ok: true, ...pushed, message: pushSentence(pushed) };
+    },
+
+    /** Someone opened the feed address with a wrong key. Only one small note is kept (not one per attempt), so nobody can fill the database. */
+    async noteWrongKey(meta = {}) {
+      if (!store.getMeta) return;
+      try {
+        const nowMs = clock().getTime();
+        const day = istParts(clock()).dateKey;
+        const m = await store.getMeta('feedWrongKey');
+        if (m && nowMs - (m.atMs || 0) < 10000) return;
+        await store.putMeta('feedWrongKey', { atMs: nowMs, day, count: m && m.day === day ? (m.count || 0) + 1 : 1, ua: String(meta.ua || '').slice(0, 100) });
+      } catch { /* ignore */ }
+    },
+
+    logEvent,
+
+    /** The activity log and the "is everything working" summary for the page. */
+    async activity() {
+      const now = clock();
+      const parts = istParts(now);
+      const [log, updates, config, subs, wrongKey] = await Promise.all([
+        store.listLog ? store.listLog(50) : [], store.listUpdates(20), store.getConfig(), store.listSubs(),
+        store.getMeta ? store.getMeta('feedWrongKey') : null,
+      ]);
+      // one call gives the page everything it shows (keeps the number of database reads low)
+      return { ok: true, log, updates, health: buildHealth({ log, updates, config, devices: subs.length, parts, now, wrongKey }) };
     },
   };
+
+  /** run(): the same as _run, plus one line in the activity log (who asked, what happened). */
+  api.run = async (args = {}) => {
+    const { slot = 'auto', trigger = 'user', via = null } = args;
+    const out = await api._run(args);
+    try {
+      const parts = istParts(clock());
+      const slotHour = resolveSlot(slot, parts, trigger);
+      const u = out && out.update;
+      const label = slotHour != null ? hourLabel(slotHour) : 'extra';
+      let result;
+      if (!out) result = 'failed';
+      else if (out.already) result = 'already';
+      else if (out.code) result = out.code;
+      else if (out.ok && u && u.status === 'ready') result = 'saved';
+      else if (out.kind === 'not_today') result = 'skipped';
+      else result = 'failed';
+      const who = via === 'browser' ? 'browser' : trigger === 'cron' ? 'cron' : 'you';
+      const message = {
+        saved: who === 'cron' ? `Read the NCDEX board and saved the ${label} update.` : who === 'browser' ? `The board sent from your browser was accepted: ${label} update saved.` : `You fetched the ${label} update from NCDEX.`,
+        already: `The ${label} update was already saved. Nothing changed.`,
+        handled: `Already handled: ${(out && out.reason) || ''}`,
+        alerted: `${label} rates did not arrive in time. An alert was sent.`,
+      }[result] || (out && out.reason) || 'Not accepted.';
+      await logEvent({
+        kind: who, result, ok: ['saved', 'already', 'waiting', 'handled', 'weekend', 'idle', 'busy', 'skipped'].includes(result), message,
+        slot: slotHour != null ? String(slotHour) : null, offset: slotHour != null ? parts.minutesOfDay - slotHour * 60 : null, offsetSlot: slotHour, updateId: u ? u.id : null,
+      });
+    } catch { /* the log must never break an update */ }
+    return out;
+  };
+
+  /** feed(): the same as _feed, plus one line in the activity log with the numbers that were received. */
+  api.feed = async (args = {}) => {
+    const { values = {}, meta = {} } = args;
+    let out; let failure = null;
+    try { out = await api._feed(args); } catch (e) { failure = e; }
+    try {
+      const u = out && out.update;
+      const result = failure ? 'error' : out.ok && out.already ? 'already' : out.ok && out.skipped ? 'skipped' : out.ok && u ? 'saved' : 'refused';
+      const label = u && u.slotHour != null ? hourLabel(u.slotHour) : 'extra';
+      const message = failure ? String((failure && failure.message) || failure).slice(0, 300)
+        : result === 'saved' ? `Saved the ${label} update${u.arrivedLate ? ' (it arrived after the "not arrived" alert and replaced it)' : ''}: ${u.summary || u.id}`
+          : result === 'already' ? 'This update was already saved. Nothing changed.' : (out.reason || 'Not accepted.');
+      const shown = {};
+      for (const [k, v] of Object.entries(values).slice(0, 40)) shown[k] = String(v).slice(0, 60);
+      await logEvent({
+        kind: 'feed', result, ok: result === 'saved' || result === 'already', message, slot: u ? u.slot : null, updateId: u ? u.id : null,
+        values: shown, ua: String(meta.ua || '').slice(0, 100),
+      });
+    } catch { /* ignore */ }
+    if (failure) throw failure;
+    return out;
+  };
+
+  return api;
 }

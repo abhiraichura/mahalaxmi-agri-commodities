@@ -7,12 +7,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   TrendingUp, RefreshCw, Send, Copy, Share2, Bell, BellOff, CheckCircle2, AlertTriangle, Info, Clipboard, Pencil,
-  Wifi, History, Settings2, Clock, Loader2, Zap,
+  Wifi, History, Settings2, Clock, Loader2, Zap, Activity as ActivityIcon, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import {
   ratesCall, RatesApiError,
-  type CommodityKey, type Picks, type RateUpdate, type RatesConfig, type RatesStatus,
+  type Activity, type CommodityKey, type HealthFix, type Picks, type RateSource, type RateUpdate, type RatesConfig, type RatesStatus,
 } from '../rates/api';
+import { HealthPanel, MethodPicker, ActivityList } from '../rates/panels';
 import { pushSupport, currentSubscription, subscribeThisDevice, unsubscribeThisDevice, deviceLabel } from '../rates/push';
 
 const SLOTS = [10, 12, 14, 16, 17];
@@ -79,12 +80,12 @@ function openWhatsApp(text: string) {
 
 const COMMODITY_ON_BOARD: Record<CommodityKey, string> = { jeera: 'JEERAUNJHA (Jeera)', dhaniya: 'DHANIYA (Dhaniya)', turmeric: 'TMCFGRNZM (Turmeric)' };
 
-/** The instructions that go into the Grok automation. Grok opens the address once with the numbers filled in. */
+/** The instructions that go into the Grok automation (they replace the whole old prompt). Grok opens the address once with the numbers filled in. */
 function grokInstructions(feedUrl: string, keys: CommodityKey[]): string {
   const fields = keys.map(k => `${k}_exp=[MONTH]&${k}_open=[OPEN]&${k}_prev=[CLOSE]&${k}=[LTP]&${k}_chg=[CHANGE]&${k}_pct=[CHANGE %]&${k}_oi=[OI]`).join('&');
   const names = keys.map(k => COMMODITY_ON_BOARD[k]).join(', ');
   return [
-    'Every weekday (Monday to Friday) at 10:00, 12:00, 14:00, 16:00 and 17:00 Indian time, do this:',
+    'Check the current hour in Asia/Kolkata (IST). If the hour is NOT 10, 12, 14, 16 or 17, or if today is Saturday or Sunday, stop immediately and write nothing. Otherwise do this:',
     '',
     '1. Open the NCDEX Live Quotes page: https://www.ncdex.com/market-watch/live_quotes',
     '2. Note the "As on" date and time printed at the top of the board, exactly as written (for example: Friday, Oct 16 2026 10:02 AM).',
@@ -93,10 +94,15 @@ function grokInstructions(feedUrl: string, keys: CommodityKey[]): string {
     '',
     `${feedUrl}&asof=[AS ON TEXT]&${fields}`,
     '',
-    '5. The reply is one line. If it starts with OK you are finished. If it starts with ERROR, read the number it complains about again from the board and open the address again.',
+    '5. Your whole answer to me is ONLY the one line that address replied (it starts with OK or ERROR). If it starts with ERROR, read the number it complains about again from the board, open the address again, and give the new reply line. If you were not able to open the address at all, answer exactly: CANNOT OPEN ADDRESS.',
     '6. Do not write any message for me and do not calculate or guess any number: copy the values exactly as the board shows them.',
     '7. If the board date is not today (market holiday), still open the address with the As on text exactly as shown.',
   ].join('\n');
+}
+
+/** A 10-second check that Grok can reach the app at all (it saves nothing). */
+function grokTest(feedUrl: string): string {
+  return `Open this web address and write only the reply you get, nothing else:\n\n${feedUrl}&test=1`;
 }
 
 // ---------------------------------------------------------------- manual / paste form
@@ -188,6 +194,13 @@ export default function RatesDesk() {
   const [cfg, setCfg] = useState<RatesConfig | null>(null);
   const [subscribed, setSubscribed] = useState(false);
   const [showGrok, setShowGrok] = useState(false);
+  const [activity, setActivity] = useState<Activity | null>(null);
+  const [checkedAt, setCheckedAt] = useState<number | null>(null);
+  const [backupOpen, setBackupOpen] = useState(!!params.get('fix'));
+  const [testNote, setTestNote] = useState<string | null>(null);
+  const seen = useRef<Record<string, string> | null>(null);
+  const health = activity?.health || null;
+  const log = activity?.log || [];
   const support = useMemo(() => pushSupport(), []);
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -204,20 +217,47 @@ export default function RatesDesk() {
     }
   }, []);
 
-  const loadUpdates = useCallback(async () => {
+  // one call brings the updates, the activity list and the "is everything working" summary
+  const loadAll = useCallback(async () => {
     try {
-      const r = await ratesCall<{ updates: RateUpdate[] }>('list', { limit: 30 });
-      setUpdates(r.updates || []);
-    } catch { /* shown by loadStatus */ }
+      const a = await ratesCall<Activity>('activity');
+      setActivity(a);
+      setUpdates(a.updates || []);
+      setCheckedAt(Date.now());
+      // an update that was missing (or needed you) and is ready now: say so, even when the page was just left open
+      const now: Record<string, string> = {};
+      for (const u of a.updates || []) now[u.id] = u.status;
+      if (seen.current) {
+        for (const u of a.updates || []) {
+          if (u.status === 'ready' && seen.current[u.id] !== 'ready') {
+            toast.success(`${slotName(u)} update arrived${u.source === 'feed' ? ' from Grok' : ''}${u.arrivedLate ? ' (late)' : ''}`, { duration: 6000 });
+          }
+        }
+      }
+      seen.current = now;
+    } catch (e) {
+      if (e instanceof RatesApiError && e.code === 'BAD') setFatal('This page is newer than the server files. Upload every file from the update zip (including api/rates.js and the server folder), then reload.');
+      /* other problems are shown by loadStatus */
+    }
   }, []);
+  const loadUpdates = loadAll;
 
-  useEffect(() => { loadStatus(); loadUpdates(); }, [loadStatus, loadUpdates]);
+  useEffect(() => { loadStatus(); loadAll(); }, [loadStatus, loadAll]);
+  // looks again by itself: every 20 s around an update time, every minute otherwise (and at once when the tab is shown again)
   useEffect(() => {
-    const t = setInterval(() => { if (document.visibilityState === 'visible') loadUpdates(); }, 30000);
-    const onVis = () => { if (document.visibilityState === 'visible') loadUpdates(); };
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      if (document.visibilityState === 'visible') loadAll();
+      const n = istNow();
+      const mins = n.hour * 60 + n.minute;
+      const hot = !n.weekend && SLOTS.some(h => mins >= h * 60 && mins <= h * 60 + 35);
+      timer = setTimeout(tick, hot ? 20000 : 60000);
+    };
+    timer = setTimeout(tick, 20000);
+    const onVis = () => { if (document.visibilityState === 'visible') loadAll(); };
     document.addEventListener('visibilitychange', onVis);
-    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
-  }, [loadUpdates]);
+    return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVis); };
+  }, [loadAll]);
   useEffect(() => { currentSubscription().then(s => setSubscribed(!!s)); }, []);
 
   const selected = useMemo(() => {
@@ -262,14 +302,15 @@ export default function RatesDesk() {
     } finally { setBusy(null); }
   };
 
-  const fetchNow = () => guard('fetch', async () => {
+  const fetchNow = (slotOverride?: string) => guard('fetch', async () => {
     setFetchProblem(null);
-    const r = await ratesCall<{ ok: boolean; update?: RateUpdate; reason?: string; diag?: any }>('run', { slot });
+    const r = await ratesCall<{ ok: boolean; update?: RateUpdate; reason?: string; diag?: any }>('run', { slot: slotOverride ?? slot });
     await loadUpdates();
     if (r.update) setSelectedId(r.update.id);
     if (r.ok) { toast.success('Rates fetched from NCDEX'); setTab('none'); return; }
     setFetchProblem(r.reason || 'Could not get live rates from NCDEX.');
     if (r.diag) setDiag({ ok: false, reason: r.reason, diag: r.diag, log: [] });
+    setBackupOpen(true);
     setTab('paste');
     setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   });
@@ -349,10 +390,29 @@ export default function RatesDesk() {
   });
 
   const testPush = () => guard('test', async () => {
-    const r = await ratesCall<{ sent: number; total: number }>('test-push');
+    const r = await ratesCall<{ sent: number; total: number; message?: string }>('test-push');
+    setTestNote(r.message || null);
     if (!r.total) toast.error('No device is subscribed yet. Turn notifications on first.');
+    else if (!r.sent) toast.error(r.message || 'The test did not reach any device.');
     else toast.success(`Test sent to ${r.sent} of ${r.total} device(s)`);
+    await loadAll();
   });
+
+  // ---- one method at a time
+  const chooseSource = (v: RateSource) => guard('source', async () => {
+    const r = await ratesCall<{ config: RatesConfig }>('config', { config: { rateSource: v } });
+    setCfg(c => (c ? { ...c, rateSource: r.config.rateSource } : r.config));
+    await loadAll();
+    toast.success(`Now using: ${v === 'feed' ? 'Grok feed' : v === 'browser' ? 'My browser' : 'Server reads NCDEX'}`);
+  });
+  const applyFix = (f: HealthFix) => guard('fix', async () => {
+    const config = f.type === 'set_wait' ? { feedWaitMin: Number(f.value) } : { rateSource: f.value as RateSource };
+    const r = await ratesCall<{ config: RatesConfig }>('config', { config });
+    setCfg(c => (c ? { ...c, feedWaitMin: r.config.feedWaitMin, rateSource: r.config.rateSource } : r.config));
+    await loadAll();
+    toast.success('Saved');
+  });
+  const checkNow = () => guard('check', async () => { await Promise.all([loadStatus(), loadAll()]); });
 
   const saveConfig = () => guard('cfg', async () => {
     if (!cfg) return;
@@ -376,7 +436,6 @@ export default function RatesDesk() {
     await loadStatus();
     toast.success('New key made. Copy the new instructions into Grok.');
   });
-  const lastFeed = useMemo(() => updates.find(u => u.trigger === 'feed'), [updates]);
 
   const cronUrl = status ? `${window.location.origin}/api/rates?action=run&slot=auto&key=${status.cronKey}` : '';
   const sendUrl = status ? `${window.location.origin}/api/rates?action=ingest&slot=auto&key=${status.cronKey}` : '';
@@ -386,7 +445,46 @@ export default function RatesDesk() {
     : '';
 
   // ------------------------------------------------------------ render
-  if (setup) return <SetupNeeded message={setup.message} missing={setup.missing} onRetry={() => { loadStatus(); loadUpdates(); }} />;
+  if (setup) return <SetupNeeded message={setup.message} missing={setup.missing} onRetry={() => { loadStatus(); loadAll(); }} />;
+
+  const source: RateSource = cfg?.rateSource === 'feed' || cfg?.rateSource === 'browser' ? cfg.rateSource : 'server';
+  const wait = Math.min(30, Math.max(3, Number(cfg?.feedWaitMin) || 10));
+  const cronMinutes = source === 'server' ? '0, 8' : `${wait}, ${wait + 10}`;
+  const sourceWord = source === 'feed' ? 'Grok' : 'your browser';
+
+  const viaOf = (u: RateUpdate): string => {
+    if (u.status === 'ready') {
+      if (u.source === 'feed') return 'Grok feed';
+      if (u.source === 'browser') return 'your browser';
+      if (u.source === 'ncdex') return u.trigger === 'cron' ? 'scheduler (NCDEX)' : 'NCDEX, started by you';
+      if (u.source === 'paste') return 'pasted by you';
+      return 'typed by you';
+    }
+    return u.trigger === 'cron' ? 'scheduler check' : u.trigger === 'feed' ? 'Grok feed' : 'you';
+  };
+
+  // the scheduler (cron-job.org): same address for every method, only the minutes differ
+  const schedulerBox = status && (
+    <div className="mt-4 rounded-xl bg-gray-50 border border-gray-200 p-3">
+      <p className="text-sm font-medium text-gray-800">Scheduler on cron-job.org</p>
+      <p className="mt-0.5 text-xs text-gray-600">
+        {source === 'server'
+          ? 'It starts the NCDEX fetch at each update time.'
+          : `It does not fetch anything. It only checks that the numbers arrived from ${sourceWord}, and alerts you when they did not.`}
+      </p>
+      <ul className="mt-1.5 text-xs text-gray-700 list-disc ml-4 space-y-0.5">
+        <li>Address: the one below</li>
+        <li>Days: Monday to Friday. Time zone: Asia/Kolkata</li>
+        <li>Hours: <b>10, 12, 14, 16, 17</b></li>
+        <li>Minutes: <b>{cronMinutes}</b>{source !== 'server' ? ` (the first one must not be before your alert time of ${wait} minutes)` : ''}</li>
+      </ul>
+      <div className="mt-2 flex gap-2">
+        <input readOnly value={cronUrl} onFocus={e => e.currentTarget.select()} aria-label="Scheduler address" className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono bg-white" />
+        <button onClick={() => copyWithToast(cronUrl, 'Address copied')} className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-white text-sm" aria-label="Copy the scheduler address"><Copy size={14} /></button>
+      </div>
+      <p className="mt-1 text-xs text-gray-400">This address contains a secret key. Do not share it.</p>
+    </div>
+  );
 
   return (
     <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4 pb-24">
@@ -395,12 +493,15 @@ export default function RatesDesk() {
           <h1 className="flex items-center gap-2 text-xl font-bold text-gray-900"><TrendingUp size={22} className="text-rose-600" /> Rates Desk</h1>
           <p className="text-sm text-gray-500 mt-0.5">Live NCDEX rates for Jeera and Dhaniya, ready to send to your clients. {nextSlotText()}.</p>
         </div>
-        <button onClick={() => { loadStatus(); loadUpdates(); }} className="shrink-0 p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50" aria-label="Refresh">
+        <button onClick={checkNow} className="shrink-0 p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50" aria-label="Refresh">
           <RefreshCw size={16} />
         </button>
       </div>
 
       {fatal && <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm p-3">{fatal}</div>}
+
+      {/* ---- is everything working? */}
+      <HealthPanel health={health} thisDevice={subscribed} pushSupported={support.supported} busy={busy} checkedAt={checkedAt} onFix={applyFix} onTurnOn={toggleNotifications} onCheck={checkNow} />
 
       {/* ---- latest update */}
       <Card
@@ -408,13 +509,13 @@ export default function RatesDesk() {
         icon={<Send size={16} className="text-green-600" />}
         right={selected ? statusChip(selected) : undefined}
       >
-        {!selected && <p className="text-sm text-gray-500">No update yet today. Use <b>Get rates now</b> below, or wait for the next scheduled time.</p>}
+        {!selected && <p className="text-sm text-gray-500">No update yet today. It appears here by itself when the numbers arrive.</p>}
 
         {selected && selected.status === 'ready' && selected.text && (
           <>
             <div className="text-xs text-gray-500 mb-2 flex flex-wrap gap-x-3 gap-y-1">
               <span>{slotName(selected)} · {dayIst(selected.createdAtMs)} {timeIst(selected.createdAtMs)}</span>
-              <span>Source: {selected.source === 'ncdex' ? 'NCDEX board' : selected.source === 'browser' ? 'NCDEX board (sent from your browser)' : selected.source === 'feed' ? 'Grok feed' : selected.source === 'paste' ? 'pasted board' : 'typed by hand'}</span>
+              <span>Source: {selected.source === 'ncdex' ? 'NCDEX board' : selected.source === 'browser' ? 'NCDEX board (sent from your browser)' : selected.source === 'feed' ? 'Grok feed' : selected.source === 'paste' ? 'pasted board' : 'typed by hand'}{selected.arrivedLate ? ' (arrived late, after the alert)' : ''}</span>
               {selected.boardTime && <span>Board time: {selected.boardTime}</span>}
               {selected.sent?.whatsapp && <span className="text-green-700">Opened in WhatsApp {timeIst(selected.sent.whatsapp)}</span>}
             </div>
@@ -446,97 +547,131 @@ export default function RatesDesk() {
 
         {selected && selected.status !== 'ready' && (
           <div className={`rounded-xl border p-3 text-sm ${selected.status === 'skipped' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
-            <p className="font-medium">{slotName(selected)} update: {selected.status === 'skipped' ? 'skipped' : 'could not be made automatically'}</p>
+            <p className="font-medium">{slotName(selected)} update: {selected.status === 'skipped' ? 'skipped' : 'could not be made automatically'} <span className="font-normal text-xs opacity-75">({viaOf(selected)})</span></p>
             <p className="mt-1">{selected.reason || 'No reason recorded.'}</p>
+            {selected.status === 'failed' && source !== 'server' && (
+              <p className="mt-1 text-xs">If {sourceWord} sends the numbers later, this card turns into the message by itself. Nothing to press.</p>
+            )}
             <div className="mt-3 flex flex-wrap gap-2">
-              <button onClick={() => { setSlot(selected.slot); fetchNow(); }} className="px-3 py-2 rounded-lg bg-white border border-gray-300 text-gray-800 text-sm">Try again</button>
-              <button onClick={() => { setSlot(selected.slot); setTab('paste'); formRef.current?.scrollIntoView({ behavior: 'smooth' }); }} className="px-3 py-2 rounded-lg bg-white border border-gray-300 text-gray-800 text-sm">Paste the board</button>
-              <button onClick={() => { setSlot(selected.slot); setTab('type'); formRef.current?.scrollIntoView({ behavior: 'smooth' }); }} className="px-3 py-2 rounded-lg bg-white border border-gray-300 text-gray-800 text-sm">Type the numbers</button>
+              {source === 'server'
+                ? <button onClick={() => { setSlot(selected.slot); fetchNow(selected.slot); }} className="px-3 py-2 rounded-lg bg-white border border-gray-300 text-gray-800 text-sm">Try again</button>
+                : <button onClick={checkNow} className="px-3 py-2 rounded-lg bg-white border border-gray-300 text-gray-800 text-sm">Check again</button>}
+              <button onClick={() => { setSlot(selected.slot); setBackupOpen(true); setTab('paste'); setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth' }), 50); }} className="px-3 py-2 rounded-lg bg-white border border-gray-300 text-gray-800 text-sm">Paste the board</button>
+              <button onClick={() => { setSlot(selected.slot); setBackupOpen(true); setTab('type'); setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth' }), 50); }} className="px-3 py-2 rounded-lg bg-white border border-gray-300 text-gray-800 text-sm">Type the numbers</button>
             </div>
           </div>
         )}
       </Card>
 
-      {/* ---- get rates now */}
-      <div ref={formRef} />
-      <Card title="Get rates now" icon={<Wifi size={16} className="text-rose-600" />}>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <select value={slot} onChange={e => setSlot(e.target.value)} className="flex-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white">
-            <option value="auto">For the current time (automatic)</option>
-            {SLOTS.map(h => <option key={h} value={String(h)}>{hourLabel(h)} update</option>)}
-            <option value="adhoc">Extra update (not a scheduled one)</option>
-          </select>
-          <button onClick={fetchNow} disabled={busy === 'fetch'} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold disabled:opacity-60">
-            {busy === 'fetch' ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Fetch from NCDEX
-          </button>
-        </div>
+      {/* ---- the method: one at a time */}
+      {status && cfg && (
+        <Card title="How the rates arrive" icon={<Zap size={16} className="text-rose-600" />} right={<Chip tone="blue">One method at a time</Chip>}>
+          <p className="text-sm text-gray-600 mb-3">Choose one. Only its steps are shown below, and the app only watches that one.</p>
+          <MethodPicker value={source} busy={busy === 'source'} onChange={chooseSource} />
 
-        {fetchProblem && (
-          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 text-sm p-3">
-            <p className="font-medium">The server could not get live rates.</p>
-            <p className="mt-0.5">{fetchProblem}</p>
-            <p className="mt-1">No problem: open the NCDEX Live Quotes page on your phone or computer, copy the table, and paste it below. Or type the numbers.</p>
-          </div>
-        )}
-
-        <div className="mt-4 flex gap-2 text-sm">
-          <button onClick={() => setTab(tab === 'paste' ? 'none' : 'paste')} className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border ${tab === 'paste' ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
-            <Clipboard size={14} /> Paste board text
-          </button>
-          <button onClick={() => setTab(tab === 'type' ? 'none' : 'type')} className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border ${tab === 'type' ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
-            <Pencil size={14} /> Type the numbers
-          </button>
-        </div>
-
-        {tab === 'paste' && (
-          <div className="mt-3">
-            <p className="text-xs text-gray-500 mb-1.5">Open ncdex.com &gt; Market Watch &gt; Live Quotes, select the table (or the whole page) and copy it. Paste it here.</p>
-            <button onClick={pasteFromClipboard} disabled={busy === 'paste'} className="mb-2 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium disabled:opacity-50">
-              {busy === 'paste' ? <Loader2 size={14} className="animate-spin" /> : <Clipboard size={14} />} Paste from clipboard and read
-            </button>
-            <textarea value={pasteText} onChange={e => setPasteText(e.target.value)} rows={6} placeholder="Or paste the NCDEX Live Quotes text here..." className="w-full p-3 border border-gray-300 rounded-xl text-xs font-mono" />
-            <button onClick={readPaste} disabled={!pasteText.trim() || busy === 'paste'} className="mt-2 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-300 text-gray-800 text-sm font-medium disabled:opacity-50">
-              {busy === 'paste' && <Loader2 size={14} className="animate-spin" />} Read the pasted text
-            </button>
-          </div>
-        )}
-
-        {tab === 'type' && (
-          <div className="mt-3 space-y-3">
-            {pasteInfo && <div className="rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-xs p-2.5">{pasteInfo}</div>}
-            {keys.map(k => {
-              const r = row(k);
-              const l = numOf(r.ltp), p = numOf(r.prevClose);
-              const ch = r.change !== undefined ? r.change : l !== null && p !== null ? Math.round((l - p) * 100) / 100 : null;
-              const pct = r.changePct !== undefined ? r.changePct : ch !== null && p ? Math.round((ch / p) * 10000) / 100 : null;
-              return (
-                <div key={k} className="rounded-xl border border-gray-200 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <b className="text-sm text-gray-800">{NAMES[k]}</b>
-                    {ch !== null && <span className={`text-xs font-medium ${ch > 0 ? 'text-green-700' : ch < 0 ? 'text-red-700' : 'text-gray-500'}`}>{signed(ch)}{pct !== null ? ` (${pct}%)` : ''}</span>}
+          {/* ---- Grok feed */}
+          {source === 'feed' && (
+            <div className="mt-4 space-y-3 text-sm" data-testid="method-feed">
+              <p className="text-gray-600">Grok reads the NCDEX board in its own browser and opens a private address of this app with the numbers. The app checks that they add up, builds the message and notifies your devices. Late numbers are accepted too.</p>
+              <ol className="list-decimal ml-5 text-gray-700 space-y-1">
+                <li>Press <b>Show the Grok instructions</b>, then <b>Copy the instructions</b>.</li>
+                <li>Open your Grok automation, delete everything in its prompt, paste these instructions and save.</li>
+                <li>Press <b>Copy the 10-second Grok test</b>, paste it into a normal Grok chat. Grok must answer <i>OK: the feed address works…</i>. Then look at <b>Activity</b> below: an "Address check" line proves Grok reached the app.</li>
+              </ol>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setShowGrok(v => !v)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold">{showGrok ? 'Hide the Grok instructions' : 'Show the Grok instructions'}</button>
+                <button onClick={() => copyWithToast(grokTest(feedUrl), 'Test copied. Paste it into a Grok chat.')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"><Copy size={14} /> Copy the 10-second Grok test</button>
+                <button onClick={checkFeed} disabled={busy === 'feedcheck'} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-50">{busy === 'feedcheck' && <Loader2 size={14} className="animate-spin" />} Check that the address works</button>
+              </div>
+              {showGrok && (
+                <div>
+                  <p className="text-xs text-gray-600 mb-1.5">This replaces the whole prompt of your Grok automation (the hourly schedule stays as it is). Grok skips the hours that are not update times.</p>
+                  <textarea readOnly value={grokInstructions(feedUrl, keys)} rows={15} onFocus={e => e.currentTarget.select()} aria-label="Instructions for Grok" className="w-full p-3 border border-gray-300 rounded-xl text-xs font-mono bg-gray-50" />
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button onClick={() => copyWithToast(grokInstructions(feedUrl, keys), 'Instructions copied. Paste them into Grok.')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium"><Copy size={14} /> Copy the instructions</button>
+                    <button onClick={() => copyWithToast(feedUrl, 'Address copied')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"><Copy size={14} /> Copy only the address</button>
+                    <button onClick={newFeedKey} disabled={busy === 'feedkey'} className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-50">Make a new key</button>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                    <Field label="Expiry month" value={r.expiryLabel} onChange={v => setRow(k, { expiryLabel: v })} placeholder="Oct" />
-                    <Field label="Last price (LTP)" value={r.ltp} onChange={v => setRow(k, { ltp: v, change: undefined, changePct: undefined })} inputMode="decimal" />
-                    <Field label="Previous close" value={r.prevClose} onChange={v => setRow(k, { prevClose: v, change: undefined, changePct: undefined })} inputMode="decimal" />
-                    <Field label="Open (optional)" value={r.open} onChange={v => setRow(k, { open: v })} inputMode="decimal" />
-                    <Field label="OI (optional)" value={r.oi} onChange={v => setRow(k, { oi: v })} inputMode="numeric" />
-                  </div>
+                  <p className="mt-1 text-xs text-gray-400">The address contains a secret key that can only send rates, nothing else. Do not share it. After "Make a new key" the instructions in Grok must be replaced again.</p>
                 </div>
-              );
-            })}
-            <button onClick={prepareFromForm} disabled={busy === 'commit'} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold disabled:opacity-60">
-              {busy === 'commit' && <Loader2 size={14} className="animate-spin" />} Prepare message
-            </button>
-          </div>
-        )}
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <span>Alert me if nothing has arrived</span>
+                <input type="number" min={3} max={30} value={cfg.feedWaitMin ?? 10} onChange={e => setCfg({ ...cfg, feedWaitMin: Number(e.target.value) })} className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg" aria-label="Minutes to wait for the feed" />
+                <span>minutes after the update time</span>
+                <button onClick={saveConfig} disabled={busy === 'cfg'} className="px-3 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium disabled:opacity-50">Save</button>
+              </div>
+            </div>
+          )}
+
+          {/* ---- own browser */}
+          {source === 'browser' && (
+            <div className="mt-4 space-y-3 text-sm" data-testid="method-browser">
+              <p className="text-gray-600">Your own browser passes NCDEX's "checking your browser" page, so you send the board from there with one click. The app then makes the message and notifies your devices.</p>
+              <ol className="list-decimal ml-5 text-xs text-gray-700 space-y-1">
+                <li>Press <b>Copy the bookmark</b>. In Brave or Chrome open Bookmarks &gt; Add bookmark, name it <i>Send rates</i> and paste into the address box.</li>
+                <li>At each update time open the NCDEX Live Quotes page, check it shows today's time, and click that bookmark. A message tells you if the update is ready.</li>
+                <li>iPhone: the same address is used by a Share-sheet Shortcut (steps are in the guide).</li>
+              </ol>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => copyWithToast(bookmarklet, 'Bookmark copied. Paste it as the address of a new bookmark.')} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium"><Copy size={14} /> Copy the bookmark</button>
+                <button onClick={() => copyWithToast(sendUrl, 'Address copied')} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-white text-sm"><Copy size={14} /> Copy the address</button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span>Alert me if nothing has been sent</span>
+                <input type="number" min={3} max={30} value={cfg.feedWaitMin ?? 10} onChange={e => setCfg({ ...cfg, feedWaitMin: Number(e.target.value) })} className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg" aria-label="Minutes to wait for the browser" />
+                <span>minutes after the update time</span>
+                <button onClick={saveConfig} disabled={busy === 'cfg'} className="px-3 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium disabled:opacity-50">Save</button>
+              </div>
+            </div>
+          )}
+
+          {/* ---- server reads NCDEX */}
+          {source === 'server' && (
+            <div className="mt-4 space-y-3 text-sm" data-testid="method-server">
+              <p className="text-gray-600">The app's server opens the NCDEX page itself. NCDEX shows servers a "checking your browser" page, so this usually does not work. If it fails, switch to the Grok feed above.</p>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => fetchNow()} disabled={busy === 'fetch'} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold disabled:opacity-60">
+                  {busy === 'fetch' ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Fetch from NCDEX now
+                </button>
+                <button onClick={diagnose} disabled={busy === 'diag'} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-50">
+                  {busy === 'diag' && <Loader2 size={14} className="animate-spin" />} Check the NCDEX connection
+                </button>
+              </div>
+              {fetchProblem && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 text-amber-900 text-sm p-3">
+                  <p className="font-medium">The server could not get live rates.</p>
+                  <p className="mt-0.5">{fetchProblem}</p>
+                  <p className="mt-1">No problem: open the NCDEX Live Quotes page on your phone or computer, copy the table, and paste it in the box further down (it has opened for you). Or type the numbers.</p>
+                </div>
+              )}
+              {diag && <DiagView diag={diag} />}
+            </div>
+          )}
+
+          {schedulerBox}
+          {status.telegram && <p className="mt-2 text-xs text-green-700">Telegram posting is on: each update is also posted to your Telegram chat.</p>}
+        </Card>
+      )}
+
+      {/* ---- what happened */}
+      <Card title="Activity" icon={<ActivityIcon size={16} className="text-rose-600" />}
+        right={<button onClick={checkNow} disabled={busy === 'check'} className="px-2.5 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs disabled:opacity-50">Check now</button>}>
+        <p className="text-xs text-gray-500 mb-2">Every call from Grok, the scheduler or your browser, and every notification, newest first. It shows the time, who it was and what happened. Tap "Show what was received" to see the numbers Grok sent.</p>
+        <ActivityList log={log} />
       </Card>
 
       {/* ---- notifications */}
       <Card title="Notifications on this device" icon={subscribed ? <Bell size={16} className="text-rose-600" /> : <BellOff size={16} className="text-gray-400" />}
         right={status ? <Chip tone={status.subscribers ? 'green' : 'gray'}>{status.subscribers} device{status.subscribers === 1 ? '' : 's'}</Chip> : undefined}>
-        <p className="text-sm text-gray-600">When each update is ready (10 AM, 12, 2, 4, 5 PM) your phone shows a notification. Tap it and the message opens, ready to send.</p>
+        <p className="text-sm text-gray-600">You get a notification when an update is ready, and when one did not arrive in time. Tap it and the message opens, ready to send.</p>
         {!support.supported && <p className="mt-2 text-sm rounded-lg bg-amber-50 border border-amber-200 text-amber-800 p-2.5">{support.reason}</p>}
+        {!subscribed && support.supported && !!(navigator as unknown as { brave?: unknown }).brave && (
+          <p className="mt-2 text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-800 p-2.5">Brave only delivers notifications when this is switched on: Brave Settings &gt; Privacy and security &gt; <b>Use Google services for push messaging</b>. Switch it on, restart Brave, then press Turn on notifications.</p>
+        )}
+        {status?.devices && status.devices.length > 0 && (
+          <p className="mt-2 text-xs text-gray-500">Devices that will be notified: {status.devices.map(d => d.label || 'unnamed device').join(', ')}.</p>
+        )}
         <div className="mt-3 flex flex-wrap gap-2">
           <button onClick={toggleNotifications} disabled={!support.supported || busy === 'push' || !status} className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 ${subscribed ? 'border border-gray-300 text-gray-700 hover:bg-gray-50' : 'bg-rose-600 hover:bg-rose-700 text-white'}`}>
             {busy === 'push' && <Loader2 size={14} className="animate-spin" />}
@@ -544,97 +679,90 @@ export default function RatesDesk() {
           </button>
           <button onClick={testPush} disabled={busy === 'test'} className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-50">Send a test notification</button>
         </div>
+        {testNote && <p className="mt-2 text-xs text-gray-600">Test result: {testNote}</p>}
       </Card>
 
-      {/* ---- the Grok feed */}
-      {status && cfg && (
-        <Card title="Grok feed (fastest way)" icon={<Zap size={16} className="text-rose-600" />}
-          right={<Chip tone={cfg.rateSource === 'feed' ? 'green' : 'gray'}>{cfg.rateSource === 'feed' ? 'On' : 'Off'}</Chip>}>
-          <p className="text-sm text-gray-600">Grok already reads the NCDEX board in its own browser. Let it send the numbers straight to this app, with nothing in between (no Drive, no database). The numbers arrive the moment Grok finishes. The app checks that they add up, builds the message and notifies your devices. If nothing has arrived after a few minutes you get an alert.</p>
-          <div className="mt-3 space-y-2 text-sm">
-            <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={cfg.rateSource === 'feed'} onChange={e => setCfg({ ...cfg, rateSource: e.target.checked ? 'feed' : 'server' })} /> <span>Use the Grok feed as my main source (the scheduler then only checks that the numbers arrived)</span></label>
-            <div className="flex flex-wrap items-center gap-2">
-              <span>Alert me if nothing has arrived</span>
-              <input type="number" min={3} max={30} value={cfg.feedWaitMin ?? 10} onChange={e => setCfg({ ...cfg, feedWaitMin: Number(e.target.value) })} className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg" aria-label="Minutes to wait for the feed" />
-              <span>minutes after the update time</span>
+      {/* ---- backup: by hand */}
+      <div ref={formRef} />
+      <section className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+        <button onClick={() => setBackupOpen(v => !v)} aria-expanded={backupOpen} className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-4 text-left">
+          <span className="flex items-center gap-2 text-sm font-semibold text-gray-800"><Wifi size={16} className="text-rose-600" /> If an update is missing: enter it by hand</span>
+          {backupOpen ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+        </button>
+        {backupOpen && (
+          <div className="px-4 sm:px-5 pb-4 sm:pb-5">
+            <p className="text-sm text-gray-600 mb-3">The way to send an update when nothing arrived: paste the NCDEX page text, or type the numbers. The same checks apply.</p>
+            <select value={slot} onChange={e => setSlot(e.target.value)} aria-label="Which update is this for" className="w-full sm:w-auto px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white">
+              <option value="auto">For the current time (automatic)</option>
+              {SLOTS.map(h => <option key={h} value={String(h)}>{hourLabel(h)} update</option>)}
+              <option value="adhoc">Extra update (not a scheduled one)</option>
+            </select>
+
+            <div className="mt-4 flex gap-2 text-sm">
+              <button onClick={() => setTab(tab === 'paste' ? 'none' : 'paste')} className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border ${tab === 'paste' ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+                <Clipboard size={14} /> Paste board text
+              </button>
+              <button onClick={() => setTab(tab === 'type' ? 'none' : 'type')} className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border ${tab === 'type' ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+                <Pencil size={14} /> Type the numbers
+              </button>
             </div>
-            <button onClick={saveConfig} disabled={busy === 'cfg'} className="px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium disabled:opacity-50">Save feed settings</button>
-          </div>
 
-          <div className="mt-3 rounded-xl bg-gray-50 border border-gray-200 p-3 text-xs">
-            {lastFeed ? (
-              <p className="text-gray-700">
-                Last delivery from the feed: <b>{slotName(lastFeed)}</b> at {dayIst(lastFeed.createdAtMs)} {timeIst(lastFeed.createdAtMs)}.{' '}
-                {lastFeed.status === 'ready' ? <span className="text-green-700">Accepted.</span> : lastFeed.status === 'skipped' ? <span className="text-amber-700">Skipped: {lastFeed.reason}</span> : <span className="text-red-700">Refused: {lastFeed.reason}</span>}
-              </p>
-            ) : <p className="text-gray-600">Nothing has arrived from the feed yet.</p>}
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button onClick={() => setShowGrok(v => !v)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold">{showGrok ? 'Hide the Grok instructions' : 'Show the Grok instructions'}</button>
-            <button onClick={checkFeed} disabled={busy === 'feedcheck'} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-50">{busy === 'feedcheck' && <Loader2 size={14} className="animate-spin" />} Check that the address works</button>
-          </div>
-
-          {showGrok && (
-            <div className="mt-3">
-              <p className="text-xs text-gray-600 mb-1.5">Copy this into your Grok automation (replace the old live-rates instructions). It tells Grok to read the board and open the address below once, with the numbers filled in.</p>
-              <textarea readOnly value={grokInstructions(feedUrl, keys)} rows={14} onFocus={e => e.currentTarget.select()} aria-label="Instructions for Grok" className="w-full p-3 border border-gray-300 rounded-xl text-xs font-mono bg-gray-50" />
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button onClick={() => copyWithToast(grokInstructions(feedUrl, keys), 'Instructions copied. Paste them into Grok.')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium"><Copy size={14} /> Copy the instructions</button>
-                <button onClick={() => copyWithToast(feedUrl, 'Address copied')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"><Copy size={14} /> Copy only the address</button>
-                <button onClick={newFeedKey} disabled={busy === 'feedkey'} className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-50">Make a new key</button>
+            {tab === 'paste' && (
+              <div className="mt-3">
+                <p className="text-xs text-gray-500 mb-1.5">Open ncdex.com &gt; Market Watch &gt; Live Quotes, select the table (or the whole page) and copy it. Paste it here.</p>
+                <button onClick={pasteFromClipboard} disabled={busy === 'paste'} className="mb-2 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium disabled:opacity-50">
+                  {busy === 'paste' ? <Loader2 size={14} className="animate-spin" /> : <Clipboard size={14} />} Paste from clipboard and read
+                </button>
+                <textarea value={pasteText} onChange={e => setPasteText(e.target.value)} rows={6} placeholder="Or paste the NCDEX Live Quotes text here..." className="w-full p-3 border border-gray-300 rounded-xl text-xs font-mono" />
+                <button onClick={readPaste} disabled={!pasteText.trim() || busy === 'paste'} className="mt-2 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-300 text-gray-800 text-sm font-medium disabled:opacity-50">
+                  {busy === 'paste' && <Loader2 size={14} className="animate-spin" />} Read the pasted text
+                </button>
               </div>
-              <p className="mt-1 text-xs text-gray-400">The address contains a secret key that can only send rates, nothing else. Do not share it. If it leaks, press Make a new key.</p>
-            </div>
-          )}
-        </Card>
-      )}
+            )}
 
-      {/* ---- automation */}
-      <Card title="Automatic updates" icon={<Clock size={16} className="text-rose-600" />}>
-        {cfg?.rateSource === 'feed'
-          ? <p className="text-sm text-gray-600">The Grok feed is your main source. A free scheduler calls this address about {cfg.feedWaitMin ?? 10} minutes after 10:00, 12:00, 14:00, 16:00 and 17:00 (Indian time, Monday to Friday) and only checks that the numbers arrived. If they did not, it alerts you. Setup steps are in the guide.</p>
-          : <p className="text-sm text-gray-600">A free scheduler calls this address at 10:00, 12:00, 14:00, 16:00 and 17:00 (Indian time, Monday to Friday). Setup steps are in the guide that came with this update.</p>}
-        {status && (
-          <div className="mt-2 flex gap-2">
-            <input readOnly value={cronUrl} onFocus={e => e.currentTarget.select()} className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono bg-gray-50" />
-            <button onClick={() => copyWithToast(cronUrl, 'Address copied')} className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"><Copy size={14} /></button>
+            {tab === 'type' && (
+              <div className="mt-3 space-y-3">
+                {pasteInfo && <div className="rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-xs p-2.5">{pasteInfo}</div>}
+                {keys.map(k => {
+                  const r = row(k);
+                  const l = numOf(r.ltp), p = numOf(r.prevClose);
+                  const ch = r.change !== undefined ? r.change : l !== null && p !== null ? Math.round((l - p) * 100) / 100 : null;
+                  const pct = r.changePct !== undefined ? r.changePct : ch !== null && p ? Math.round((ch / p) * 10000) / 100 : null;
+                  return (
+                    <div key={k} className="rounded-xl border border-gray-200 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <b className="text-sm text-gray-800">{NAMES[k]}</b>
+                        {ch !== null && <span className={`text-xs font-medium ${ch > 0 ? 'text-green-700' : ch < 0 ? 'text-red-700' : 'text-gray-500'}`}>{signed(ch)}{pct !== null ? ` (${pct}%)` : ''}</span>}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        <Field label="Expiry month" value={r.expiryLabel} onChange={v => setRow(k, { expiryLabel: v })} placeholder="Oct" />
+                        <Field label="Last price (LTP)" value={r.ltp} onChange={v => setRow(k, { ltp: v, change: undefined, changePct: undefined })} inputMode="decimal" />
+                        <Field label="Previous close" value={r.prevClose} onChange={v => setRow(k, { prevClose: v, change: undefined, changePct: undefined })} inputMode="decimal" />
+                        <Field label="Open (optional)" value={r.open} onChange={v => setRow(k, { open: v })} inputMode="decimal" />
+                        <Field label="OI (optional)" value={r.oi} onChange={v => setRow(k, { oi: v })} inputMode="numeric" />
+                      </div>
+                    </div>
+                  );
+                })}
+                <button onClick={prepareFromForm} disabled={busy === 'commit'} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold disabled:opacity-60">
+                  {busy === 'commit' && <Loader2 size={14} className="animate-spin" />} Prepare message
+                </button>
+              </div>
+            )}
           </div>
         )}
-        <p className="mt-1 text-xs text-gray-400">This address contains a secret key. Do not share it.</p>
-        {status && (
-          <div className="mt-3 rounded-xl bg-gray-50 border border-gray-200 p-3">
-            <p className="text-sm font-medium text-gray-800">If NCDEX does not show the board to the server</p>
-            <p className="mt-0.5 text-xs text-gray-600">NCDEX shows servers a "checking your browser" page, so the automatic fetch may not work. Your own browser passes that check, so you can send the page from there with one click. The app then makes the message, notifies your devices and posts it as usual.</p>
-            <ol className="mt-2 text-xs text-gray-700 list-decimal ml-4 space-y-1">
-              <li>Press <b>Copy the bookmark</b>. In Brave or Chrome open Bookmarks &gt; Add bookmark, name it <i>Send rates</i> and paste into the address box.</li>
-              <li>Open the NCDEX Live Quotes page, check it shows today's time, and click that bookmark. A message tells you if the update is ready.</li>
-              <li>iPhone: the same address is used by a Share-sheet Shortcut (steps are in the guide).</li>
-            </ol>
-            <div className="mt-2 flex gap-2">
-              <button onClick={() => copyWithToast(bookmarklet, 'Bookmark copied. Paste it as the address of a new bookmark.')} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium"><Copy size={14} /> Copy the bookmark</button>
-              <button onClick={() => copyWithToast(sendUrl, 'Address copied')} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-white text-sm"><Copy size={14} /> Copy the address</button>
-            </div>
-          </div>
-        )}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button onClick={diagnose} disabled={busy === 'diag'} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-50">
-            {busy === 'diag' && <Loader2 size={14} className="animate-spin" />} Check the NCDEX connection
-          </button>
-        </div>
-        {diag && <DiagView diag={diag} />}
-        {status?.telegram && <p className="mt-2 text-xs text-green-700">Telegram posting is on: each update is also posted to your Telegram chat.</p>}
-      </Card>
+      </section>
 
       {/* ---- history */}
       <Card title="Recent updates" icon={<History size={16} className="text-rose-600" />}>
         {updates.length === 0 && <p className="text-sm text-gray-500">Nothing yet.</p>}
+        <p className="text-xs text-gray-500 mb-1">Every update the app has made or tried is saved in your database, so you can open an earlier one at any time.</p>
         <ul className="divide-y divide-gray-100">
-          {updates.slice(0, 15).map(u => (
+          {updates.slice(0, 20).map(u => (
             <li key={u.id}>
               <button onClick={() => { setSelectedId(u.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`w-full text-left py-2.5 flex items-center justify-between gap-3 ${selected?.id === u.id ? 'bg-rose-50/50 -mx-2 px-2 rounded-lg' : ''}`}>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-800">{dayIst(u.createdAtMs)} · {slotName(u)}</p>
+                  <p className="text-sm font-medium text-gray-800">{dayIst(u.createdAtMs)} · {slotName(u)} <span className="text-xs font-normal text-gray-400">· {viaOf(u)}{u.arrivedLate ? ' · late' : ''}</span></p>
                   <p className="text-xs text-gray-500 truncate">{u.summary || u.reason || ''}</p>
                 </div>
                 {statusChip(u)}

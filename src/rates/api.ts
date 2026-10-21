@@ -40,16 +40,19 @@ export interface RateUpdate {
   reason?: string | null;
   kind?: string | null;
   sent?: Record<string, number>;
-  pushed?: { sent: number; failed: number; total: number; atMs: number };
+  arrivedLate?: boolean;
+  pushed?: { sent: number; failed: number; total: number; atMs: number; title?: string; error?: string; errors?: string[] };
   telegram?: { ok: boolean; atMs: number };
 }
+
+export type RateSource = 'feed' | 'server' | 'browser';
 
 export interface RatesConfig {
   includeTurmeric: boolean;
   maxBoardAgeMin: number;
   requireBoardTime: boolean;
   showMovement?: boolean;
-  rateSource?: 'server' | 'feed';
+  rateSource?: RateSource;
   feedWaitMin?: number;
   company: { name: string; tagline: string; place: string; phones: string };
 }
@@ -58,6 +61,7 @@ export interface RatesStatus {
   ok: boolean;
   config: RatesConfig;
   subscribers: number;
+  devices?: { label: string; createdAtMs: number | null }[];
   cronKey: string;
   feedKey: string;
   vapidPublicKey: string;
@@ -103,3 +107,55 @@ export async function ratesCall<T = any>(action: string, body: Record<string, un
   if (json && json.ok === false && json.code) throw new RatesApiError(json.error || 'Something went wrong.', String(json.code));
   return json as T;
 }
+
+// ---- the activity log and the "is everything working" summary
+
+export interface LogEntry {
+  /** the database's own id for this line */
+  id?: string;
+  /** the update this line is about, when there is one */
+  updateId?: string | null;
+  atMs: number;
+  day: string;
+  time: string;
+  kind: 'feed' | 'cron' | 'browser' | 'you' | 'alert';
+  result: string;
+  ok: boolean;
+  message: string;
+  slot?: string | null;
+  offset?: number | null;
+  values?: Record<string, string>;
+  ua?: string;
+  pushed?: { sent: number; failed: number; total: number; error?: string; errors?: string[] };
+}
+
+export interface HealthSlot {
+  slot: string;
+  hour: number;
+  label: string;
+  state: 'ready' | 'failed' | 'skipped' | 'running' | 'late' | 'nothing' | 'waiting' | 'upcoming' | 'closed';
+  via: string | null;
+  atMs: number | null;
+  reason: string | null;
+  arrivedLate: boolean;
+}
+
+export interface HealthFix { type: 'set_wait' | 'set_source'; value: number | string; label: string }
+export interface HealthProblem { level: 'bad' | 'warn' | 'info'; code: string; text: string; fix?: HealthFix | null }
+
+export interface Health {
+  source: RateSource;
+  sourceName: string;
+  waitMin: number;
+  weekday: boolean;
+  overall: 'good' | 'warn' | 'bad';
+  headline: string;
+  problems: HealthProblem[];
+  slots: HealthSlot[];
+  feed: { lastAtMs: number | null; lastResult: string | null; lastMessage: string | null; todayCount: number; lastTestAtMs: number | null };
+  scheduler: { lastAtMs: number | null; lastResult: string | null; lastMessage: string | null; callsToday: { atMs: number; time: string; result: string; offset: number | null }[] };
+  notifications: { devices: number; last: { atMs: number; message: string; sent?: number; total?: number; failed?: number; error?: string } | null };
+  wrongKey: { atMs: number; count: number } | null;
+}
+
+export interface Activity { ok: boolean; log: LogEntry[]; updates: RateUpdate[]; health: Health }

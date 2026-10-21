@@ -1,6 +1,55 @@
 # Rates Desk guide (live rates message, phone notifications, one-tap WhatsApp)
 
-## Update 4: the Grok feed (read this first; it is the fastest way)
+## Update 5: one method at a time, and a log that shows what really happened (read this first)
+
+**What your last screenshots meant.**
+
+- Grok's plain **"OK"** is Grok's own last word (your automation says to reply OK). It is **not** the app's answer. When the app accepts numbers, it answers `OK: saved...`. The app showed *"Nothing has arrived from the feed yet"*, so, as far as the app could tell, no numbers from Grok ever reached it. Before this update the app kept **no record at all** of some failed calls (for example a call with a wrong or old key), and no list of the calls that did arrive, so nobody could tell what had happened. That is fixed below.
+- The red **"10 AM: NCDEX did not show the rates board"** card came from the *server* method (pressing **Try again** or **Fetch from NCDEX**, or the scheduler while the app was still set to read NCDEX itself). NCDEX always shows servers its "checking your browser" page, so that method cannot work, and it should never have been the thing shown while you use Grok. **Try again** now only appears when you have chosen the server method.
+- **No alert ever came** because of the scheduler minutes. With the Grok feed on, the app waits 10 minutes after the hour before it complains, but the scheduler on cron-job.org was still calling at minute 0 and minute 8, both *before* the 10 minutes were over. So it waited both times and never alerted. The page now notices this by itself and fixes it with one tap (see "Is everything working?").
+- The **test notification** worked because it does not depend on any of that. A real alert is only sent when something happens (rates ready, rates late, market closed).
+
+**What is new on the Rates Desk page**
+
+1. **One method at a time.** The card **How the rates arrive** has three choices: **Grok feed** (recommended), **My browser**, **Server reads NCDEX**. Only the steps of the method you pick are shown, and the app only watches that one. The others are not deleted, just hidden. Grok feed is already the one to use.
+2. **Is everything working?** (top of the page). One sentence in plain words, today's five times with a status each (Ready, Waiting, Not arrived ...), and a list of what is wrong with a one-tap fix where possible. It also shows when Grok last sent numbers, when the scheduler last checked, the last notification and what happened to it, and whether **this** device has notifications on (with a **Turn on here** button).
+3. **Activity** (a list under the method card). Every call from Grok, the scheduler or your browser, and every notification, newest first: the time, who it was, and what happened ("Saved", "Refused: numbers do not add up", "Waiting for the feed (8 of 10 minutes)", "Sent to 2 of 2 devices", "Nobody was notified"...). Tap **Show what was received** to see exactly which numbers Grok sent and who called. Calls with a wrong key are not listed one by one (so nobody can fill your database); the page just says "opened with a WRONG key at 10:05" once.
+4. **Notifications tell you what happened.** Every alert is recorded with how many devices got it and, if one failed, why (for example "the device unsubscribed, turn notifications on again there"). **Send a test notification** now shows its result under the button. On **Brave** the page reminds you of the one setting Brave needs (Settings, Privacy and security, **Use Google services for push messaging**).
+5. **If Grok is late, nothing to press.** When late numbers arrive, the "did not arrive" card turns into the finished message by itself, the page shows "10 AM update arrived from Grok (late)", and you get the normal "update ready" notification. The page looks again by itself (every 20 seconds around update times, every minute otherwise) and **Check now** looks at once.
+6. **Entering numbers by hand** moved into one box at the bottom of the page: **If an update is missing: enter it by hand**.
+
+**Where Grok's data is stored.** In your own Firebase database, nothing else:
+
+- `rateUpdates`: every update the app made or tried (ready, needs you, skipped), with its text, numbers, how it arrived (Grok feed, scheduler, your browser, pasted, typed) and when. This is the **Recent updates** list. Open any earlier one by tapping it.
+- `rateDays`: the reading of each update, used to work out "Movement Since Previous Update".
+- `rateLog`: the **Activity** list (kept for 3 weeks, older lines are removed automatically).
+- A refused delivery keeps the raw numbers in Activity (**Show what was received**), so you can see what Grok really sent.
+
+**Set up, in this order (about 10 minutes)**
+
+1. Upload the files of this zip (list at the bottom) and let Vercel build. Open **Rates Desk**. The top panel will probably say something is not working; that is the new panel doing its job.
+2. In **How the rates arrive** choose **Grok feed**.
+3. Press **Show the Grok instructions**, then **Copy the instructions**. Open your Grok automation, **delete everything in its prompt**, paste the new text and save. Keep the hourly schedule: the new text starts with the same "if the hour is not 10, 12, 14, 16 or 17, stop" check you already use. (Please replace the whole prompt. A mixture of old and new instructions is the usual reason Grok does not call the address.)
+4. **Test that Grok can reach your app** (10 seconds): press **Copy the 10-second Grok test**, paste it into a normal Grok chat. Grok must answer *OK: the feed address works and the key is accepted. Nothing was saved.* Then press **Check now** on the page: the Activity list shows a line **Address check**. If Grok says it cannot open web addresses, or no line appears, then Grok cannot call your app at all and the Grok feed cannot work; tell me and we will use **My browser** instead.
+5. Look at the **Scheduler on cron-job.org** box on the page. It shows the exact minutes to use for your alert time (with 10 minutes: `10, 20`). In cron-job.org open your job, set **Minutes** to those, keep hours `10, 12, 14, 16, 17`, Monday to Friday, time zone Asia/Kolkata, and save. (Or leave cron-job.org as it is (`0, 8`) and set the alert time on the page to `8`: the page offers this as one tap.)
+6. Turn on notifications on **every** device (phone and computer) with **Turn on notifications** (or **Turn on here** in the top panel), then press **Send a test notification**.
+7. At the next update time watch the top panel. A green "Everything is working" with the update marked Ready is the proof. If not, the panel and the Activity list say where it stopped.
+
+**If something is wrong, read the Activity list from the top**
+
+| You see in Activity or in the top panel | What it means | What to do |
+|---|---|---|
+| Nothing from Grok at all, and the panel says "Grok has not contacted the app today" | Grok did not run, cannot open web addresses, or its prompt does not contain the address | Do the 10-second test (step 4). Replace the whole prompt (step 3). |
+| "opened with a WRONG key" | Something called the address with an old or mistyped key (usually Grok with an old prompt) | Copy the instructions again and replace the whole Grok prompt. Do not press **Make a new key** unless you will paste the new instructions into Grok right after. |
+| Grok feed, **Refused**: "do not add up" or "board time ... not live" | Grok read a number wrong or read an old board | Grok sees the same sentence in its reply and should try again. Tap **Show what was received** to see what it sent. |
+| Scheduler **Waiting** only, and the panel says "never alerted" | Scheduler minutes are before your alert time | Press the one-tap fix, or change the minutes on cron-job.org. |
+| The panel says the scheduler did not contact the app | The cron-job.org job is switched off, has the wrong address, or the wrong days/hours | Open the job on cron-job.org, check it is enabled and press **Test run**. |
+| Notification **Nobody notified** | No device has notifications on | **Turn on notifications** on your phone and computer. |
+| Notification **Sent to 0 of 2 devices** with a reason | The browser rejected or forgot the subscription | Turn notifications off and on again on that device. On Brave switch on **Use Google services for push messaging** first. |
+
+**Honest limits.** The app cannot make Grok run, and it cannot see inside Grok. It can only tell you what reached it, and now it shows that clearly. If the 10-second test proves Grok cannot open web addresses, the Grok feed is not possible with your Grok plan, and the choices are **My browser** (one bookmark click per update) or paste/type. A fully automatic fetch from the NCDEX website is not possible while NCDEX shows servers a browser check, and I will not build anything that tries to get around it.
+
+## Update 4: the Grok feed (background; the screen has changed, use the Update 5 steps above)
 
 **The idea.** Your Grok automation already gets through the NCDEX browser check. So instead of the app trying to read NCDEX, **Grok sends the numbers to the app**. Nothing sits in between (no Google Drive, no database to poll): when Grok finishes reading the board it opens one web address that belongs to your app, with the numbers written in it. At that moment the app:
 
@@ -12,15 +61,7 @@
 
 **Why this is better than Drive or a database in between.** A Drive file or a database would still need something to *check* it every minute and would add a delay (and a second place that can fail). Here the app is the receiver, so the message is ready within a second of Grok finishing. The waiting you described (Grok sometimes needs 3 to 5 minutes) is handled by a **watchdog**: the free scheduler checks a few minutes after each update time. If the numbers are there, it stays silent. If not, you get "⚠️ 10 AM rates need you" and can use the bookmark, **Paste board text** or **Type the numbers**. If Grok arrives late (even after the alert) its numbers are still accepted and replace the alert.
 
-**Set up (about 10 minutes, once):**
-
-1. Upload the files of this zip (list at the bottom) and let Vercel build.
-2. Open **Rates Desk**. In the new card **Grok feed (fastest way)** press **Show the Grok instructions**, then **Copy the instructions**.
-3. Open your Grok automation, replace the old live-rates instructions with the copied text and save. (The text tells Grok to read the board, then open your feed address once with the numbers filled in. It already contains your private key.)
-4. Back in Rates Desk press **Check that the address works**. You should see "The feed address works."
-5. Tick **Use the Grok feed as my main source**, keep 10 minutes (or change it), press **Save feed settings**.
-6. In cron-job.org change your job's **Minutes** from `0` and `8` to `10` and `20` (hours stay `10, 12, 14, 16, 17`, Monday to Friday). The scheduler now only checks that Grok's numbers arrived. Do this **after** step 5; with the old minutes it would never raise the alert in feed mode.
-7. Run Grok's automation once during market hours and watch the card: "Last delivery from the feed: ... Accepted."
+**Set up:** use the steps in Update 5 above (the screen changed: there is now a method switch instead of a tick box, and the page shows the scheduler minutes for you).
 
 **Good to know:**
 - The feed key can **only** send rates. It cannot read your data, run updates or change settings. If the address ever leaks, press **Make a new key** and paste the new instructions into Grok (the old address stops working at once).
@@ -62,15 +103,18 @@ Also fixed on the way: the "WhatsApp Broadcast" menu item had a wrong icon name,
 
 ## Files in this zip (upload all, same folders, replace when asked)
 
-This is **update 4**. These files replace the older ones:
+This is **update 5**. These files replace the older ones (the two marked new are added):
 
 ```
 RATES_DESK_GUIDE.md                    (this guide)
-server/rates/message.js                (new settings: feed on/off, waiting minutes)
-server/rates/service.js                (the Grok feed, the watchdog, number checks)
-server/rates/handler.js                (the feed address and its own key, plain one-line replies)
+server/rates/health.js                 (new: works out "is everything working" from the log)
+server/rates/service.js                (activity log, notification results, scheduler check, browser method)
+server/rates/handler.js                (records address checks, wrong-key note, new "activity" call)
+server/rates/store.js                  (activity log storage)
+server/rates/push.js                   (keeps the reason when a notification fails)
 src/rates/api.ts                       (new fields)
-src/pages/RatesDesk.tsx                (Grok feed card, instructions to copy, settings)
+src/rates/panels.tsx                   (new: top panel, method switch, activity list)
+src/pages/RatesDesk.tsx                (one method at a time, new layout)
 ```
 
 Everything else from the earlier Rates Desk updates stays as it is (`parse.js`, `fetchBoard.js` and the rest). Nothing needs to be set up again.
@@ -129,7 +173,7 @@ Vercel's free plan cannot run jobs every few hours, so a free outside scheduler 
 1. Create a free account at **cron-job.org**.
 2. Click **Create cronjob**. Title: `Mahalaxmi rates`.
 3. **URL**: in the app, **Rates Desk**, **Automatic updates**, tap the copy button next to the long address and paste it here. The address contains a secret key, so do not share it. It can only start a rates update, nothing else.
-4. **Execution schedule**: choose **Custom**. Time zone: **Asia/Kolkata**. Hours: `10, 12, 14, 16, 17`. Minutes: `0` and `8` (the second try, at 8 minutes past, is a safety net; if the first try worked, the second does nothing). Days of week: Monday to Friday. (If you use the Grok feed from Update 4, use minutes `10` and `20` instead.)
+4. **Execution schedule**: choose **Custom**. Time zone: **Asia/Kolkata**. Hours: `10, 12, 14, 16, 17`. Minutes: `0` and `8` (the second try, at 8 minutes past, is a safety net; if the first try worked, the second does nothing). Days of week: Monday to Friday. (If you use the Grok feed, the Rates Desk page shows the exact minutes to use, for example `10` and `20`.)
 5. Save. In cron-job.org, use **Test run** once and then look at the Rates Desk page.
 6. Notes: the app ignores repeats, so the same update is never sent twice. On exchange holidays it says "market closed today" once at 10 AM and stays quiet for the rest of the day.
 

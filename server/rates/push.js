@@ -35,16 +35,23 @@ export function createPush({ store, env = process.env, webpushImpl = null }) {
       const subs = await store.listSubs();
       const body = JSON.stringify(payload);
       let sent = 0, failed = 0, removed = 0;
+      const errors = [];
       await Promise.all(subs.map(async (s) => {
         try {
           await wp.sendNotification(s.subscription, body, { TTL: 3600, urgency: 'high', topic: payload.tag ? String(payload.tag).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32) : undefined });
           sent++;
         } catch (e) {
           failed++;
-          if (e && (e.statusCode === 404 || e.statusCode === 410)) { removed++; try { await store.removeSub(s.id); } catch { /* ignore */ } }
+          const gone = e && (e.statusCode === 404 || e.statusCode === 410);
+          if (gone) { removed++; try { await store.removeSub(s.id); } catch { /* ignore */ } }
+          // keep the reason: it is shown in the app, so a silent failure can be understood
+          const why = gone ? 'the device unsubscribed or the browser forgot it (removed; turn notifications on again there)'
+            : `${e && e.statusCode ? `HTTP ${e.statusCode}` : 'error'}${e && e.body ? `: ${String(e.body).slice(0, 80)}` : e && e.message ? `: ${String(e.message).slice(0, 80)}` : ''}`;
+          const name = s.label ? `${String(s.label).slice(0, 30)}: ` : '';
+          if (errors.length < 3 && !errors.includes(name + why)) errors.push(name + why);
         }
       }));
-      return { sent, failed, removed, total: subs.length };
+      return { sent, failed, removed, total: subs.length, errors };
     },
   };
 }
