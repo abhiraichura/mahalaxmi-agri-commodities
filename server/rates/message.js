@@ -109,47 +109,52 @@ export function buildMessage({ slot, parts, picks, movement, config = DEFAULT_CO
   if (movement.mode === 'unavailable') {
     movementLine = 'Movement unavailable (history not reachable)';
   } else if (shown) {
-    movementLine = keys.map((k) => `${icon(movement.values[k])} ${DISPLAY[k]} ${fmtMove(movement.values[k])}`).join(' | ')
-      + ` (vs ${movement.label})`;
+    // just the rupee moves: no "(vs 10 AM)" label, the heading already says what they are
+    movementLine = keys.map((k) => `${icon(movement.values[k])} ${DISPLAY[k]} ${fmtMove(movement.values[k])}`).join(' | ');
   }
   const movementBlock = shown ? ['*Movement Since Previous Update*', movementLine, ''] : [];
 
-  // the Hindi outlook follows the same numbers; with the section hidden it uses the board's own change vs yesterday's close
-  const outlookMode = movement.mode === 'manual' ? (/prev|close|कल/i.test(movement.label || '') ? 'prevclose' : 'since')
-    : movement.mode === 'off' ? 'prevclose' : movement.mode;
-  const seed = `${parts.dateKey}|${slot}`;
+  // The Hindi outlook is worked out from the board alone (open, yesterday's close, last price, expiry date, the other
+  // spice). It does not use the Movement section, so editing or hiding that section never changes it, and it never
+  // repeats what the Movement section already says. Consecutive updates of a day use different wording.
+  const rot = SLOTS.indexOf(Number(slot)) >= 0 ? SLOTS.indexOf(Number(slot)) : 0;
+  const first = picks[keys[0]];
   const outlooks = keys.map((k, i) => {
     const p = picks[k];
     const o = outlook({
       key: k,
-      movement: movement.mode === 'unavailable' ? 0 : movement.mode === 'off' ? Math.round(p.change) : movement.values[k],
-      mode: outlookMode,
-      boardChange: p.change,
       ltp: p.ltp,
-      seed,
+      prev: p.prevClose,
+      open: p.open,
+      change: p.change,
+      changePct: p.changePct,
+      expiry: p.expiry,
+      dateKey: parts.dateKey,
+      rot,
       index: i,
+      ref: i > 0 ? { key: keys[0], changePct: first.changePct } : null,
     });
     const ic = icon(Math.round(p.change));
-    return `${ic} **${k.toUpperCase()} – ${o.status}**  \n${o.text}`;
+    return `${ic} *${k.toUpperCase()} – ${o.status}*\n${o.text}`;
   });
 
   const c = cfg.company;
   const text = [
-    `🙏 **${c.name}**`,
+    `🙏 *${c.name}*`,
     '',
     `🌾 ${title}`,
     `📅 *${fmtDate(parts)} | ⏰ ${fmtTime(parts)}*`,
     '',
-    '📊 **COMMODITY RATES**',
+    '📊 *COMMODITY RATES*',
     ...rateLines,
     '',
     ...movementBlock,
-    '📈 **QUICK OUTLOOK**',
+    '📈 *QUICK OUTLOOK*',
     ...outlooks,
     '',
-    `🏢 **${c.name}**  `,
-    `${c.tagline}  `,
-    `📍 ${c.place}  `,
+    `🏢 *${c.name}*`,
+    c.tagline,
+    `📍 ${c.place}`,
     `📞 ${c.phones}`,
     '',
     '🤝 For Latest Rates, Market Updates & Business Enquiries, Contact Us.',

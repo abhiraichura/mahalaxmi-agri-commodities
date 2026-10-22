@@ -851,14 +851,11 @@ function MovementEditor({ update, busy, onApply }: {
   const [open, setOpen] = useState(false);
   const [dir, setDir] = useState<Record<string, 'up' | 'down'>>({});
   const [amt, setAmt] = useState<Record<string, string>>({});
-  const [label, setLabel] = useState('');
-  const hour = update.slotHour ?? 24;
-  const earlier = SLOTS.filter(h => h < hour).map(hourLabel);
 
   const begin = () => {
     const d: Record<string, 'up' | 'down'> = {}; const a: Record<string, string> = {};
     for (const k of keys) { const v = start?.values?.[k] ?? 0; d[k] = v < 0 ? 'down' : 'up'; a[k] = String(Math.abs(v)); }
-    setDir(d); setAmt(a); setLabel(start?.label || ''); setOpen(true);
+    setDir(d); setAmt(a); setOpen(true);
   };
   const save = async () => {
     const values: Record<string, number> = {};
@@ -867,7 +864,7 @@ function MovementEditor({ update, busy, onApply }: {
       if (!Number.isFinite(n) || String(amt[k] ?? '').trim() === '') { toast.error(`${NAMES[k]}: type the amount in rupees (for example 40).`); return; }
       values[k] = (dir[k] === 'down' ? -1 : 1) * Math.abs(n);
     }
-    if (await onApply('manual', values, label)) setOpen(false);
+    if (await onApply('manual', values)) setOpen(false);
   };
 
   const line = keys.map(k => `${NAMES[k]} ${m?.values?.[k] != null ? rupee(m.values[k]) : '—'}`).join(' · ');
@@ -876,7 +873,7 @@ function MovementEditor({ update, busy, onApply }: {
       <p className="font-medium text-gray-800">Movement since previous update</p>
       {hidden && <p className="text-xs text-gray-500">Hidden: this message does not include the movement section.</p>}
       {!hidden && m?.mode === 'unavailable' && <p className="text-xs text-amber-700">Could not be worked out (no earlier reading). You can type it.</p>}
-      {!hidden && m?.mode !== 'unavailable' && <p className="text-xs text-gray-600">{manual ? 'Typed by you' : 'Worked out automatically'} (vs {m?.label}): {line}</p>}
+      {!hidden && m?.mode !== 'unavailable' && <p className="text-xs text-gray-600">{manual ? 'Typed by you' : `Worked out automatically (compared with ${m?.label}; this is not written in the message)`}: {line}</p>}
 
       {!open && (
         <div className="mt-2 flex flex-wrap gap-2">
@@ -901,15 +898,6 @@ function MovementEditor({ update, busy, onApply }: {
               <input value={amt[k] ?? ''} onChange={e => setAmt(a => ({ ...a, [k]: e.target.value }))} inputMode="numeric" aria-label={`${NAMES[k]} movement in rupees`} className="w-24 px-2 py-2 border border-gray-300 rounded-lg" />
             </div>
           ))}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Compared with</label>
-            <input value={label} onChange={e => setLabel(e.target.value)} maxLength={24} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {[...earlier, 'prev close'].map(c => (
-                <button key={c} type="button" onClick={() => setLabel(c)} className="px-2.5 py-1 rounded-full border border-gray-200 text-xs text-gray-600 hover:bg-gray-50">{c}</button>
-              ))}
-            </div>
-          </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={save} disabled={busy} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium disabled:opacity-50">{busy && <Loader2 size={14} className="animate-spin" />} Save movement</button>
             <button onClick={() => setOpen(false)} disabled={busy} className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm">Cancel</button>

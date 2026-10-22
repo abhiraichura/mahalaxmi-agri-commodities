@@ -1,6 +1,26 @@
 # Rates Desk guide (live rates message, phone notifications, one-tap WhatsApp)
 
-## Update 5: one method at a time, and a log that shows what really happened (read this first)
+## Update 6: longer Hindi outlook, one-star headings, cleaner movement line (read this first)
+
+**What changed in the WhatsApp message**
+
+1. **Quick Outlook is longer and different every time.** Each commodity now gets 3 or 4 sentences instead of one. The wording changes with every update of the day and from day to day, so the five messages of one day do not read the same. It no longer says anything about the movement since the previous update (the Movement section already shows that). It is written from the NCDEX board alone:
+   - *the day against its opening*: opened above or below yesterday's close, and whether the price is still above or below the opening level (a gap up that is fading reads very differently from a gap up that is holding);
+   - *how big the move is*: quiet, normal, fast or sharp;
+   - *the two spices against each other*: moving together or in opposite directions;
+   - *the contract*: how close it is to expiry, with settlement and roll-over talk when it is within 10 days or is the running month;
+   - *general background for the time of the year* (sowing, new-crop arrival, stock, festival and wedding demand). These lines are always worded as "आमतौर पर" (usually) because they are general background, **not today's news**. The app cannot know live news, so it never says things like "export demand rose today".
+   It never gives a buy or sell call, a target or a prediction, and it uses no English letters in the Hindi lines. The first word of each heading (Strong, Weak, Steady) still follows the board's own change against yesterday's close.
+2. **Headings use one star on each side**, like `*QUICK OUTLOOK*`, which is what WhatsApp needs to make them bold. The doubled stars are gone from every heading, and the invisible double spaces at the ends of the company lines are removed.
+3. **The Movement line has no "(vs 10 AM)"** or any other time. It now reads, for example: `🟩 Jeera +₹40 | 🟥 Dhaniya −₹20`.
+
+**On the Rates Desk page.** The **Edit the numbers** box for the movement no longer asks "Compared with" (it is not written in the message any more). For your own information the line above it still says what the automatic numbers were compared with, for example "Worked out automatically (compared with 12 PM; this is not written in the message)". Changing, hiding or restoring the movement does **not** change the Hindi outlook any more.
+
+**What you need to do.** Upload the files listed at the bottom and let Vercel build. Nothing to set up again. The next update that is made uses the new format; updates already made keep the text they were made with.
+
+---
+
+## Update 5: one method at a time, and a log that shows what really happened
 
 **What your last screenshots meant.**
 
@@ -82,7 +102,7 @@ I will **not** build anything that tries to get past that check (for example a h
 (Update 2 had an iPhone Shortcut that *downloads* the page. It would receive the same spinner page, so it is replaced by the Share-sheet version below, which uses the page already open in Safari.)
 
 **3. The "Movement Since Previous Update" section is now optional and editable.** It is still worked out automatically. Under the message, in **Movement since previous update**, you can:
-- **Edit the numbers**: choose Up or Down and type the rupees for each commodity, and what it is compared with (for example "12 PM" or "prev close"). The message and the Hindi outlook are rebuilt with your numbers. Nothing else in the message changes.
+- **Edit the numbers**: choose Up or Down and type the rupees for each commodity (Update 6: the "compared with" box is gone; the message shows only the rupee amounts). The message is rebuilt with your numbers. Nothing else in the message changes.
 - **Leave it out of the message**: the whole section disappears (the rates and outlook stay). Hindi outlook then uses today's change against yesterday's close.
 - **Back to automatic** / **Show it again**: returns to the automatically calculated numbers (they are always kept).
 - In **Message settings**, untick "Include the Movement section in new messages" if you want new messages to start without it.
@@ -103,21 +123,16 @@ Also fixed on the way: the "WhatsApp Broadcast" menu item had a wrong icon name,
 
 ## Files in this zip (upload all, same folders, replace when asked)
 
-This is **update 5**. These files replace the older ones (the two marked new are added):
+This is **update 6**. These 4 files replace the older ones:
 
 ```
 RATES_DESK_GUIDE.md                    (this guide)
-server/rates/health.js                 (new: works out "is everything working" from the log)
-server/rates/service.js                (activity log, notification results, scheduler check, browser method)
-server/rates/handler.js                (records address checks, wrong-key note, new "activity" call)
-server/rates/store.js                  (activity log storage)
-server/rates/push.js                   (keeps the reason when a notification fails)
-src/rates/api.ts                       (new fields)
-src/rates/panels.tsx                   (new: top panel, method switch, activity list)
-src/pages/RatesDesk.tsx                (one method at a time, new layout)
+server/rates/hindi.js                  (the new Hindi outlook)
+server/rates/message.js                (one-star headings, movement line without "(vs ...)")
+src/pages/RatesDesk.tsx                (no "Compared with" box in the movement editor)
 ```
 
-Everything else from the earlier Rates Desk updates stays as it is (`parse.js`, `fetchBoard.js` and the rest). Nothing needs to be set up again.
+Everything from update 5 (the health panel, the activity list, the single-method switch) and the earlier updates stays as it is. Nothing needs to be set up again. If you have not uploaded update 5 yet, upload that zip first.
 
 ## One-time setup (about 15 minutes)
 
@@ -209,8 +224,8 @@ I could not try the iPhone steps on your phone, so test them once and tell me ex
 
 - **Contract chosen**: nearest expiry that has not expired (Jeera and Dhaniya; Turmeric can be switched on in **Message settings**). Option rows (CE / PE) are ignored.
 - **Numbers**: LTP, change and change % are checked against each other (previous close + change must equal LTP, change % must match). A number that does not add up is refused, not sent.
-- **Movement Since Previous Update**: compared with the latest earlier scheduled update of the same day (for example 2 PM against 12 PM). The first update of the day has no earlier update, so it shows the change against yesterday's close and says "(vs prev close)". You can edit these numbers, leave the section out, or go back to automatic on each update (see Update 3 above).
-- **Quick Outlook (Hindi)**: written from fixed Hindi sentences chosen by the size of the movement since the last update: under 0.10% "Steady", under 0.40% "Mild", more than that "Strong". It always says "भाव" and never gives a buy or sell call. The wording is different from update to update. It is not AI-generated, so it cannot make anything up.
+- **Movement Since Previous Update**: compared with the latest earlier scheduled update of the same day (for example 2 PM against 12 PM). The first update of the day has no earlier update, so it shows the change against yesterday's close. The message never says what it is compared with. You can edit these numbers, leave the section out, or go back to automatic on each update (see Update 3 above).
+- **Quick Outlook (Hindi)**: 3 or 4 sentences per commodity, written from fixed Hindi sentences chosen by the board's own numbers (opening against yesterday's close, price against the opening level, size of the day's move, the other spice, days left before expiry, and general background for the time of year). The heading word follows the change against yesterday's close: under 0.10% "Steady", under 0.40% "Mild", more than that "Strong" or "Weak". It does not mention the previous update, never gives a buy or sell call, and the wording is different from update to update. It is not AI-generated, so it cannot make anything up; the time-of-year lines are general background, not live news.
 - **Freshness check**: the app reads the "As on ..." time printed on the NCDEX board. If it is not today, or older than 30 minutes (changeable in Message settings), the update is **not** prepared and you get a "needs you" notification instead.
 
 ## Sending on WhatsApp
