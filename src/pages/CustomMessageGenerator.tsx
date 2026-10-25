@@ -27,8 +27,8 @@ export default function CustomMessageGenerator() {
   }, []);
 
   const sortedParties = useMemo(() => {
-    return [...parties].sort((a, b) => a.name.localeCompare(b.name));
-  }, [parties]);
+  return [...parties].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}, [parties]);
 
   const filteredParties = useMemo(() => {
     return sortedParties.filter(p => {
