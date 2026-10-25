@@ -98,12 +98,12 @@ export default function GulfFoodDirectory() {
     if (search.trim()) {
       const q = search.toLowerCase();
       result = members.filter(m =>
-        m.companyName.toLowerCase().includes(q) ||
-        m.cityState.toLowerCase().includes(q) ||
-        m.contactPerson.toLowerCase().includes(q) ||
-        m.contactNumber.toLowerCase().includes(q) ||
-        m.email.toLowerCase().includes(q) ||
-        m.profile.toLowerCase().includes(q)
+        (m.companyName || '').toLowerCase().includes(q) ||
+        (m.cityState || '').toLowerCase().includes(q) ||
+        (m.contactPerson || '').toLowerCase().includes(q) ||
+        (m.contactNumber || '').toLowerCase().includes(q) ||
+        (m.email || '').toLowerCase().includes(q) ||
+        (m.profile || '').toLowerCase().includes(q)
       );
     }
 result.sort((a, b) => (a.companyName || '').localeCompare(b.companyName || ''));
