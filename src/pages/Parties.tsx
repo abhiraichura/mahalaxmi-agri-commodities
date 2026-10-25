@@ -117,12 +117,12 @@ export default function Parties() {
         .filter(Boolean);
 
       const searchableText = [
-        contact.companyName.toLowerCase(),
-        contact.displayName.toLowerCase(),
-        contact.location.toLowerCase(),
-        contact.contactPerson.toLowerCase(),
-        contact.phone.toLowerCase(),
-        contact.profileText.toLowerCase(),
+        (contact.companyName || '').toLowerCase(),
+        (contact.displayName || '').toLowerCase(),
+        (contact.location || '').toLowerCase(),
+        (contact.contactPerson || '').toLowerCase(),
+        (contact.phone || '').toLowerCase(),
+        (contact.profileText || '').toLowerCase(),
         ...mappedProductNames
       ].join(' ');
 
