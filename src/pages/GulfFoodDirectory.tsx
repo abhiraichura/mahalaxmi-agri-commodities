@@ -106,7 +106,7 @@ export default function GulfFoodDirectory() {
         m.profile.toLowerCase().includes(q)
       );
     }
-    result.sort((a, b) => a.companyName.localeCompare(b.companyName));
+result.sort((a, b) => (a.companyName || '').localeCompare(b.companyName || ''));
     return result;
   }, [members, search]);
 
