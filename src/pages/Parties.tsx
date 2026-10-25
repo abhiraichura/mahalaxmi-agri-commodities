@@ -103,7 +103,7 @@ export default function Parties() {
       });
     });
 
-    return combined.sort((a, b) => a.companyName.localeCompare(b.companyName));
+    return combined.sort((a, b) => (a.companyName || '').localeCompare(b.companyName || ''));
   }, [parties, gulfoodMembers]);
 
   // 2. Global Filter Logic
