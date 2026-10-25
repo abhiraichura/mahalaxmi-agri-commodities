@@ -34,9 +34,9 @@ export default function CustomMessageGenerator() {
     return sortedParties.filter(p => {
       const searchLower = dropdownSearch.toLowerCase();
       return (
-        p.name.toLowerCase().includes(searchLower) ||
-        (p.contactPerson && p.contactPerson.toLowerCase().includes(searchLower)) ||
-        (p.phone && p.phone.includes(dropdownSearch))
+        (p.name || '').toLowerCase().includes(searchLower) ||
+        (p.contactPerson || '').toLowerCase().includes(searchLower) ||
+        (p.phone || '').includes(dropdownSearch)
       );
     });
   }, [sortedParties, dropdownSearch]);
