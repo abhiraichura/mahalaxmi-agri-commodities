@@ -32,8 +32,8 @@ export default function MandiLiveRates() {
   const filteredRecords = useMemo<MandiRecord[]>(() => {
     if (!data?.records) return [];
     return data.records.filter((record: MandiRecord) => {
-      const marketMatch = selectedMarket === 'All' || record.market.toLowerCase().includes(selectedMarket.toLowerCase());
-      const commodityMatch = selectedCommodity === 'All' || record.commodity.toLowerCase().includes(selectedCommodity.toLowerCase());
+      const marketMatch = selectedMarket === 'All' || (record.market || '').toLowerCase().includes(selectedMarket.toLowerCase());
+      const commodityMatch = selectedCommodity === 'All' || (record.commodity || '').toLowerCase().includes(selectedCommodity.toLowerCase());
       return marketMatch && commodityMatch;
     });
   }, [data, selectedMarket, selectedCommodity]);
