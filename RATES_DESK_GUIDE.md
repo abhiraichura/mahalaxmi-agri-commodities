@@ -1,5 +1,15 @@
 # Rates Desk guide (live rates message, phone notifications, one-tap WhatsApp)
 
+## Update 7: the Quick Outlook is now Hinglish (read this first)
+
+The text under each commodity in **QUICK OUTLOOK** is now **mostly Hindi with the everyday English words traders use** (market, open, close, level, support, trend, buying, selling, pressure, profit booking, range, volatility, expiry, rollover, settlement, demand, supply, stock, export, weather, season). It is no longer textbook Hindi. Month names stay in Hindi ("नवंबर contract"). Example:
+
+> कल के close के पास open होने के बाद जीरा के भाव धीरे-धीरे ऊपर सरके हैं। अक्टूबर contract expiry के करीब है (5 दिन शेष), इसलिए traders की नजर सौदे settle करने या आगे बढ़ाने पर रहती है।
+
+Everything else from Update 6 is unchanged (3 or 4 sentences, different for every update of the day, nothing about the previous update, no buy/sell advice, no targets, one-star headings, movement line without "(vs ...)"). On average about 1 word in 6 is English, never more than about 1 in 4 in a paragraph. The list of allowed English words is at the top of `server/rates/hindi.js`; tell me if you want more or less English.
+
+Only `server/rates/hindi.js` and `server/rates/message.js` changed for this. Upload them the same way as before, wait for Vercel to show **Ready**, and the next update uses the new wording.
+
 ## Update 6: longer Hindi outlook, one-star headings, cleaner movement line (read this first)
 
 **What changed in the WhatsApp message**
@@ -10,7 +20,7 @@
    - *the two spices against each other*: moving together or in opposite directions;
    - *the contract*: how close it is to expiry, with settlement and roll-over talk when it is within 10 days or is the running month;
    - *general background for the time of the year* (sowing, new-crop arrival, stock, festival and wedding demand). These lines are always worded as "आमतौर पर" (usually) because they are general background, **not today's news**. The app cannot know live news, so it never says things like "export demand rose today".
-   It never gives a buy or sell call, a target or a prediction, and it uses no English letters in the Hindi lines. The first word of each heading (Strong, Weak, Steady) still follows the board's own change against yesterday's close.
+   It never gives a buy or sell call, a target or a prediction, and (from Update 7) the English in the lines is only a short list of everyday market words. The first word of each heading (Strong, Weak, Steady) still follows the board's own change against yesterday's close.
 2. **Headings use one star on each side**, like `*QUICK OUTLOOK*`, which is what WhatsApp needs to make them bold. The doubled stars are gone from every heading, and the invisible double spaces at the ends of the company lines are removed.
 3. **The Movement line has no "(vs 10 AM)"** or any other time. It now reads, for example: `🟩 Jeera +₹40 | 🟥 Dhaniya −₹20`.
 
@@ -113,7 +123,7 @@ I will **not** build anything that tries to get past that check (for example a h
 
 A new page called **Rates Desk** (left menu, below Products). It does the job your Grok automation does, inside your own app:
 
-1. **Builds the rates message** in exactly your Grok format: Jeera and Dhaniya (nearest expiry) with LTP, change, change % and OI, 🟩 🟥 ➖ icons, "Movement Since Previous Update", the pure-Hindi Quick Outlook (2-3 sentences per commodity) and your company footer.
+1. **Builds the rates message** in exactly your Grok format: Jeera and Dhaniya (nearest expiry) with LTP, change, change % and OI, 🟩 🟥 ➖ icons, "Movement Since Previous Update", the Hinglish Quick Outlook (3 or 4 sentences per commodity) and your company footer.
 2. **Runs by itself at 10 AM, 12 PM, 2 PM, 4 PM and 5 PM (Indian time, Monday to Friday)** and does nothing outside those times (the same as your "SKIP" rule).
 3. **Sends a notification to your phone** when an update is ready ("📊 2 PM update ready"). Tap it and the message opens in the app, ready to send.
 4. **One-tap WhatsApp**: "Send on WhatsApp" opens WhatsApp with the whole message already typed. "Send to my client lists" hands the message to your existing WhatsApp Broadcast page.
@@ -225,7 +235,7 @@ I could not try the iPhone steps on your phone, so test them once and tell me ex
 - **Contract chosen**: nearest expiry that has not expired (Jeera and Dhaniya; Turmeric can be switched on in **Message settings**). Option rows (CE / PE) are ignored.
 - **Numbers**: LTP, change and change % are checked against each other (previous close + change must equal LTP, change % must match). A number that does not add up is refused, not sent.
 - **Movement Since Previous Update**: compared with the latest earlier scheduled update of the same day (for example 2 PM against 12 PM). The first update of the day has no earlier update, so it shows the change against yesterday's close. The message never says what it is compared with. You can edit these numbers, leave the section out, or go back to automatic on each update (see Update 3 above).
-- **Quick Outlook (Hindi)**: 3 or 4 sentences per commodity, written from fixed Hindi sentences chosen by the board's own numbers (opening against yesterday's close, price against the opening level, size of the day's move, the other spice, days left before expiry, and general background for the time of year). The heading word follows the change against yesterday's close: under 0.10% "Steady", under 0.40% "Mild", more than that "Strong" or "Weak". It does not mention the previous update, never gives a buy or sell call, and the wording is different from update to update. It is not AI-generated, so it cannot make anything up; the time-of-year lines are general background, not live news.
+- **Quick Outlook (Hinglish)**: 3 or 4 sentences per commodity, written from fixed Hindi-with-English-market-words sentences chosen by the board's own numbers (opening against yesterday's close, price against the opening level, size of the day's move, the other spice, days left before expiry, and general background for the time of year). The heading word follows the change against yesterday's close: under 0.10% "Steady", under 0.40% "Mild", more than that "Strong" or "Weak". It does not mention the previous update, never gives a buy or sell call, and the wording is different from update to update. It is not AI-generated, so it cannot make anything up; the time-of-year lines are general background, not live news.
 - **Freshness check**: the app reads the "As on ..." time printed on the NCDEX board. If it is not today, or older than 30 minutes (changeable in Message settings), the update is **not** prepared and you get a "needs you" notification instead.
 
 ## Sending on WhatsApp

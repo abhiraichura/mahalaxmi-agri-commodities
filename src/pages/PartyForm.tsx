@@ -3,8 +3,9 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Party, ContactPerson } from '../types';
-import { ArrowLeft, Plus, Trash2, X, ChevronDown, Check, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, X, ChevronDown, Check, AlertTriangle, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { Page, Button, Badge, Sheet, Field } from '../ui';
 
 const emptyContact: ContactPerson = {
   id: '',
@@ -243,273 +244,248 @@ export default function PartyForm() {
     .map(pid => products.find(p => p.id === pid)?.name)
     .filter(Boolean);
 
+  const card = 'card p-4 lg:p-5 space-y-4';
+  const lbl = 'block text-sm font-medium text-gray-700 mb-1';
+  const chipX = 'inline-flex items-center justify-center w-11 h-11 -my-2 -mr-1 rounded-full text-gray-400 hover:text-red-600';
+  const optionBase = 'w-full px-4 py-2.5 min-h-[44px] text-left text-sm flex items-center justify-between hover:bg-gray-50';
+
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      <div className="max-w-3xl mx-auto px-4 py-6">
-        <button
-          onClick={() => navigate('/parties/directory')}
-          className="flex items-center gap-2 text-gray-600 hover:text-rose-600 mb-4 transition-colors"
-        >
-          <ArrowLeft size={18} />
-          Back to Parties
-        </button>
+    <Page title={id ? 'Edit Party' : 'Add New Party'} back="/parties/directory" width="narrow">
+      <form onSubmit={handleInitialSubmit} className="space-y-4">
+        <section className={card} aria-label="Basic Information">
+          <h2 className="section-label">Basic Information</h2>
 
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">
-          {id ? 'Edit Party' : 'Add New Party'}
-        </h1>
+          <Field label={<>Legal Name <span className="text-rose-600">*</span></>}>
+            <input
+              type="text"
+              value={form.legalName || ''}
+              onChange={e => setForm({ ...form, legalName: e.target.value })}
+              placeholder="Legal Name"
+              required
+              className="input-field"
+            />
+          </Field>
 
-        <form onSubmit={handleInitialSubmit} className="space-y-6">
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-800">Basic Information</h2>
+          <Field label="Display Name">
+            <input
+              type="text"
+              value={form.name || ''}
+              onChange={e => setForm({ ...form, name: e.target.value })}
+              placeholder="Display Name (if different from legal name)"
+              className="input-field"
+            />
+          </Field>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Legal Name *</label>
+          <Field label="Contact Person" hint="This is for your directory only, not shown on contracts">
+            <input
+              type="text"
+              value={form.contactPerson || ''}
+              onChange={e => setForm({ ...form, contactPerson: e.target.value })}
+              placeholder="Primary contact person name"
+              className="input-field"
+            />
+          </Field>
+
+          <div>
+            <span className={lbl}>GSTIN (optional)</span>
+            <div className="flex gap-2">
               <input
                 type="text"
-                value={form.legalName || ''}
-                onChange={e => setForm({ ...form, legalName: e.target.value })}
-                placeholder="Legal Name"
-                required
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                value={form.gstin || ''}
+                onChange={e => {
+                  setForm({ ...form, gstin: e.target.value.toUpperCase() });
+                  setGstVerified(false);
+                }}
+                maxLength={15}
+                placeholder="GSTIN (optional)"
+                aria-label="GSTIN"
+                className="input-field flex-1 min-w-0 uppercase"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
-              <input
-                type="text"
-                value={form.name || ''}
-                onChange={e => setForm({ ...form, name: e.target.value })}
-                placeholder="Display Name (if different from legal name)"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
-              <input
-                type="text"
-                value={form.contactPerson || ''}
-                onChange={e => setForm({ ...form, contactPerson: e.target.value })}
-                placeholder="Primary contact person name"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-              />
-              <p className="text-xs text-gray-500 mt-1">This is for your directory only, not shown on contracts</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">GSTIN (optional)</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={form.gstin || ''}
-                  onChange={e => {
-                    setForm({ ...form, gstin: e.target.value.toUpperCase() });
-                    setGstVerified(false);
-                  }}
-                  maxLength={15}
-                  placeholder="GSTIN (optional)"
-                  className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm uppercase"
-                />
-                {form.gstin && form.gstin.length === 15 && (
-                  <button
-                    type="button"
-                    onClick={() => setGstVerified(true)}
-                    className="px-4 py-2 bg-rose-50 text-rose-600 rounded-xl text-sm font-medium hover:bg-rose-100"
-                  >
-                    Verify
-                  </button>
-                )}
-              </div>
-              {gstVerified && (
-                <span className="text-xs text-green-600 mt-1 block">GST Verified</span>
+              {form.gstin && form.gstin.length === 15 && (
+                <Button variant="soft" onClick={() => setGstVerified(true)}>Verify</Button>
               )}
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                <input
-                  type="text"
-                  value={form.phone || ''}
-                  onChange={e => setForm({ ...form, phone: e.target.value })}
-                  placeholder="Primary phone"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={form.email || ''}
-                  onChange={e => setForm({ ...form, email: e.target.value })}
-                  placeholder="Primary email"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-                />
-              </div>
-            </div>
+            {gstVerified && (
+              <span className="text-xs text-emerald-700 mt-1 block">GST Verified</span>
+            )}
           </div>
 
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-800">Alternate Contacts</h2>
-              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">Directory Only</span>
-            </div>
-            <p className="text-xs text-gray-500">These details are strictly for your internal directory. Never shown on contracts or bills.</p>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Alternate Phone Numbers</label>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  value={altPhoneInput}
-                  onChange={e => setAltPhoneInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addAltPhone())}
-                  placeholder="Add alternate phone"
-                  className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={addAltPhone}
-                  className="px-3 py-2 bg-gray-100 rounded-xl hover:bg-gray-200"
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(form.alternatePhones || []).map(phone => (
-                  <span key={phone} className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm">
-                    {phone}
-                    <button type="button" onClick={() => removeAltPhone(phone)} className="text-gray-400 hover:text-red-500">
-                      <X size={14} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Alternate Emails</label>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="email"
-                  value={altEmailInput}
-                  onChange={e => setAltEmailInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addAltEmail())}
-                  placeholder="Add alternate email"
-                  className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={addAltEmail}
-                  className="px-3 py-2 bg-gray-100 rounded-xl hover:bg-gray-200"
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(form.alternateEmails || []).map(email => (
-                  <span key={email} className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm">
-                    {email}
-                    <button type="button" onClick={() => removeAltEmail(email)} className="text-gray-400 hover:text-red-500">
-                      <X size={14} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">Other Contact Persons</label>
-                <button
-                  type="button"
-                  onClick={addOtherContact}
-                  className="flex items-center gap-1 text-sm text-rose-600 hover:text-rose-700"
-                >
-                  <Plus size={16} /> Add Person
-                </button>
-              </div>
-              <div className="space-y-3">
-                {otherContacts.map((contact, idx) => (
-                  <div key={contact.id} className="grid grid-cols-12 gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                    <div className="col-span-3">
-                      <input
-                        type="text"
-                        value={contact.name}
-                        onChange={e => updateOtherContact(idx, 'name', e.target.value)}
-                        placeholder="Name"
-                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
-                      />
-                    </div>
-                    <div className="col-span-3">
-                      <input
-                        type="text"
-                        value={contact.role}
-                        onChange={e => updateOtherContact(idx, 'role', e.target.value)}
-                        placeholder="Role (e.g. Manager)"
-                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
-                      />
-                    </div>
-                    <div className="col-span-3">
-                      <input
-                        type="text"
-                        value={contact.phone}
-                        onChange={e => updateOtherContact(idx, 'phone', e.target.value)}
-                        placeholder="Phone"
-                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <input
-                        type="email"
-                        value={contact.email}
-                        onChange={e => updateOtherContact(idx, 'email', e.target.value)}
-                        placeholder="Email"
-                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
-                      />
-                    </div>
-                    <div className="col-span-1 flex items-center justify-end">
-                      <button
-                        type="button"
-                        onClick={() => removeOtherContact(idx)}
-                        className="p-1 text-gray-400 hover:text-red-500"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-800">Address</h2>
-            <div>
-              <textarea
-                value={form.address || ''}
-                onChange={e => setForm({ ...form, address: e.target.value })}
-                placeholder="Full Address"
-                rows={3}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none"
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:gap-4">
+            <Field label="Phone">
+              <input
+                type="text"
+                value={form.phone || ''}
+                onChange={e => setForm({ ...form, phone: e.target.value })}
+                placeholder="Primary phone"
+                inputMode="tel"
+                className="input-field"
               />
+            </Field>
+            <Field label="Email">
+              <input
+                type="email"
+                value={form.email || ''}
+                onChange={e => setForm({ ...form, email: e.target.value })}
+                placeholder="Primary email"
+                className="input-field"
+              />
+            </Field>
+          </div>
+        </section>
+
+        <section className={card} aria-label="Alternate Contacts">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="section-label">Alternate Contacts</h2>
+              <Badge tone="amber">Directory Only</Badge>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <p className="mt-1.5 text-xs text-gray-500">These details are strictly for your internal directory. Never shown on contracts or bills.</p>
+          </div>
+
+          <div>
+            <span className={lbl}>Alternate Phone Numbers</span>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={altPhoneInput}
+                onChange={e => setAltPhoneInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addAltPhone())}
+                placeholder="Add alternate phone"
+                aria-label="Alternate phone number"
+                inputMode="tel"
+                className="input-field flex-1 min-w-0"
+              />
+              <Button variant="secondary" className="px-3.5" onClick={addAltPhone} aria-label="Add alternate phone" icon={<Plus size={18} />} />
+            </div>
+            <div className="flex flex-wrap gap-x-2 gap-y-3">
+              {(form.alternatePhones || []).map(phone => (
+                <span key={phone} className="inline-flex items-center gap-1 pl-3 pr-1 py-1.5 bg-gray-100 rounded-full text-sm">
+                  {phone}
+                  <button type="button" onClick={() => removeAltPhone(phone)} aria-label={`Remove ${phone}`} className={chipX}>
+                    <X size={14} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <span className={lbl}>Alternate Emails</span>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="email"
+                value={altEmailInput}
+                onChange={e => setAltEmailInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addAltEmail())}
+                placeholder="Add alternate email"
+                aria-label="Alternate email"
+                className="input-field flex-1 min-w-0"
+              />
+              <Button variant="secondary" className="px-3.5" onClick={addAltEmail} aria-label="Add alternate email" icon={<Plus size={18} />} />
+            </div>
+            <div className="flex flex-wrap gap-x-2 gap-y-3">
+              {(form.alternateEmails || []).map(email => (
+                <span key={email} className="inline-flex items-center gap-1 pl-3 pr-1 py-1.5 bg-gray-100 rounded-full text-sm max-w-full">
+                  <span className="truncate">{email}</span>
+                  <button type="button" onClick={() => removeAltEmail(email)} aria-label={`Remove ${email}`} className={`${chipX} shrink-0`}>
+                    <X size={14} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-sm font-medium text-gray-700">Other Contact Persons</span>
+              <Button variant="soft" onClick={addOtherContact} icon={<Plus size={16} />}>Add Person</Button>
+            </div>
+            <div className="space-y-3">
+              {otherContacts.map((contact, idx) => (
+                <div key={contact.id} className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="section-label">Person {idx + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeOtherContact(idx)}
+                      aria-label={`Remove contact person ${idx + 1}`}
+                      className="inline-flex items-center justify-center w-11 h-11 -my-2 -mr-2 rounded-full text-gray-400 hover:text-red-600"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <input
+                      type="text"
+                      value={contact.name}
+                      onChange={e => updateOtherContact(idx, 'name', e.target.value)}
+                      placeholder="Name"
+                      aria-label={`Contact person ${idx + 1} name`}
+                      className="input-field"
+                    />
+                    <input
+                      type="text"
+                      value={contact.role}
+                      onChange={e => updateOtherContact(idx, 'role', e.target.value)}
+                      placeholder="Role (e.g. Manager)"
+                      aria-label={`Contact person ${idx + 1} role`}
+                      className="input-field"
+                    />
+                    <input
+                      type="text"
+                      value={contact.phone}
+                      onChange={e => updateOtherContact(idx, 'phone', e.target.value)}
+                      placeholder="Phone"
+                      aria-label={`Contact person ${idx + 1} phone`}
+                      inputMode="tel"
+                      className="input-field"
+                    />
+                    <input
+                      type="email"
+                      value={contact.email}
+                      onChange={e => updateOtherContact(idx, 'email', e.target.value)}
+                      placeholder="Email"
+                      aria-label={`Contact person ${idx + 1} email`}
+                      className="input-field"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className={card} aria-label="Address">
+          <h2 className="section-label">Address</h2>
+          <Field label="Full Address">
+            <textarea
+              value={form.address || ''}
+              onChange={e => setForm({ ...form, address: e.target.value })}
+              placeholder="Full Address"
+              rows={3}
+              className="input-field resize-none"
+            />
+          </Field>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 lg:gap-4">
+            <Field label="City">
               <input
                 type="text"
                 value={form.city || ''}
                 onChange={e => setForm({ ...form, city: e.target.value })}
                 placeholder="City"
-                className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="input-field"
               />
+            </Field>
+            <Field label="State">
               <input
                 type="text"
                 value={form.state || ''}
                 onChange={e => setForm({ ...form, state: e.target.value })}
                 placeholder="State"
-                className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="input-field"
               />
+            </Field>
+            <Field label="Pincode" className="col-span-2 sm:col-span-1">
               <div className="relative">
                 <input
                   type="text"
@@ -517,165 +493,154 @@ export default function PartyForm() {
                   onChange={e => handlePincodeChange(e.target.value)}
                   maxLength={6}
                   placeholder="Pincode"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                  inputMode="numeric"
+                  className="input-field"
                 />
                 {pincodeLoading && (
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">Looking up...</span>
                 )}
               </div>
+            </Field>
+          </div>
+        </section>
+
+        <section className={card} aria-label="Products They Trade">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="section-label">Products They Trade</h2>
+              <Badge tone="amber">Directory Only</Badge>
             </div>
+            <p className="mt-1.5 text-xs text-gray-500">Select products this party deals in. For your directory search only. Not shown on contracts.</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-800">Products They Trade</h2>
-              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">Directory Only</span>
-            </div>
-            <p className="text-xs text-gray-500">Select products this party deals in. For your directory search only. Not shown on contracts.</p>
-
-            <div className="relative" ref={productDropdownRef}>
-              <button
-                type="button"
-                onClick={() => setProductDropdownOpen(!productDropdownOpen)}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between"
-              >
-                <span className={selectedProductNames.length ? 'text-gray-900' : 'text-gray-400'}>
-                  {selectedProductNames.length ? selectedProductNames.join(', ') : 'Select products...'}
-                </span>
-                <ChevronDown size={16} className={`transition-transform ${productDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {productDropdownOpen && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto">
-                  {sortedProducts.length === 0 ? (
-                    <div className="px-4 py-3 text-sm text-gray-500">No products available</div>
-                  ) : (
-                    sortedProducts.map(product => {
-                      const isSelected = (form.productIds || []).includes(product.id);
-                      return (
-                        <button
-                          key={product.id}
-                          type="button"
-                          onClick={() => toggleProduct(product.id)}
-                          className={`w-full px-4 py-2.5 text-left text-sm flex items-center gap-2 hover:bg-gray-50 ${isSelected ? 'bg-rose-50 text-rose-700' : ''}`}
-                        >
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center ${isSelected ? 'bg-rose-600 border-rose-600' : 'border-gray-300'}`}>
-                            {isSelected && <Check size={12} className="text-white" />}
-                          </div>
-                          {product.name}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-800">Other Details</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Party Type</label>
-                <div className="relative" ref={typeDropdownRef}>
-                  <button
-                    type="button"
-                    onClick={() => setTypeDropdownOpen(!typeDropdownOpen)}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between"
-                  >
-                    <span className="text-gray-900">
-                      {form.type === 'both' ? 'Both Buyer & Seller' : form.type === 'buyer' ? 'Buyer Only' : 'Seller Only'}
-                    </span>
-                    <ChevronDown size={16} className={`transition-transform ${typeDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {typeDropdownOpen && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg py-1 overflow-hidden">
-                      <button type="button" onClick={() => { setForm({...form, type: 'both'}); setTypeDropdownOpen(false); }} className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${form.type === 'both' ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}>
-                        Both Buyer & Seller {form.type === 'both' && <Check size={14} className="text-rose-600" />}
-                      </button>
-                      <button type="button" onClick={() => { setForm({...form, type: 'buyer'}); setTypeDropdownOpen(false); }} className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${form.type === 'buyer' ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}>
-                        Buyer Only {form.type === 'buyer' && <Check size={14} className="text-rose-600" />}
-                      </button>
-                      <button type="button" onClick={() => { setForm({...form, type: 'seller'}); setTypeDropdownOpen(false); }} className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${form.type === 'seller' ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}>
-                        Seller Only {form.type === 'seller' && <Check size={14} className="text-rose-600" />}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">PAN</label>
-                <input
-                  type="text"
-                  value={form.pan || ''}
-                  onChange={e => setForm({ ...form, pan: e.target.value.toUpperCase() })}
-                  placeholder="PAN Number"
-                  maxLength={10}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm uppercase"
-                />
-              </div>
-            </div>
-            
-            <div className="pt-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Internal Party Notes (Optional)</label>
-              <textarea
-                value={form.notes || ''}
-                onChange={e => setForm({ ...form, notes: e.target.value })}
-                placeholder="Add private notes to remember details about this party..."
-                rows={3}
-                className="w-full px-4 py-3 bg-rose-50/50 border border-rose-100 rounded-xl text-sm resize-none focus:bg-white focus:ring-1 focus:ring-rose-300"
-              />
-              <p className="text-xs text-gray-500 mt-1">These notes are completely private and only visible in your directory view.</p>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
+          <div className="relative" ref={productDropdownRef}>
             <button
               type="button"
-              onClick={() => navigate('/parties/directory')}
-              className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+              onClick={() => setProductDropdownOpen(!productDropdownOpen)}
+              aria-label="Select products"
+              aria-expanded={productDropdownOpen}
+              className="input-field flex items-center justify-between gap-2 text-left"
             >
-              Cancel
+              <span className={`truncate ${selectedProductNames.length ? 'text-gray-900' : 'text-gray-400'}`}>
+                {selectedProductNames.length ? selectedProductNames.join(', ') : 'Select products...'}
+              </span>
+              <ChevronDown size={16} className={`shrink-0 text-gray-400 transition-transform ${productDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
-            <button
-              type="submit"
-              className="flex-1 px-6 py-3 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 transition-colors"
-            >
-              {id ? 'Update Party' : 'Add Party'}
-            </button>
-          </div>
-        </form>
 
-        {/* Duplicate Warning Modal */}
-        {duplicateWarning && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-xl">
-              <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle size={32} className="text-amber-500" />
+            {productDropdownOpen && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto">
+                {sortedProducts.length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-gray-500">No products available</div>
+                ) : (
+                  sortedProducts.map(product => {
+                    const isSelected = (form.productIds || []).includes(product.id);
+                    return (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() => toggleProduct(product.id)}
+                        className={`${optionBase} !justify-start gap-2 ${isSelected ? 'bg-rose-50 text-rose-700' : ''}`}
+                      >
+                        <div className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center ${isSelected ? 'bg-rose-600 border-rose-600' : 'border-gray-300'}`}>
+                          {isSelected && <Check size={12} className="text-white" />}
+                        </div>
+                        {product.name}
+                      </button>
+                    );
+                  })
+                )}
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Duplicate Found</h3>
-              <p className="text-gray-600 mb-6">
-                This {duplicateWarning.reason} already exists with <strong>{duplicateWarning.matchedName}</strong>. Are you sure you want to proceed?
-              </p>
-              <div className="flex flex-col gap-3 sm:flex-row">
+            )}
+          </div>
+        </section>
+
+        <section className={card} aria-label="Other Details">
+          <h2 className="section-label">Other Details</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:gap-4">
+            <div>
+              <span className={lbl}>Party Type</span>
+              <div className="relative" ref={typeDropdownRef}>
                 <button
-                  onClick={() => setDuplicateWarning(null)}
-                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                  type="button"
+                  onClick={() => setTypeDropdownOpen(!typeDropdownOpen)}
+                  aria-label="Party type"
+                  aria-expanded={typeDropdownOpen}
+                  className="input-field flex items-center justify-between text-left"
                 >
-                  Cancel / Edit
+                  <span className="text-gray-900">
+                    {form.type === 'both' ? 'Both Buyer & Seller' : form.type === 'buyer' ? 'Buyer Only' : 'Seller Only'}
+                  </span>
+                  <ChevronDown size={16} className={`shrink-0 text-gray-400 transition-transform ${typeDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
-                <button
-                  onClick={executeSave}
-                  className="flex-1 px-4 py-2.5 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 transition-colors"
-                >
-                  {id ? 'Update Anyhow' : 'Create New Party Anyhow'}
-                </button>
+
+                {typeDropdownOpen && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg py-1 overflow-hidden">
+                    <button type="button" onClick={() => { setForm({...form, type: 'both'}); setTypeDropdownOpen(false); }} className={`${optionBase} ${form.type === 'both' ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}>
+                      Both Buyer & Seller {form.type === 'both' && <Check size={14} className="text-rose-600" />}
+                    </button>
+                    <button type="button" onClick={() => { setForm({...form, type: 'buyer'}); setTypeDropdownOpen(false); }} className={`${optionBase} ${form.type === 'buyer' ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}>
+                      Buyer Only {form.type === 'buyer' && <Check size={14} className="text-rose-600" />}
+                    </button>
+                    <button type="button" onClick={() => { setForm({...form, type: 'seller'}); setTypeDropdownOpen(false); }} className={`${optionBase} ${form.type === 'seller' ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}>
+                      Seller Only {form.type === 'seller' && <Check size={14} className="text-rose-600" />}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
+            <Field label="PAN">
+              <input
+                type="text"
+                value={form.pan || ''}
+                onChange={e => setForm({ ...form, pan: e.target.value.toUpperCase() })}
+                placeholder="PAN Number"
+                maxLength={10}
+                className="input-field uppercase"
+              />
+            </Field>
+          </div>
+
+          <Field label="Internal Party Notes (Optional)" hint="These notes are completely private and only visible in your directory view.">
+            <textarea
+              value={form.notes || ''}
+              onChange={e => setForm({ ...form, notes: e.target.value })}
+              placeholder="Add private notes to remember details about this party..."
+              rows={3}
+              className="input-field resize-none"
+            />
+          </Field>
+        </section>
+
+        {/* Save bar: always in reach, never hidden behind the tabs */}
+        <div className="sticky bottom-0 z-20 -mx-4 lg:mx-0 px-4 lg:px-0 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-slate-50 via-slate-50 to-slate-50/0 flex gap-3">
+          <Button variant="secondary" className="flex-1 lg:flex-none lg:px-6" onClick={() => navigate('/parties/directory')}>Cancel</Button>
+          <Button type="submit" variant="primary" className="flex-[2] lg:flex-none lg:px-8" icon={<Save size={16} />}>{id ? 'Update Party' : 'Add Party'}</Button>
+        </div>
+      </form>
+
+      {/* Duplicate Warning Sheet */}
+      <Sheet
+        open={!!duplicateWarning}
+        onClose={() => setDuplicateWarning(null)}
+        title="Duplicate Found"
+        footer={
+          <div className="flex flex-col-reverse gap-3 sm:flex-row">
+            <Button variant="secondary" className="flex-1" onClick={() => setDuplicateWarning(null)}>Cancel / Edit</Button>
+            <Button variant="primary" className="flex-1" onClick={executeSave}>{id ? 'Update Anyhow' : 'Create New Party Anyhow'}</Button>
+          </div>
+        }
+      >
+        {duplicateWarning && (
+          <div className="flex items-start gap-3 pb-2">
+            <span className="w-10 h-10 shrink-0 bg-amber-50 rounded-full flex items-center justify-center">
+              <AlertTriangle size={20} className="text-amber-500" />
+            </span>
+            <p className="text-sm text-gray-600 pt-2">
+              This {duplicateWarning.reason} already exists with <strong>{duplicateWarning.matchedName}</strong>. Are you sure you want to proceed?
+            </p>
           </div>
         )}
-      </div>
-    </div>
+      </Sheet>
+    </Page>
   );
 }

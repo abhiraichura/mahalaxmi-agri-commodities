@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { db } from '../utils/firebase';
 import { useAppStore } from '../hooks/useAuthStore';
+import { Page } from '../ui';
 import { ratesCall, type RateUpdate } from '../rates/api';
 import {
   partyPhones, personalize, generic, usesFields, istStamp, messageKey, buildVcf, chunk, fileSafe, type PartyPhones,
@@ -550,7 +551,7 @@ export default function WhatsAppBroadcast() {
   if (isLoading) {
     return (
       <div className="p-6 flex flex-col items-center justify-center min-h-[400px] text-gray-500">
-        <svg className="animate-spin h-8 w-8 mb-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <svg className="animate-spin h-8 w-8 mb-4 text-rose-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
@@ -563,11 +564,11 @@ export default function WhatsAppBroadcast() {
   const pct = ready.length ? Math.round((doneCount / ready.length) * 100) : 0;
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-6 w-fit">
+    <Page title="WhatsApp broadcast" subtitle="Send one message to a whole list, one tap per person" width="wide">
+      <div className="flex space-x-1 bg-gray-200/70 p-1 rounded-xl mb-5 w-fit max-w-full">
         {(['broadcast', 'manage'] as const).map(t => (
           <button key={t} onClick={() => setActiveTab(t)}
-            className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${activeTab === t ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:bg-gray-200'}`}>
+            className={`px-5 sm:px-6 min-h-[44px] rounded-lg text-sm font-medium transition-all ${activeTab === t ? 'bg-white shadow text-rose-700' : 'text-gray-600 hover:bg-gray-200'}`}>
             {t === 'broadcast' ? 'Broadcast Message' : 'Manage Lists'}
           </button>
         ))}
@@ -579,7 +580,7 @@ export default function WhatsAppBroadcast() {
           <div className="w-full lg:w-5/12 space-y-4">
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
               <label className="block text-sm font-bold text-gray-700 mb-2" htmlFor="wa-list">Select List</label>
-              <select id="wa-list" className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              <select id="wa-list" className="w-full p-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500"
                 value={selectedListId} onChange={(e) => setSelectedListId(e.target.value)}>
                 <option value="" disabled>-- Choose a List --</option>
                 {lists.map(l => <option key={l.id} value={l.id}>{l.name} ({l.memberIds.length} members)</option>)}
@@ -629,7 +630,7 @@ export default function WhatsAppBroadcast() {
                 </div>
               )}
 
-              <textarea id="wa-message" className="w-full h-36 sm:h-48 p-3 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+              <textarea id="wa-message" className="w-full h-36 sm:h-48 p-3 border border-gray-300 rounded-md text-sm focus:ring-rose-500 focus:border-rose-500"
                 placeholder="Paste or type your broadcast message here..." value={message} onChange={(e) => setMessage(e.target.value)} />
               <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
                 <span>Add:</span>
@@ -646,7 +647,7 @@ export default function WhatsAppBroadcast() {
             <div className="grid grid-cols-3 gap-1 bg-gray-100 p-1 rounded-lg" role="tablist" aria-label="How to send">
               {([['queue', 'One by one', Send], ['list', 'Broadcast list', Users], ['channel', 'Channel', Rss]] as const).map(([m, label, Icon]) => (
                 <button key={m} role="tab" aria-selected={prefs.mode === m} onClick={() => updatePrefs({ mode: m })}
-                  className={`px-2 py-2 rounded-md text-xs sm:text-sm font-medium inline-flex items-center justify-center gap-1.5 transition-all ${prefs.mode === m ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:bg-gray-200'}`}>
+                  className={`px-2 py-2 rounded-md text-xs sm:text-sm font-medium inline-flex items-center justify-center gap-1.5 transition-all ${prefs.mode === m ? 'bg-white shadow text-rose-700' : 'text-gray-600 hover:bg-gray-200'}`}>
                   <Icon size={14} /> {label}
                 </button>
               ))}
@@ -701,7 +702,7 @@ export default function WhatsAppBroadcast() {
                       {lastDone && (
                         <div className="mt-2 flex items-center justify-between gap-2 text-xs rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
                           <span className="text-gray-700">Ticked <b>{lastDone.name}</b> as sent.</span>
-                          <button onClick={undoLast} className="inline-flex items-center gap-1 font-medium text-blue-700"><Undo2 size={13} /> Not sent? Undo</button>
+                          <button onClick={undoLast} className="inline-flex items-center gap-1 font-medium text-rose-700"><Undo2 size={13} /> Not sent? Undo</button>
                         </div>
                       )}
                     </>
@@ -761,14 +762,14 @@ export default function WhatsAppBroadcast() {
             {prefs.mode === 'list' && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-4">
                 <div>
-                  <h2 className="text-base font-bold text-gray-800 flex items-center gap-2"><Users size={18} className="text-blue-600" /> WhatsApp Broadcast list: one paste, everyone gets it</h2>
+                  <h2 className="text-base font-bold text-gray-800 flex items-center gap-2"><Users size={18} className="text-rose-700" /> WhatsApp Broadcast list: one paste, everyone gets it</h2>
                   <p className="text-sm text-gray-600 mt-1">This is WhatsApp's own broadcast feature (free, no Business account). You set it up once; after that every update is a single message. Each client receives it as a normal private message from you, and replies come to you privately. A list holds up to {LIST_LIMIT} clients.</p>
                   <p className="mt-2 text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-900 p-2.5"><b>Important:</b> WhatsApp delivers a broadcast only to clients who have <b>your number saved</b> in their phone. Step 1 below helps with that.</p>
                 </div>
 
                 <ol className="space-y-4 text-sm">
                   <li className="flex gap-3">
-                    <span className="shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-rose-700 text-white text-xs font-bold flex items-center justify-center">1</span>
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-gray-800">Ask clients to save your number (once)</p>
                       <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -781,7 +782,7 @@ export default function WhatsAppBroadcast() {
                   </li>
 
                   <li className="flex gap-3">
-                    <span className="shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">2</span>
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-rose-700 text-white text-xs font-bold flex items-center justify-center">2</span>
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-gray-800">Save the clients in your phone (once, only if they are not saved yet)</p>
                       {!activeList || ready.length === 0 ? <p className="text-xs text-gray-500 mt-1">Choose a list with clients first.</p> : (
@@ -801,7 +802,7 @@ export default function WhatsAppBroadcast() {
                   </li>
 
                   <li className="flex gap-3">
-                    <span className="shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">3</span>
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-rose-700 text-white text-xs font-bold flex items-center justify-center">3</span>
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-gray-800">Make the broadcast list in WhatsApp (once per part)</p>
                       <ul className="mt-1 text-xs text-gray-600 list-disc ml-4 space-y-0.5">
@@ -811,7 +812,7 @@ export default function WhatsAppBroadcast() {
                       </ul>
                       {activeList && parts.length > 0 && (
                         <details className="mt-2 text-xs">
-                          <summary className="cursor-pointer text-blue-700">Show the client names to tick</summary>
+                          <summary className="cursor-pointer text-rose-700">Show the client names to tick</summary>
                           <div className="mt-1 columns-1 sm:columns-2 gap-4 max-h-48 overflow-y-auto text-gray-700">
                             {ready.map(m => <p key={m.id} className="truncate">{m.name}</p>)}
                           </div>
@@ -843,13 +844,13 @@ export default function WhatsAppBroadcast() {
             {prefs.mode === 'channel' && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-4">
                 <div>
-                  <h2 className="text-base font-bold text-gray-800 flex items-center gap-2"><Rss size={18} className="text-blue-600" /> WhatsApp Channel: post once, all followers see it</h2>
+                  <h2 className="text-base font-bold text-gray-800 flex items-center gap-2"><Rss size={18} className="text-rose-700" /> WhatsApp Channel: post once, all followers see it</h2>
                   <p className="text-sm text-gray-600 mt-1">A free one-way feed inside WhatsApp (no Business account). Clients follow it once with a link. They do not need your number saved, and you do not see theirs. There is no limit on followers.</p>
                   <p className="mt-2 text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-900 p-2.5">Channel posts are visible to every follower and can be forwarded, and old posts disappear after 30 days. Good for public rate updates, not for private prices.</p>
                 </div>
                 <ol className="space-y-4 text-sm">
                   <li className="flex gap-3">
-                    <span className="shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-rose-700 text-white text-xs font-bold flex items-center justify-center">1</span>
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-gray-800">Create the channel in WhatsApp (once)</p>
                       <p className="text-xs text-gray-600 mt-1">WhatsApp, <b>Updates</b> tab, <b>+</b>, <b>New channel</b>. Then open the channel, tap its name, and <b>Share link</b>. Paste the link here:</p>
@@ -858,7 +859,7 @@ export default function WhatsAppBroadcast() {
                     </div>
                   </li>
                   <li className="flex gap-3">
-                    <span className="shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">2</span>
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-rose-700 text-white text-xs font-bold flex items-center justify-center">2</span>
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-gray-800">Invite your clients (once)</p>
                       <button onClick={putInviteMessage} className="mt-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-gray-800 hover:bg-gray-50 text-sm"><Megaphone size={15} /> Put the invite message in the box</button>
@@ -908,18 +909,18 @@ export default function WhatsAppBroadcast() {
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
               <h2 className="text-lg font-bold mb-4 text-gray-800">Your Lists</h2>
               <form onSubmit={handleCreateList} className="flex gap-2 mb-6">
-                <input type="text" placeholder="New list name..." aria-label="New list name" className="flex-1 min-w-0 p-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500" value={newListName} onChange={(e) => setNewListName(e.target.value)} />
-                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700">Add</button>
+                <input type="text" placeholder="New list name..." aria-label="New list name" className="flex-1 min-w-0 p-2 border border-gray-300 rounded-md text-sm focus:ring-rose-500 focus:border-rose-500" value={newListName} onChange={(e) => setNewListName(e.target.value)} />
+                <button type="submit" className="bg-rose-700 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-rose-800">Add</button>
               </form>
               {lists.length === 0 ? <p className="text-sm text-gray-500 italic">No lists created yet.</p> : (
                 <div className="space-y-2">
                   {lists.map(list => {
                     const readyN = list.memberIds.filter(id => phonesById.get(id)?.ph.best).length;
                     return (
-                      <div key={list.id} className={`flex justify-between items-center gap-2 p-3 rounded-md cursor-pointer transition-colors border ${editingListId === list.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`} onClick={() => setEditingListId(list.id)}>
+                      <div key={list.id} className={`flex justify-between items-center gap-2 p-3 rounded-md cursor-pointer transition-colors border ${editingListId === list.id ? 'border-rose-500 bg-rose-50' : 'border-gray-200 hover:bg-gray-50'}`} onClick={() => setEditingListId(list.id)}>
                         <div className="min-w-0">
                           {renamingId === list.id ? (
-                            <input autoFocus value={renameValue} aria-label="Rename list" onClick={e => e.stopPropagation()} onChange={e => setRenameValue(e.target.value)} onBlur={finishRename} onKeyDown={e => { if (e.key === 'Enter') void finishRename(); if (e.key === 'Escape') setRenamingId(''); }} className="w-full px-2 py-1 border border-blue-400 rounded text-sm" />
+                            <input autoFocus value={renameValue} aria-label="Rename list" onClick={e => e.stopPropagation()} onChange={e => setRenameValue(e.target.value)} onBlur={finishRename} onKeyDown={e => { if (e.key === 'Enter') void finishRename(); if (e.key === 'Escape') setRenamingId(''); }} className="w-full px-2 py-1 border border-rose-400 rounded text-sm" />
                           ) : <span className="font-semibold text-gray-700 block truncate">{list.name}</span>}
                           <div className="text-xs text-gray-500 mt-0.5">{list.memberIds.length} parties · {readyN} with WhatsApp</div>
                         </div>
@@ -941,7 +942,7 @@ export default function WhatsAppBroadcast() {
                 <h2 className="text-lg font-bold text-gray-800">{editingList ? `Add/Remove Parties: ${editingList.name}` : 'Select a list to edit'}</h2>
                 {editingList && (
                   <>
-                    <input type="text" placeholder="Search name, number or city..." aria-label="Search directory" className="p-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 w-full" value={manageSearch} onChange={(e) => setManageSearch(e.target.value)} />
+                    <input type="text" placeholder="Search name, number or city..." aria-label="Search directory" className="p-2 border border-gray-300 rounded-md text-sm focus:ring-rose-500 focus:border-rose-500 w-full" value={manageSearch} onChange={(e) => setManageSearch(e.target.value)} />
                     <div className="flex flex-wrap gap-2 items-center text-xs">
                       <div className="inline-flex rounded-md border border-gray-300 overflow-hidden bg-white">
                         {([['all', 'All'], ['buyer', 'Buyers'], ['seller', 'Sellers'], ['both', 'Both']] as const).map(([k, l]) => (
@@ -955,7 +956,7 @@ export default function WhatsAppBroadcast() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button onClick={addAllShown} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-600 text-white text-xs font-medium hover:bg-blue-700"><Plus size={13} /> Add all {filteredDirectory.length} shown</button>
+                      <button onClick={addAllShown} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-rose-700 text-white text-xs font-medium hover:bg-rose-800"><Plus size={13} /> Add all {filteredDirectory.length} shown</button>
                       <button onClick={removeAllShown} className="px-3 py-1.5 rounded-md border border-gray-300 text-gray-700 text-xs hover:bg-gray-100">Remove all shown</button>
                     </div>
                   </>
@@ -969,8 +970,8 @@ export default function WhatsAppBroadcast() {
                       const isSelected = editingList.memberIds.includes(party.id);
                       const num = party.ph.best;
                       return (
-                        <label key={party.id} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 border-blue-400 shadow-sm' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
-                          <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" checked={isSelected} onChange={() => toggleMemberInList(editingList.id, party.id)} />
+                        <label key={party.id} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-rose-50 border-rose-400 shadow-sm' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+                          <input type="checkbox" className="w-4 h-4 text-rose-700 rounded border-gray-300 focus:ring-rose-500" checked={isSelected} onChange={() => toggleMemberInList(editingList.id, party.id)} />
                           <div className="ml-3 flex flex-col min-w-0">
                             <span className="text-sm font-semibold text-gray-800 truncate">{party.name}</span>
                             <span className="text-xs text-gray-500 truncate">
@@ -991,6 +992,6 @@ export default function WhatsAppBroadcast() {
           </div>
         </div>
       )}
-    </div>
+    </Page>
   );
 }

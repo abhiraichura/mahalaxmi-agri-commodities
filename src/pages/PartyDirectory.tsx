@@ -1,3 +1,4 @@
+// src/pages/PartyDirectory.tsx
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
@@ -5,6 +6,10 @@ import { Party } from '../types';
 import { Search, Plus, Phone, Mail, MapPin, Edit2, Trash2, Download, Upload, X, ChevronRight, ChevronDown, Check, User, Users, AlertTriangle, CheckSquare, FileText, Copy, ClipboardPaste } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ExportPartyModal from '../components/ExportPartyModal';
+import { Page, Button, Badge, Sheet, Segmented, EmptyState } from '../ui';
+
+// A small icon-only button with a 44px tap area that does not make its row taller
+const ICON_BTN = 'inline-flex items-center justify-center w-11 h-11 -my-2 -mr-2 shrink-0 text-gray-400 hover:text-rose-600 rounded-lg transition-colors';
 
 export default function PartyDirectory() {
   const navigate = useNavigate();
@@ -36,6 +41,7 @@ export default function PartyDirectory() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Cancel selection mode cleanly
   const cancelSelectionMode = () => {
     setIsSelectionMode(false);
     setSelectedIds([]);
@@ -43,11 +49,7 @@ export default function PartyDirectory() {
   };
 
   const sortedProducts = useMemo(() => {
-    return [...products].sort((a, b) => {
-      const nameA = a?.name || '';
-      const nameB = b?.name || '';
-      return nameA.localeCompare(nameB);
-    });
+    return [...products].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [products]);
 
   const filtered = useMemo(() => {
@@ -83,15 +85,11 @@ export default function PartyDirectory() {
       return matchesSearch && matchesType && matchesProduct;
     });
 
-    result.sort((a, b) => {
-      const nameA = a?.legalName || a?.name || '';
-      const nameB = b?.legalName || b?.name || '';
-      return nameA.localeCompare(nameB);
-    });
-    
+    result.sort((a, b) => a.legalName.localeCompare(b.legalName));
     return result;
   }, [parties, products, search, filterType, productFilter]);
 
+  // Bulk Selection Logic
   const handleSelectAll = () => {
     if (selectedIds.length === filtered.length) {
       setSelectedIds([]);
@@ -163,13 +161,14 @@ export default function PartyDirectory() {
     }
   };
 
+  // Transform parties data to match specialized ExportPartyModal data mapping schema
   const transformedPartiesForExport = useMemo(() => {
     return parties.map(p => ({
       id: p.id,
       name: p.legalName || p.name,
       type: p.type as 'buyer' | 'seller' | 'both',
       phone: p.phone,
-      contactPerson: p.contactPerson || '',
+      contactPerson: p.contactPerson || '', // Mapped contact person name instead of email
       city: p.city,
       products: (p.productIds || [])
         .map(pid => products.find(prod => prod.id === pid)?.name || '')
@@ -238,573 +237,496 @@ export default function PartyDirectory() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Party Directory</h1>
-            <p className="text-sm text-gray-500 mt-1">{parties.length} parties registered</p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept=".csv"
-              onChange={importCSV}
-              className="hidden"
-            />
-            
-            {/* Selection Mode Toggles */}
-            {isSelectionMode ? (
-              <>
-                <button
-                  onClick={cancelSelectionMode}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors"
-                >
-                  <X size={16} />
-                  Cancel Selection
-                </button>
-                {selectedIds.length > 0 && (
-                  <button
-                    onClick={() => setDeleteStep(1)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700 transition-colors shadow-sm"
-                  >
-                    <Trash2 size={16} />
-                    Delete Selected ({selectedIds.length})
-                  </button>
-                )}
-              </>
-            ) : (
-              <button
-                onClick={() => setIsSelectionMode(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <CheckSquare size={16} />
-                Select Multiple
-              </button>
-            )}
+    <Page
+      title="Party Directory"
+      subtitle={`${parties.length} parties registered`}
+      width="wide"
+      actions={
+        <>
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".csv"
+            onChange={importCSV}
+            className="hidden"
+            aria-label="Import parties from CSV file"
+          />
 
-            {!isSelectionMode && (
-              <>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  <Upload size={16} />
-                  Import
-                </button>
-                <button
-                  onClick={() => setIsExportModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  <Download size={16} />
-                  Export
-                </button>
-                <button
-                  onClick={() => navigate('/parties/new')}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700"
-                >
-                  <Plus size={16} />
-                  Add Party
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+          {/* Selection Mode Toggles */}
+          {isSelectionMode ? (
+            <>
+              <Button variant="secondary" icon={<X size={16} />} onClick={cancelSelectionMode}>Cancel Selection</Button>
+              {selectedIds.length > 0 && (
+                <Button variant="danger" icon={<Trash2 size={16} />} onClick={() => setDeleteStep(1)}>
+                  Delete Selected ({selectedIds.length})
+                </Button>
+              )}
+            </>
+          ) : (
+            <Button variant="secondary" icon={<CheckSquare size={16} />} onClick={() => setIsSelectionMode(true)}>Select Multiple</Button>
+          )}
 
-        {/* Search & Filters */}
-        <div className="bg-white rounded-2xl p-4 border border-gray-200 mb-6 space-y-3">
-          <div className="relative">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search by name, contact person, city, phone, or product..."
-              className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-200 transition-colors"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex flex-col sm:flex-row gap-3 w-full">
-              {/* Type Filter Buttons */}
-              <div className="flex gap-2 flex-wrap">
-                {(['all', 'buyer', 'seller', 'both'] as const).map(type => (
-                  <button
-                    key={type}
-                    onClick={() => setFilterType(type)}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-colors ${
-                      filterType === type 
-                        ? 'bg-rose-600 text-white' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {type === 'all' ? 'All' : type === 'both' ? 'Both' : `${type}s`}
-                  </button>
-                ))}
-              </div>
-
-              {/* Custom Product Filter Dropdown */}
-              <div className="relative w-full sm:max-w-xs" ref={productDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setProductDropdownOpen(!productDropdownOpen)}
-                  className="w-full px-4 py-2.5 h-[36px] sm:h-auto bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between text-left transition-colors hover:bg-gray-100"
-                >
-                  <span className={productFilter !== 'all' ? 'text-gray-900 font-medium truncate pr-2' : 'text-gray-600'}>
-                    {productFilter === 'all' ? 'All Products' : sortedProducts.find(p => p.id === productFilter)?.name}
-                  </span>
-                  <ChevronDown size={16} className={`text-gray-400 transition-transform ${productDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {productDropdownOpen && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto py-1">
-                    <button
-                      onClick={() => { setProductFilter('all'); setProductDropdownOpen(false); }}
-                      className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${productFilter === 'all' ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
-                    >
-                      <span>All Products</span>
-                      {productFilter === 'all' && <Check size={14} className="text-rose-600" />}
-                    </button>
-                    {sortedProducts.map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => { setProductFilter(p.id); setProductDropdownOpen(false); }}
-                        className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${productFilter === p.id ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
-                      >
-                        <span className="truncate pr-2">{p.name}</span>
-                        {productFilter === p.id && <Check size={14} className="text-rose-600 flex-shrink-0" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Conditional Select All Toggle */}
-            {isSelectionMode && filtered.length > 0 && (
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer whitespace-nowrap bg-rose-50 px-3 py-2 rounded-xl border border-rose-200 hover:bg-rose-100 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.length === filtered.length && filtered.length > 0}
-                  onChange={handleSelectAll}
-                  className="w-4 h-4 text-rose-600 rounded border-gray-300 focus:ring-rose-500"
-                />
-                <span className="font-medium text-rose-700">Select All</span>
-              </label>
-            )}
-          </div>
-
+          {!isSelectionMode && (
+            <>
+              <Button variant="secondary" icon={<Upload size={16} />} onClick={() => fileInputRef.current?.click()}>Import</Button>
+              <Button variant="secondary" icon={<Download size={16} />} onClick={() => setIsExportModalOpen(true)}>Export</Button>
+              <Button variant="primary" className="order-first lg:order-last" icon={<Plus size={16} />} onClick={() => navigate('/parties/new')}>Add Party</Button>
+            </>
+          )}
+        </>
+      }
+    >
+      {/* Search & Filters */}
+      <div className="card p-4 mb-4 space-y-3">
+        <div className="relative">
+          <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name, contact person, city, phone, or product..."
+            aria-label="Search parties"
+            className="input-field pl-10 pr-10"
+          />
           {search && (
-            <p className="text-xs text-gray-500">
-              Found {filtered.length} result{filtered.length !== 1 ? 's' : ''} for "{search}"
-            </p>
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 rounded-full"
+            >
+              <X size={16} />
+            </button>
           )}
         </div>
 
-        {filtered.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 border border-gray-200 text-center">
-            <Users size={48} className="mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500">No parties found</p>
-            {search && <p className="text-sm text-gray-400 mt-1">Try a different search term</p>}
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+          {/* Type Filter */}
+          <div className="min-w-0 lg:flex-1">
+            <Segmented<'all' | 'buyer' | 'seller' | 'both'>
+              value={filterType}
+              onChange={setFilterType}
+              label="Party type"
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'buyer', label: 'Buyers' },
+                { value: 'seller', label: 'Sellers' },
+                { value: 'both', label: 'Both' },
+              ]}
+            />
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(party => {
-              const phones = parsePhones(party.phone);
-              const partyProducts = (party.productIds || [])
-                .map(pid => products.find(prod => prod.id === pid))
-                .filter(Boolean);
 
-              const isSelected = selectedIds.includes(party.id);
-              
-              const addressParts = [party.address, party.city, party.state].filter(Boolean);
-              const displayAddress = addressParts.length > 0 ? addressParts.join(', ') : 'No Address Provided';
+          {/* Custom Product Filter Dropdown */}
+          <div className="relative w-full lg:max-w-xs" ref={productDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setProductDropdownOpen(!productDropdownOpen)}
+              aria-label="Filter by product"
+              aria-expanded={productDropdownOpen}
+              className="input-field flex items-center justify-between text-left"
+            >
+              <span className={productFilter !== 'all' ? 'text-gray-900 font-medium truncate pr-2' : 'text-gray-600'}>
+                {productFilter === 'all' ? 'All Products' : sortedProducts.find(p => p.id === productFilter)?.name}
+              </span>
+              <ChevronDown size={16} className={`text-gray-400 shrink-0 transition-transform ${productDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-              return (
-                <div
-                  key={party.id}
-                  onClick={() => handleCardClick(party)}
-                  className={`bg-white border rounded-2xl p-5 transition-all cursor-pointer group ${
-                    isSelected ? 'border-rose-500 shadow-md bg-rose-50/50 scale-[0.99]' : 'border-gray-200 hover:shadow-md hover:border-rose-200'
-                  }`}
+            {productDropdownOpen && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto py-1">
+                <button
+                  onClick={() => { setProductFilter('all'); setProductDropdownOpen(false); }}
+                  className={`w-full px-4 py-2.5 min-h-[44px] text-left text-sm flex items-center justify-between hover:bg-gray-50 ${productFilter === 'all' ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex gap-3 items-start w-full">
-                      {isSelectionMode && (
-                        <div onClick={(e) => e.stopPropagation()} className="pt-1 flex-shrink-0">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelection(party.id)}
-                            className="w-4 h-4 text-rose-600 rounded border-gray-300 focus:ring-rose-500 cursor-pointer"
-                          />
-                        </div>
-                      )}
-                      <div className="flex-1 overflow-hidden">
-                        <h3 className="font-semibold text-gray-900 group-hover:text-rose-700 transition-colors truncate">
-                          {party.legalName || party.name || 'Unnamed Party'}
-                        </h3>
-                        {party.name && party.name !== party.legalName && (
-                          <p className="text-xs text-gray-500 truncate">{party.name}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium truncate max-w-[120px] ${
-                          party.type === 'buyer' ? 'bg-blue-50 text-blue-600' :
-                          party.type === 'seller' ? 'bg-green-50 text-green-600' :
-                          'bg-purple-50 text-purple-600'
-                        }`}>
-                          {party.type}
-                        </span>
-                        {!isSelectionMode && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleCopyStructural(party); }}
-                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex-shrink-0"
-                            title="Copy Party Details Structurally"
-                          >
-                            <ClipboardPaste size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                  <span>All Products</span>
+                  {productFilter === 'all' && <Check size={14} className="text-rose-600" />}
+                </button>
+                {sortedProducts.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => { setProductFilter(p.id); setProductDropdownOpen(false); }}
+                    className={`w-full px-4 py-2.5 min-h-[44px] text-left text-sm flex items-center justify-between hover:bg-gray-50 ${productFilter === p.id ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                  >
+                    <span className="truncate pr-2">{p.name}</span>
+                    {productFilter === p.id && <Check size={14} className="text-rose-600 flex-shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Conditional Select All Toggle */}
+          {isSelectionMode && filtered.length > 0 && (
+            <label className="flex items-center gap-2 min-h-[44px] text-sm text-gray-700 cursor-pointer whitespace-nowrap bg-rose-50 px-3 rounded-xl border border-rose-200 hover:bg-rose-100 transition-colors">
+              <input
+                type="checkbox"
+                checked={selectedIds.length === filtered.length && filtered.length > 0}
+                onChange={handleSelectAll}
+                className="w-5 h-5 text-rose-600 rounded border-gray-300 focus:ring-rose-500"
+              />
+              <span className="font-medium text-rose-700">Select All</span>
+            </label>
+          )}
+        </div>
+
+        {search && (
+          <p className="text-xs text-gray-500">
+            Found {filtered.length} result{filtered.length !== 1 ? 's' : ''} for "{search}"
+          </p>
+        )}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="card">
+          <EmptyState icon={<Users size={24} />} title="No parties found">
+            {search ? 'Try a different search term' : undefined}
+          </EmptyState>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 lg:gap-4">
+          {filtered.map(party => {
+            const phones = parsePhones(party.phone);
+            const partyProducts = (party.productIds || [])
+              .map(pid => products.find(prod => prod.id === pid))
+              .filter(Boolean);
+
+            const isSelected = selectedIds.includes(party.id);
+
+            return (
+              <div
+                key={party.id}
+                onClick={() => handleCardClick(party)}
+                className={`card p-4 transition-colors cursor-pointer group min-w-0 ${
+                  isSelected ? '!border-rose-500 !bg-rose-50/50' : 'hover:border-rose-200'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  {isSelectionMode && (
+                    <label onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-11 h-11 -m-2.5 shrink-0 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelection(party.id)}
+                        aria-label={`Select ${party.legalName}`}
+                        className="w-5 h-5 text-rose-600 rounded border-gray-300 focus:ring-rose-500 cursor-pointer"
+                      />
+                    </label>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900 group-hover:text-rose-700 transition-colors line-clamp-2">
+                      {party.legalName}
+                    </h3>
+                    {party.name !== party.legalName && (
+                      <p className="text-xs text-gray-500 truncate">{party.name}</p>
+                    )}
                   </div>
-
-                  <div className={isSelectionMode ? "pl-7" : ""}>
-                    {party.contactPerson && (
-                      <div className="flex items-center gap-1.5 text-sm text-gray-700 mb-2">
-                        <User size={14} className="text-gray-400" />
-                        <span className="font-medium truncate">{party.contactPerson}</span>
-                      </div>
-                    )}
-
-                    {party.gstin && (
-                      <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
-                        <FileText size={14} className="flex-shrink-0" />
-                        <span className="truncate flex-1">GST: {party.gstin}</span>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleCopy(party.gstin!); }}
-                          className="p-1 text-gray-400 hover:text-rose-600 rounded"
-                          title="Copy GST"
-                        >
-                          <Copy size={14} />
-                        </button>
-                      </div>
-                    )}
-
-                    <div className="flex items-start gap-1.5 text-sm text-gray-500 mb-2">
-                      <MapPin size={14} className="flex-shrink-0 mt-0.5" />
-                      <span className="line-clamp-2 flex-1">
-                        {displayAddress}
-                      </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Badge tone={party.type === 'buyer' ? 'blue' : party.type === 'seller' ? 'green' : 'violet'} className="capitalize">
+                      {party.type}
+                    </Badge>
+                    {!isSelectionMode && (
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopy(displayAddress);
-                        }}
-                        className="p-1 text-gray-400 hover:text-rose-600 rounded flex-shrink-0"
-                        title="Copy Address"
+                        onClick={(e) => { e.stopPropagation(); handleCopyStructural(party); }}
+                        className={`${ICON_BTN} hover:bg-rose-50`}
+                        title="Copy Party Details Structurally"
+                        aria-label="Copy party details"
                       >
-                        <Copy size={14} />
+                        <ClipboardPaste size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className={`mt-3 space-y-2 ${isSelectionMode ? 'pl-8' : ''}`}>
+                  {party.contactPerson && (
+                    <div className="flex items-center gap-1.5 text-sm text-gray-700">
+                      <User size={14} className="text-gray-400 shrink-0" />
+                      <span className="font-medium truncate">{party.contactPerson}</span>
+                    </div>
+                  )}
+
+                  {party.gstin && (
+                    <div className="flex items-center gap-1.5 text-sm text-gray-500 min-h-[44px]">
+                      <FileText size={14} className="flex-shrink-0" />
+                      <span className="truncate flex-1">GST: {party.gstin}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleCopy(party.gstin!); }}
+                        className={ICON_BTN}
+                        title="Copy GST"
+                        aria-label="Copy GST number"
+                      >
+                        <Copy size={16} />
                       </button>
                     </div>
+                  )}
 
-                    {phones.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-2 mt-2">
-                        {phones.map((phone, idx) => (
-                          <div key={idx} className="inline-flex items-center gap-1 bg-rose-50 px-2 py-1 rounded-lg">
-                            <a
-                              href={`tel:${phone.replace(/\s/g, '')}`}
-                              onClick={e => e.stopPropagation()}
-                              className="inline-flex items-center gap-1 text-sm text-rose-600 hover:text-rose-700"
-                            >
-                              <Phone size={12} />
-                              {phone}
-                            </a>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleCopy(phone); }}
-                              className="p-0.5 text-rose-400 hover:text-rose-700 rounded"
-                              title="Copy Phone"
-                            >
-                              <Copy size={12} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {partyProducts.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-3">
-                        {partyProducts.map(prod => (
-                          <span key={prod!.id} className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">
-                            {prod!.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* View Party Modal */}
-        {viewingParty && !isSelectionMode && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setViewingParty(null)}>
-             <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">{viewingParty.legalName || viewingParty.name || 'Unnamed Party'}</h2>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleCopyStructural(viewingParty)}
-                    className="p-2 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                    title="Copy Details"
-                  >
-                    <ClipboardPaste size={20} />
-                  </button>
-                  <button onClick={() => setViewingParty(null)} className="p-2 hover:bg-gray-100 rounded-lg">
-                    <X size={20} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3 text-sm">
-                {viewingParty.name && viewingParty.name !== viewingParty.legalName && (
-                  <p className="text-gray-500">Display Name: {viewingParty.name}</p>
-                )}
-
-                {viewingParty.contactPerson && (
-                  <div className="flex items-center gap-2 p-3 bg-rose-50 rounded-xl">
-                    <User size={16} className="text-rose-600" />
-                    <div>
-                      <p className="font-medium text-gray-900">{viewingParty.contactPerson}</p>
-                      <p className="text-xs text-gray-500">Primary Contact Person</p>
-                    </div>
-                  </div>
-                )}
-
-                {viewingParty.otherContacts && viewingParty.otherContacts.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-gray-500">Other Contacts:</p>
-                    {viewingParty.otherContacts.map((contact, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                            <Users size={14} className="text-gray-500" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-gray-900">{contact.name}</p>
-                              {contact.phone && (
-                                <span className="text-sm text-gray-600">{contact.phone}</span>
-                              )}
-                            </div>
-                            {contact.role && <p className="text-xs text-gray-500">{contact.role}</p>}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {contact.phone && (
-                            <>
-                              <a href={`tel:${contact.phone.replace(/\s/g, '')}`} className="p-1.5 bg-white rounded-lg text-rose-600 hover:bg-rose-50 shadow-sm border border-gray-100">
-                                <Phone size={14} />
-                              </a>
-                              <button onClick={() => handleCopy(contact.phone!)} className="p-1.5 bg-white rounded-lg text-gray-500 hover:bg-rose-50 hover:text-rose-600 shadow-sm border border-gray-100">
-                                <Copy size={14} />
-                              </button>
-                            </>
-                          )}
-                          {contact.email && (
-                            <a href={`mailto:${contact.email}`} className="p-1.5 bg-white rounded-lg text-blue-600 hover:bg-blue-50 shadow-sm border border-gray-100">
-                              <Mail size={14} />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {viewingParty.gstin && (
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <span>GSTIN: {viewingParty.gstin}</span>
-                    <button onClick={() => handleCopy(viewingParty.gstin!)} className="p-1 text-gray-400 hover:text-rose-600 rounded">
-                      <Copy size={14} />
+                  <div className="flex items-center gap-1.5 text-sm text-gray-500 min-h-[44px]">
+                    <MapPin size={14} className="flex-shrink-0" />
+                    <span className="line-clamp-2 flex-1">
+                      {party.address ? `${party.address}, ${party.city}, ${party.state}` : `${party.city}, ${party.state}`}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopy(party.address ? `${party.address}, ${party.city}, ${party.state}` : `${party.city}, ${party.state}`);
+                      }}
+                      className={ICON_BTN}
+                      title="Copy Address"
+                      aria-label="Copy address"
+                    >
+                      <Copy size={16} />
                     </button>
                   </div>
-                )}
-                {viewingParty.pan && <p className="text-gray-600">PAN: {viewingParty.pan}</p>}
 
-                <div className="grid grid-cols-2 gap-2">
-                  <p><span className="text-gray-500">Type:</span> <span className="capitalize">{viewingParty.type}</span></p>
-                  {(viewingParty.city || viewingParty.state) && (
-                    <p>
-                      <span className="text-gray-500">City:</span> {[viewingParty.city, viewingParty.state].filter(Boolean).join(', ')}
-                    </p>
-                  )}
-                </div>
-                
-                <div className="flex items-start gap-2 text-gray-600 mt-2">
-                  <div className="flex-1">
-                    <p>Address: {viewingParty.address || 'Not Provided'}</p>
-                    {(viewingParty.city || viewingParty.state || viewingParty.pincode) && (
-                      <p>{[viewingParty.city, viewingParty.state].filter(Boolean).join(', ')} {viewingParty.pincode ? `- ${viewingParty.pincode}` : ''}</p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => handleCopy(`${viewingParty.address ? viewingParty.address + '\n' : ''}${[viewingParty.city, viewingParty.state].filter(Boolean).join(', ')} ${viewingParty.pincode ? `- ${viewingParty.pincode}` : ''}`)}
-                    className="p-1 text-gray-400 hover:text-rose-600 rounded mt-1"
-                    title="Copy Address"
-                  >
-                    <Copy size={16} />
-                  </button>
-                </div>
-
-                {viewingParty.phone && (
-                  <div className="flex items-start gap-2 mt-2">
-                    <div className="flex items-center gap-2 mt-1">
-                      <Phone size={14} className="text-gray-400" />
-                      <span className="text-gray-600">Phone:</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2 flex-1">
-                      {parsePhones(viewingParty.phone).map((phone, idx) => (
-                        <div key={idx} className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded border border-gray-100">
-                          <a href={`tel:${phone.replace(/\s/g, '')}`} className="text-rose-600 hover:underline text-sm">
+                  {phones.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {phones.map((phone, idx) => (
+                        <div key={idx} className="inline-flex items-center bg-rose-50 rounded-xl">
+                          <a
+                            href={`tel:${phone.replace(/\s/g, '')}`}
+                            onClick={e => e.stopPropagation()}
+                            className="inline-flex items-center gap-1.5 pl-3 min-h-[44px] text-sm text-rose-700 hover:text-rose-800"
+                          >
+                            <Phone size={14} />
                             {phone}
                           </a>
-                          <button onClick={() => handleCopy(phone)} className="p-1 text-gray-400 hover:text-rose-600 rounded" title="Copy Phone">
-                            <Copy size={12} />
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleCopy(phone); }}
+                            className="inline-flex items-center justify-center w-11 h-11 text-rose-400 hover:text-rose-700 rounded-xl"
+                            title="Copy Phone"
+                            aria-label={`Copy phone ${phone}`}
+                          >
+                            <Copy size={14} />
                           </button>
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {viewingParty.productIds && viewingParty.productIds.length > 0 && (
-                  <div className="pt-2">
-                    <p className="text-xs font-medium text-gray-500 mb-2">Products They Trade:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {viewingParty.productIds.map((pid: string) => {
-                        const prod = products.find(p => p.id === pid);
-                        return prod ? (
-                          <span key={pid} className="text-xs px-3 py-1.5 bg-rose-50 text-rose-700 rounded-lg font-medium">
-                            {prod.name}
-                          </span>
-                        ) : null;
-                      })}
+                  {partyProducts.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {partyProducts.map(prod => (
+                        <Badge key={prod!.id}>{prod!.name}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* View Party Sheet */}
+      {viewingParty && (
+        <Sheet
+          open={!isSelectionMode}
+          onClose={() => setViewingParty(null)}
+          title={viewingParty.legalName}
+          wide
+          footer={
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                icon={<Edit2 size={16} />}
+                onClick={() => {
+                  setViewingParty(null);
+                  navigate(`/parties/edit/${viewingParty.id}`);
+                }}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="danger"
+                className="flex-1"
+                icon={<Trash2 size={16} />}
+                onClick={() => {
+                  handleDeleteSingle(viewingParty.id);
+                  setViewingParty(null);
+                }}
+              >
+                Delete
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <Badge tone={viewingParty.type === 'buyer' ? 'blue' : viewingParty.type === 'seller' ? 'green' : 'violet'} className="capitalize">{viewingParty.type}</Badge>
+              <Button variant="soft" icon={<ClipboardPaste size={16} />} onClick={() => handleCopyStructural(viewingParty)} title="Copy Details">
+                Copy details
+              </Button>
+            </div>
+
+            {viewingParty.name !== viewingParty.legalName && (
+              <p className="text-gray-500">Display Name: {viewingParty.name}</p>
+            )}
+
+            {viewingParty.contactPerson && (
+              <div className="flex items-center gap-2 p-3 bg-rose-50 rounded-xl">
+                <User size={16} className="text-rose-600 shrink-0" />
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900">{viewingParty.contactPerson}</p>
+                  <p className="text-xs text-gray-500">Primary Contact Person</p>
+                </div>
+              </div>
+            )}
+
+            {viewingParty.otherContacts && viewingParty.otherContacts.length > 0 && (
+              <div className="space-y-2">
+                <p className="section-label">Other Contacts</p>
+                {viewingParty.otherContacts.map((contact, idx) => (
+                  <div key={idx} className="flex flex-wrap items-center justify-between gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                        <Users size={14} className="text-gray-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2">
+                          <p className="font-medium text-gray-900">{contact.name}</p>
+                          {contact.phone && (
+                            <span className="text-sm text-gray-600">{contact.phone}</span>
+                          )}
+                        </div>
+                        {contact.role && <p className="text-xs text-gray-500">{contact.role}</p>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {contact.phone && (
+                        <>
+                          <a href={`tel:${contact.phone.replace(/\s/g, '')}`} aria-label={`Call ${contact.name}`} className="inline-flex items-center justify-center w-11 h-11 bg-white rounded-xl text-rose-600 hover:bg-rose-50 border border-gray-200">
+                            <Phone size={16} />
+                          </a>
+                          <button onClick={() => handleCopy(contact.phone!)} aria-label={`Copy phone of ${contact.name}`} className="inline-flex items-center justify-center w-11 h-11 bg-white rounded-xl text-gray-500 hover:bg-rose-50 hover:text-rose-600 border border-gray-200">
+                            <Copy size={16} />
+                          </button>
+                        </>
+                      )}
+                      {contact.email && (
+                        <a href={`mailto:${contact.email}`} aria-label={`Email ${contact.name}`} className="inline-flex items-center justify-center w-11 h-11 bg-white rounded-xl text-sky-700 hover:bg-sky-50 border border-gray-200">
+                          <Mail size={16} />
+                        </a>
+                      )}
                     </div>
                   </div>
-                )}
+                ))}
+              </div>
+            )}
 
-                {viewingParty.notes && (
-                  <div className="mt-4 p-4 bg-rose-50/50 border border-rose-100 rounded-xl">
-                    <div className="flex items-center gap-2 mb-2 text-rose-700">
-                      <FileText size={16} />
-                      <span className="font-semibold text-sm">Private Notes</span>
+            {viewingParty.gstin && (
+              <div className="flex items-center gap-1 text-gray-600 min-h-[44px]">
+                <span className="min-w-0 break-all">GSTIN: {viewingParty.gstin}</span>
+                <button onClick={() => handleCopy(viewingParty.gstin!)} className={ICON_BTN} title="Copy GST" aria-label="Copy GST number">
+                  <Copy size={16} />
+                </button>
+              </div>
+            )}
+            {viewingParty.pan && <p className="text-gray-600">PAN: {viewingParty.pan}</p>}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <p><span className="text-gray-500">Type:</span> <span className="capitalize">{viewingParty.type}</span></p>
+              <p><span className="text-gray-500">City:</span> {viewingParty.city}, {viewingParty.state}</p>
+            </div>
+
+            <div className="flex items-center gap-1 text-gray-600">
+              <div className="flex-1 min-w-0">
+                <p>Address: {viewingParty.address}</p>
+                <p>{viewingParty.city}, {viewingParty.state} - {viewingParty.pincode}</p>
+              </div>
+              <button
+                onClick={() => handleCopy(`${viewingParty.address ? viewingParty.address + '\n' : ''}${viewingParty.city}, ${viewingParty.state} - ${viewingParty.pincode}`)}
+                className={ICON_BTN}
+                title="Copy Address"
+                aria-label="Copy address"
+              >
+                <Copy size={16} />
+              </button>
+            </div>
+
+            {viewingParty.phone && (
+              <div className="flex items-start gap-2">
+                <div className="flex items-center gap-2 min-h-[44px]">
+                  <Phone size={14} className="text-gray-400" />
+                  <span className="text-gray-600">Phone:</span>
+                </div>
+                <div className="flex flex-wrap gap-2 flex-1">
+                  {parsePhones(viewingParty.phone).map((phone, idx) => (
+                    <div key={idx} className="inline-flex items-center bg-gray-50 rounded-xl border border-gray-100">
+                      <a href={`tel:${phone.replace(/\s/g, '')}`} className="inline-flex items-center min-h-[44px] pl-3 text-rose-700 hover:underline text-sm">
+                        {phone}
+                      </a>
+                      <button onClick={() => handleCopy(phone)} className="inline-flex items-center justify-center w-11 h-11 text-gray-400 hover:text-rose-600 rounded-xl" title="Copy Phone" aria-label={`Copy phone ${phone}`}>
+                        <Copy size={14} />
+                      </button>
                     </div>
-                    <p className="text-gray-700 text-sm whitespace-pre-wrap">{viewingParty.notes}</p>
-                  </div>
-                )}
+                  ))}
+                </div>
               </div>
+            )}
 
-              <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
-                <button
-                  onClick={() => {
-                    setViewingParty(null);
-                    navigate(`/parties/edit/${viewingParty.id}`);
-                  }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200"
-                >
-                  <Edit2 size={16} />
-                  Edit
-                </button>
-                <button
-                  onClick={() => {
-                    handleDeleteSingle(viewingParty.id);
-                    setViewingParty(null);
-                  }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100"
-                >
-                  <Trash2 size={16} />
-                  Delete
-                </button>
+            {viewingParty.productIds && viewingParty.productIds.length > 0 && (
+              <div className="pt-1">
+                <p className="section-label mb-2">Products They Trade</p>
+                <div className="flex flex-wrap gap-2">
+                  {viewingParty.productIds.map((pid: string) => {
+                    const prod = products.find(p => p.id === pid);
+                    return prod ? <Badge key={pid} tone="rose">{prod.name}</Badge> : null;
+                  })}
+                </div>
               </div>
-            </div>
+            )}
+
+            {viewingParty.notes && (
+              <div className="p-4 bg-rose-50/50 border border-rose-100 rounded-xl">
+                <div className="flex items-center gap-2 mb-2 text-rose-700">
+                  <FileText size={16} />
+                  <span className="font-semibold text-sm">Private Notes</span>
+                </div>
+                <p className="text-gray-700 text-sm whitespace-pre-wrap">{viewingParty.notes}</p>
+              </div>
+            )}
           </div>
-        )}
+        </Sheet>
+      )}
 
-        {/* Double Confirmation Bulk Delete Modal */}
-        {deleteStep > 0 && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-xl">
-              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle size={32} className="text-red-600" />
-              </div>
-              
-              {deleteStep === 1 ? (
-                <>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Delete {selectedIds.length} Parties?</h3>
-                  <p className="text-gray-500 mb-6">
-                    Are you sure you want to delete the selected parties from your directory?
-                  </p>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setDeleteStep(0)}
-                      className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => setDeleteStep(2)}
-                      className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700"
-                    >
-                      Yes, Proceed
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <h3 className="text-xl font-bold text-red-600 mb-2">Final Confirmation</h3>
-                  <p className="text-gray-600 mb-6">
-                    This action is <strong>irreversible</strong>. You are about to permanently delete {selectedIds.length} records. Please confirm again.
-                  </p>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setDeleteStep(0)}
-                      className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={executeBulkDelete}
-                      className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700"
-                    >
-                      Permanently Delete
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+      {/* Double Confirmation Bulk Delete Sheet */}
+      <Sheet
+        open={deleteStep > 0}
+        onClose={() => setDeleteStep(0)}
+        title={deleteStep === 1 ? `Delete ${selectedIds.length} Parties?` : <span className="text-red-600">Final Confirmation</span>}
+        footer={
+          <div className="flex gap-3">
+            <Button variant="secondary" className="flex-1" onClick={() => setDeleteStep(0)}>Cancel</Button>
+            {deleteStep === 1 ? (
+              <Button variant="danger" className="flex-1" onClick={() => setDeleteStep(2)}>Yes, Proceed</Button>
+            ) : (
+              <Button variant="danger" className="flex-1" onClick={executeBulkDelete}>Permanently Delete</Button>
+            )}
           </div>
-        )}
+        }
+      >
+        <div className="flex items-start gap-3 pb-2">
+          <span className="w-10 h-10 shrink-0 bg-red-50 rounded-full flex items-center justify-center">
+            <AlertTriangle size={20} className="text-red-600" />
+          </span>
+          {deleteStep === 1 ? (
+            <p className="text-sm text-gray-600 pt-2">
+              Are you sure you want to delete the selected parties from your directory?
+            </p>
+          ) : (
+            <p className="text-sm text-gray-600 pt-2">
+              This action is <strong>irreversible</strong>. You are about to permanently delete {selectedIds.length} records. Please confirm again.
+            </p>
+          )}
+        </div>
+      </Sheet>
 
-      </div>
-
+      {/* Export Party Pop-up Modal Component Link */}
       <ExportPartyModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         parties={transformedPartiesForExport}
       />
-    </div>
+    </Page>
   );
 }

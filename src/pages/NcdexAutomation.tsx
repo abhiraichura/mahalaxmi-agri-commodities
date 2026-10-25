@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { Play, Copy } from 'lucide-react';
+import { Page, Button, Field } from '../ui';
 
 interface SpiceQuote {
   symbol: string;
@@ -317,90 +319,67 @@ M: 90330 00032, 99099 71301
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-100">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">NCDEX Spices Automation</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Live updates for Jeera, Dhaniya, and Turmeric at 10 AM, 12 PM, 2 PM, 4 PM, and 5 PM IST.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleRunAutomation}
-              disabled={loading}
-              className="inline-flex items-center justify-center px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition-colors shadow-sm disabled:opacity-50"
-            >
-              {loading ? 'Fetching Quotes...' : 'Run Automation Now'}
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="bypassHour"
-            checked={bypassHourCheck}
-            onChange={(e) => setBypassHourCheck(e.target.checked)}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
-          />
-          <label htmlFor="bypassHour" className="text-xs text-gray-600 cursor-pointer">
-            Bypass hour restriction for testing (run anytime outside 10, 12, 14, 16, 17 IST)
+    <Page title="NCDEX Spices Automation" subtitle="Live updates for Jeera, Dhaniya, and Turmeric at 10 AM, 12 PM, 2 PM, 4 PM, and 5 PM IST.">
+      <div className="grid gap-4 lg:grid-cols-5 lg:items-start">
+        <section className="card p-4 lg:p-5 space-y-4 lg:col-span-2" aria-label="Run automation">
+          <p className="section-label">Run</p>
+          <label htmlFor="bypassHour" className="flex items-start gap-3 min-h-[44px] py-2 text-sm text-gray-600 cursor-pointer">
+            <input
+              type="checkbox"
+              id="bypassHour"
+              checked={bypassHourCheck}
+              onChange={(e) => setBypassHourCheck(e.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0 rounded border-gray-300 accent-rose-700"
+            />
+            <span>Bypass hour restriction for testing (run anytime outside 10, 12, 14, 16, 17 IST)</span>
           </label>
-        </div>
+          <Button variant="primary" className="w-full" icon={<Play size={16} />} onClick={handleRunAutomation} disabled={loading} loading={loading}>
+            {loading ? 'Fetching Quotes...' : 'Run Automation Now'}
+          </Button>
+          {telegramStatus && (
+            <div role="status" className="rounded-xl bg-sky-50 px-3 py-2.5 text-sm text-sky-700">
+              {telegramStatus}
+            </div>
+          )}
+        </section>
 
-        <div className="mt-6 pt-6 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
-              Telegram Bot Token (Optional)
-            </label>
+        {/* On a phone the output sits right under the Run button; the Telegram settings come last */}
+        <section className="card p-4 lg:p-5 lg:col-span-3 lg:col-start-3 lg:row-start-1 lg:row-span-2" aria-label="Automation output">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3 min-h-[44px]">
+            <p className="section-label">Automation Output</p>
+            {output && output !== 'SKIP' && (
+              <Button variant="soft" icon={<Copy size={16} />} onClick={handleCopy}>
+                {copied ? 'Copied!' : 'Copy Formatted Text'}
+              </Button>
+            )}
+          </div>
+          <div className="bg-gray-900 rounded-xl p-4 font-mono text-xs sm:text-sm text-gray-100 min-h-[240px] lg:min-h-[360px] overflow-x-auto whitespace-pre-wrap break-words leading-relaxed">
+            {output ? output : '// Output will render here upon clicking "Run Automation Now"'}
+          </div>
+        </section>
+
+        <section className="card p-4 lg:p-5 space-y-4 lg:col-span-2" aria-label="Telegram alerts">
+          <p className="section-label">Telegram alerts</p>
+          <Field label="Telegram Bot Token (Optional)">
             <input
               type="text"
               placeholder="e.g. 123456:ABC-DEF1234..."
               value={botToken}
               onChange={(e) => setBotToken(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
+              className="input-field font-mono"
             />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
-              Telegram Chat ID (Optional)
-            </label>
+          </Field>
+          <Field label="Telegram Chat ID (Optional)">
             <input
               type="text"
               placeholder="e.g. 987654321"
               value={chatId}
               onChange={(e) => setChatId(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
+              className="input-field font-mono"
             />
-          </div>
-        </div>
-
-        {telegramStatus && (
-          <div className="mt-3 text-xs text-blue-700 bg-blue-50 px-3 py-2 rounded-md">
-            {telegramStatus}
-          </div>
-        )}
+          </Field>
+        </section>
       </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-700">Automation Output</h2>
-          {output && output !== 'SKIP' && (
-            <button
-              onClick={handleCopy}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md transition-colors"
-            >
-              {copied ? 'Copied!' : 'Copy Formatted Text'}
-            </button>
-          )}
-        </div>
-
-        <div className="bg-gray-900 rounded-lg p-4 font-mono text-xs sm:text-sm text-gray-100 min-h-[360px] overflow-x-auto whitespace-pre-wrap leading-relaxed shadow-inner">
-          {output ? output : '// Output will render here upon clicking "Run Automation Now"'}
-        </div>
-      </div>
-    </div>
+    </Page>
   );
 }

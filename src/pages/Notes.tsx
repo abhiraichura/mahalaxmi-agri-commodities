@@ -205,27 +205,27 @@ export default function Notes() {
   const activeNoteObject = useMemo(() => notes.find(n => n.id === activeNoteId), [notes, activeNoteId]);
 
   return (
-    <div className="h-[calc(100vh-64px)] p-4 md:p-6 bg-gray-50 flex font-sans">
-      <div className="flex w-full bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+    <div className="lg:px-8 lg:py-8">
+      <div className="flex w-full bg-white lg:rounded-2xl lg:border lg:border-gray-200 lg:shadow-sm overflow-hidden h-[calc(100dvh-56px-4.75rem-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-56px-4rem)] min-h-[420px] max-w-7xl mx-auto">
         
         {/* Left Sidebar Pane - List View */}
         <div className={`w-full md:w-80 lg:w-[380px] flex flex-col border-r border-gray-100 bg-white select-none ${!isMobileViewList ? 'hidden md:flex' : 'flex'}`}>
           
           {/* List Header Frame */}
-          <div className="p-6 border-b border-gray-100">
-            <div className="flex items-center justify-between mb-5">
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <LayoutGrid className="w-6 h-6 text-rose-600" />
+          <div className="p-4 lg:p-6 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="text-xl lg:text-2xl font-bold text-gray-900 flex items-center gap-2">
+                <LayoutGrid className="w-5 h-5 text-rose-700" />
                 Notes
               </h1>
               {/* CSV Export Button added right here to easily click it */}
               {notes.length > 0 && (
                 <button
                   onClick={handleExportCSV}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 hover:text-gray-900 text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                  className="btn btn-secondary btn-sm"
                   title="Export all data records to Excel/CSV"
                 >
-                  <Download size={13} />
+                  <Download size={14} />
                   Export CSV
                 </button>
               )}
@@ -238,12 +238,14 @@ export default function Notes() {
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search notes..."
-                  className="w-full pl-9 pr-9 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-gray-100 focus:bg-white transition-all outline-none"
+                  aria-label="Search notes"
+                  className="input-field !pl-9 !pr-10"
                 />
                 {search && (
                   <button
                     onClick={() => setSearch('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-200 transition-colors"
+                    aria-label="Clear search"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 p-2.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
                   >
                     <X size={14} />
                   </button>
@@ -251,7 +253,8 @@ export default function Notes() {
               </div>
               <button
                 onClick={startCreate}
-                className="flex-shrink-0 w-10 h-10 bg-stone-800 text-white rounded-xl flex items-center justify-center hover:bg-stone-900 transition-all shadow-sm"
+                aria-label="Create note"
+                className="flex-shrink-0 w-11 h-11 bg-rose-700 text-white rounded-xl flex items-center justify-center hover:bg-rose-800 transition-all shadow-sm"
                 title="Create Note"
               >
                 <Plus size={20} />
@@ -273,6 +276,9 @@ export default function Notes() {
                 return (
                   <div 
                     key={note.id}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectNote(note.id); } }}
                     onClick={() => handleSelectNote(note.id)}
                     className={`p-4 rounded-2xl cursor-pointer transition-all duration-150 border text-left ${
                       isSelected 
@@ -314,10 +320,10 @@ export default function Notes() {
           ) : (
             <>
               {/* Dynamic Header Status Bar */}
-              <div className="h-[76px] px-6 lg:px-10 flex items-center justify-between border-b border-gray-100 shrink-0 select-none">
+              <div className="h-14 lg:h-[76px] px-3 lg:px-10 flex items-center justify-between border-b border-gray-100 shrink-0 select-none">
                 <button 
                   onClick={() => setIsMobileViewList(true)}
-                  className="md:hidden flex items-center gap-1 text-gray-500 hover:text-gray-900 font-medium text-sm"
+                  className="md:hidden flex items-center gap-1 text-gray-600 hover:text-gray-900 font-medium text-sm min-h-[44px] pr-3"
                 >
                   <ChevronLeft size={18} /> Notes
                 </button>
@@ -339,7 +345,8 @@ export default function Notes() {
 
                 <button 
                   onClick={() => handleDelete(activeNoteId)}
-                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                  aria-label="Delete this note"
+                  className="p-3 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
                   title="Delete this note"
                 >
                   <Trash2 size={18} />
@@ -347,7 +354,7 @@ export default function Notes() {
               </div>
 
               {/* Seamless Live Text Editors */}
-              <div className="flex-1 overflow-y-auto px-6 lg:px-12 py-8 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto px-4 lg:px-12 py-5 lg:py-8 custom-scrollbar">
                 <div className="max-w-3xl mx-auto space-y-5">
                   
                   {/* Note Title Input Row */}
@@ -380,7 +387,7 @@ export default function Notes() {
                     value={form.content}
                     onChange={e => setForm({ ...form, content: e.target.value })}
                     placeholder="Type content notes here..."
-                    className="w-full min-h-[460px] bg-transparent text-[16px] text-gray-700 leading-relaxed outline-none border-none resize-none placeholder:text-gray-300 font-sans"
+                    className="w-full min-h-[320px] lg:min-h-[460px] bg-transparent text-[16px] text-gray-700 leading-relaxed outline-none border-none resize-none placeholder:text-gray-300 font-sans"
                   />
                 </div>
               </div>

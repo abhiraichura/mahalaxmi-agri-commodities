@@ -1,6 +1,7 @@
 // src/pages/MessageGenerator.tsx
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Copy, Share2, MessageSquare, Calendar, History, Trash2, ChevronDown, Search, RotateCcw } from 'lucide-react';
+import { Copy, Share2, Calendar, History, Trash2, ChevronDown, Search, RotateCcw } from 'lucide-react';
+import { Page, Button } from '../ui';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
@@ -160,35 +161,16 @@ export default function MessageGenerator() {
   }, [commodity, mandiRate, exportRate, arrival, priceMovement]);
 
   return (
-    <div className="h-[calc(100vh-64px)] p-4 md:p-6 bg-gray-50 overflow-y-auto font-sans">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <Page
+      title="Rate message"
+      subtitle="Quickly draft and format a rate message for WhatsApp"
+      width="wide"
+      actions={isFormDirty ? <Button size="sm" variant="secondary" icon={<RotateCcw size={14} />} onClick={handleResetFormFields} title="Reset all draft fields to empty values">Clear form</Button> : undefined}
+    >
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
         
         {/* Left Column: Interactive Settings Input Form Panel */}
-        <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-gray-200 shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
-                <MessageSquare className="w-6 h-6" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Message Generator</h1>
-                <p className="text-xs text-gray-400">Quickly draft and format messaging copy for WhatsApp streams</p>
-              </div>
-            </div>
-
-            {/* Clear Fields Button Component Added in Header Toolbar Row */}
-            {isFormDirty && (
-              <button
-                type="button"
-                onClick={handleResetFormFields}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl border border-gray-200 hover:border-red-100 transition-all shadow-sm"
-                title="Reset all draft fields to empty values"
-              >
-                <RotateCcw size={14} />
-                Clear Form
-              </button>
-            )}
-          </div>
+        <div className="lg:col-span-2 card p-4 lg:p-6 space-y-6 self-start">
 
           <div className="space-y-4">
             {/* Commodity selection modern custom search dropdown */}
@@ -198,8 +180,13 @@ export default function MessageGenerator() {
               </label>
               
               <div 
+                role="button"
+                tabIndex={0}
+                aria-haspopup="listbox"
+                aria-expanded={isDropdownOpen}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsDropdownOpen(!isDropdownOpen); } }}
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between cursor-pointer hover:bg-gray-100/50 transition-all select-none"
+                className="input-field flex items-center justify-between cursor-pointer select-none min-h-[48px]"
               >
                 <span className={commodity ? 'text-gray-900 font-medium' : 'text-gray-400'}>
                   {commodity || 'Select or type a commodity...'}
@@ -218,7 +205,7 @@ export default function MessageGenerator() {
                       value={dropdownSearch}
                       onChange={(e) => setDropdownSearch(e.target.value)}
                       placeholder="Filter list or type custom value..."
-                      className="w-full bg-transparent py-1.5 px-1 text-sm outline-none border-none text-gray-700"
+                      className="w-full bg-transparent py-2 px-1 text-sm outline-none border-none text-gray-700"
                     />
                   </div>
                   
@@ -233,7 +220,7 @@ export default function MessageGenerator() {
                             setIsDropdownOpen(false);
                             setDropdownSearch('');
                           }}
-                          className={`px-3 py-2.5 rounded-xl text-sm cursor-pointer transition-colors ${
+                          className={`px-3 py-3 rounded-xl text-sm cursor-pointer transition-colors ${
                             commodity === item 
                               ? 'bg-rose-50 text-rose-700 font-semibold' 
                               : 'text-gray-700 hover:bg-gray-50'
@@ -251,7 +238,7 @@ export default function MessageGenerator() {
                             setIsDropdownOpen(false);
                             setDropdownSearch('');
                           }}
-                          className="px-3 py-2.5 rounded-xl text-sm text-rose-600 bg-rose-50/50 hover:bg-rose-50 cursor-pointer font-medium"
+                          className="px-3 py-3 rounded-xl text-sm text-rose-600 bg-rose-50/50 hover:bg-rose-50 cursor-pointer font-medium"
                         >
                           Use custom value: "{dropdownSearch.trim()}"
                         </div>
@@ -271,10 +258,10 @@ export default function MessageGenerator() {
                 <button
                   type="button"
                   onClick={() => setRateType('mandi')}
-                  className={`py-3 px-4 rounded-xl text-sm font-medium transition-all border text-center ${
+                  className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-medium transition-all border text-center ${
                     rateType === 'mandi'
-                      ? 'bg-stone-800 border-stone-800 text-white shadow-sm'
-                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                      ? 'bg-rose-700 border-rose-700 text-white shadow-sm'
+                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                   }`}
                 >
                   Mandi Rate Info
@@ -282,10 +269,10 @@ export default function MessageGenerator() {
                 <button
                   type="button"
                   onClick={() => setRateType('export')}
-                  className={`py-3 px-4 rounded-xl text-sm font-medium transition-all border text-center ${
+                  className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-medium transition-all border text-center ${
                     rateType === 'export'
-                      ? 'bg-stone-800 border-stone-800 text-white shadow-sm'
-                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                      ? 'bg-rose-700 border-rose-700 text-white shadow-sm'
+                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                   }`}
                 >
                   Export Rate Only
@@ -305,7 +292,7 @@ export default function MessageGenerator() {
                     value={mandiRate}
                     onChange={(e) => setMandiRate(e.target.value)}
                     placeholder="e.g. 3550-3600"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-100 focus:bg-white outline-none transition-all"
+                    className="input-field"
                   />
                 </div>
                 <div>
@@ -317,7 +304,7 @@ export default function MessageGenerator() {
                     value={arrival}
                     onChange={(e) => setArrival(e.target.value)}
                     placeholder="e.g. 15,000"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-100 focus:bg-white outline-none transition-all"
+                    className="input-field"
                   />
                 </div>
                 <div>
@@ -329,7 +316,7 @@ export default function MessageGenerator() {
                     value={priceMovement}
                     onChange={(e) => setPriceMovement(e.target.value)}
                     placeholder="e.g. 30 UP or 20 Down"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-100 focus:bg-white outline-none transition-all"
+                    className="input-field"
                   />
                 </div>
               </div>
@@ -343,7 +330,7 @@ export default function MessageGenerator() {
                   value={exportRate}
                   onChange={(e) => setExportRate(e.target.value)}
                   placeholder="e.g. 3925 - 30"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-100 focus:bg-white outline-none transition-all"
+                  className="input-field"
                 />
               </div>
             )}
@@ -351,8 +338,8 @@ export default function MessageGenerator() {
         </div>
 
         {/* Right Column: Interactive Real-Time Layout Screen Capture Previewer */}
-        <div className="flex flex-col gap-6">
-          <div className="bg-stone-900 text-white rounded-3xl p-6 shadow-md flex flex-col justify-between h-fit min-h-[280px]">
+        <div className="flex flex-col gap-4 lg:gap-6">
+          <div className="bg-stone-900 text-white rounded-2xl p-4 lg:p-6 shadow-md flex flex-col justify-between h-fit min-h-[280px]">
             <div>
               <div className="flex items-center justify-between border-b border-stone-800 pb-3 mb-4">
                 <span className="text-xs font-medium uppercase tracking-widest text-stone-400">Live Preview</span>
@@ -393,7 +380,7 @@ export default function MessageGenerator() {
           </div>
 
           {/* Persistent Active History Activity Log Frame */}
-          <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-sm flex-1 flex flex-col max-h-[350px]">
+          <div className="card p-4 lg:p-5 flex-1 flex flex-col max-h-[350px]">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-3 shrink-0">
               <div className="flex items-center gap-1.5 font-bold text-gray-800 text-sm">
                 <History className="w-4 h-4 text-gray-400" />
@@ -402,7 +389,8 @@ export default function MessageGenerator() {
               {history.length > 0 && (
                 <button
                   onClick={clearHistoryLog}
-                  className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                  className="text-gray-400 hover:text-red-500 transition-colors p-2.5 -m-2"
+                  aria-label="Clear history"
                   title="Clear history"
                 >
                   <Trash2 size={14} />
@@ -439,6 +427,6 @@ export default function MessageGenerator() {
         </div>
 
       </div>
-    </div>
+    </Page>
   );
 }

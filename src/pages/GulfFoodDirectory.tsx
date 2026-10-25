@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Phone, Mail, MapPin, Globe, User, X, Download, Upload, FileText, Trash2, Edit2, ExternalLink, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getColData, addDoc, updateDocData, deleteDocData } from '../utils/firebase';
+import { Page, Button } from '../ui';
 
 interface GulfFoodMember {
   id: string;
@@ -313,7 +314,7 @@ export default function GulfFoodDirectory() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-rose-200 border-t-rose-600 rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-500">Loading Directory...</p>
@@ -323,61 +324,41 @@ export default function GulfFoodDirectory() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Gulfood Directory</h1>
-            <p className="text-sm text-gray-500 mt-1">{members.length} members registered</p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept=".csv"
-              onChange={importCSV}
-              className="hidden"
-            />
-            {selectedIds.length > 0 && (
-              <button
-                onClick={() => setDeleteStep(1)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors"
-              >
-                <Trash2 size={16} />
-                Delete Selected ({selectedIds.length})
-              </button>
-            )}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <Upload size={16} />
-              Import
-            </button>
-            <button
-              onClick={exportCSV}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <Download size={16} />
-              Export
-            </button>
-            <button
-              onClick={() => {
-                setEditingMember(null);
-                setForm({ companyName: '', cityState: '', contactPerson: '', contactNumber: '', email: '', website: '', profile: '' });
-                setShowAddModal(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700"
-            >
-              <Plus size={16} />
-              Add Member
-            </button>
-          </div>
-        </div>
-
+    <Page
+      title="Gulfood directory"
+      subtitle={`${members.length} members registered`}
+      width="wide"
+      actions={
+        <>
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".csv"
+            onChange={importCSV}
+            className="hidden"
+          />
+          {selectedIds.length > 0 && (
+            <Button variant="danger" icon={<Trash2 size={16} />} onClick={() => setDeleteStep(1)}>Delete selected ({selectedIds.length})</Button>
+          )}
+          <Button variant="secondary" icon={<Upload size={16} />} onClick={() => fileInputRef.current?.click()}>Import</Button>
+          <Button variant="secondary" icon={<Download size={16} />} onClick={exportCSV}>Export</Button>
+          <Button
+            variant="primary"
+            icon={<Plus size={16} />}
+            onClick={() => {
+              setEditingMember(null);
+              setForm({ companyName: '', cityState: '', contactPerson: '', contactNumber: '', email: '', website: '', profile: '' });
+              setShowAddModal(true);
+            }}
+          >
+            Add member
+          </Button>
+        </>
+      }
+    >
+      <div>
         {/* Search */}
-        <div className="bg-white rounded-2xl p-4 border border-gray-200 mb-6 flex flex-col sm:flex-row gap-4 items-center">
+        <div className="card p-3 lg:p-4 mb-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
           <div className="relative w-full">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -385,25 +366,26 @@ export default function GulfFoodDirectory() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search by company name, city, contact person, product profile..."
-              className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              aria-label="Search the directory" className="input-field !pl-10 !pr-11"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-200 transition-colors"
+                aria-label="Clear search"
+                className="absolute right-1 top-1/2 -translate-y-1/2 p-2.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
               >
                 <X size={16} />
               </button>
             )}
           </div>
           {filtered.length > 0 && (
-            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer whitespace-nowrap bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer whitespace-nowrap bg-white px-4 min-h-[48px] rounded-xl border border-gray-300 hover:bg-gray-50 transition-colors">
               <input
                 type="checkbox"
                 checked={selectedIds.length === filtered.length && filtered.length > 0}
                 onChange={handleSelectAll}
-                className="w-4 h-4 text-rose-600 rounded border-gray-300 focus:ring-rose-500"
+                className="w-5 h-5 text-rose-700 rounded border-gray-300 focus:ring-rose-500 accent-rose-700"
               />
               <span className="font-medium">Select All</span>
             </label>
@@ -417,7 +399,7 @@ export default function GulfFoodDirectory() {
 
         {/* Members Grid */}
         {filtered.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 border border-gray-200 text-center">
+          <div className="card p-12 text-center">
             <FileText size={48} className="mx-auto text-gray-300 mb-4" />
             <p className="text-gray-500">No members found</p>
             {members.length === 0 && (
@@ -433,18 +415,18 @@ export default function GulfFoodDirectory() {
                 <div
                   key={member.id}
                   onClick={() => setViewingMember(member)}
-                  className={`bg-white border rounded-2xl p-5 transition-all cursor-pointer group ${
+                  className={`bg-white border rounded-2xl p-4 lg:p-5 transition-all cursor-pointer group ${
                     isSelected ? 'border-rose-500 shadow-sm bg-rose-50/30' : 'border-gray-200 hover:shadow-md hover:border-rose-200'
                   }`}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex gap-3 items-start">
-                      <div onClick={(e) => e.stopPropagation()} className="pt-1">
+                      <div onClick={(e) => e.stopPropagation()} className="p-2 -m-2">
                         <input
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleSelection(member.id)}
-                          className="w-4 h-4 text-rose-600 rounded border-gray-300 focus:ring-rose-500 cursor-pointer"
+                          aria-label={`Select ${member.companyName}`} className="w-5 h-5 text-rose-700 rounded border-gray-300 focus:ring-rose-500 cursor-pointer accent-rose-700"
                         />
                       </div>
                       <h3 className="font-semibold text-gray-900 group-hover:text-rose-700 transition-colors line-clamp-2">
@@ -472,7 +454,7 @@ export default function GulfFoodDirectory() {
                       <a
                         href={`tel:${member.contactNumber.replace(/\s/g, '')}`}
                         onClick={e => e.stopPropagation()}
-                        className="flex items-center gap-1.5 text-rose-600 hover:text-rose-700"
+                        className="flex items-center gap-1.5 text-rose-700 hover:text-rose-800 min-h-[36px]"
                       >
                         <Phone size={14} />
                         <span>{member.contactNumber}</span>
@@ -495,11 +477,11 @@ export default function GulfFoodDirectory() {
 
         {/* View Member Modal */}
         {viewingMember && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setViewingMember(null)}>
-            <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4 bg-black/50" onClick={() => setViewingMember(null)}>
+            <div className="bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-5 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-gray-900">{viewingMember.companyName}</h2>
-                <button onClick={() => setViewingMember(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <button onClick={() => setViewingMember(null)} aria-label="Close" className="p-2.5 -mr-2 hover:bg-gray-100 rounded-lg">
                   <X size={20} />
                 </button>
               </div>
@@ -560,14 +542,14 @@ export default function GulfFoodDirectory() {
               <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
                 <button
                   onClick={() => handleEdit(viewingMember)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200"
                 >
                   <Edit2 size={16} />
                   Edit
                 </button>
                 <button
                   onClick={() => handleDeleteSingle(viewingMember.id)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100"
                 >
                   <Trash2 size={16} />
                   Delete
@@ -579,13 +561,13 @@ export default function GulfFoodDirectory() {
 
         {/* Add/Edit Modal */}
         {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowAddModal(false)}>
-            <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4 bg-black/50" onClick={() => setShowAddModal(false)}>
+            <div className="bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-5 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-gray-900">
                   {editingMember ? 'Edit Member' : 'Add New Member'}
                 </h2>
-                <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <button onClick={() => setShowAddModal(false)} aria-label="Close" className="p-2.5 -mr-2 hover:bg-gray-100 rounded-lg">
                   <X size={20} />
                 </button>
               </div>
@@ -601,7 +583,7 @@ export default function GulfFoodDirectory() {
                       onChange={e => setForm({ ...form, companyName: e.target.value })}
                       placeholder="Company Name"
                       required
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                      className="input-field"
                     />
                   </div>
 
@@ -612,7 +594,7 @@ export default function GulfFoodDirectory() {
                       value={form.cityState}
                       onChange={e => setForm({ ...form, cityState: e.target.value })}
                       placeholder="e.g. Mumbai, Maharashtra"
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                      className="input-field"
                     />
                   </div>
 
@@ -624,7 +606,7 @@ export default function GulfFoodDirectory() {
                         value={form.contactPerson}
                         onChange={e => setForm({ ...form, contactPerson: e.target.value })}
                         placeholder="Contact Person Name"
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                        className="input-field"
                       />
                     </div>
                     <div>
@@ -634,7 +616,7 @@ export default function GulfFoodDirectory() {
                         value={form.contactNumber}
                         onChange={e => setForm({ ...form, contactNumber: e.target.value })}
                         placeholder="+91 ..."
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                        className="input-field"
                       />
                     </div>
                   </div>
@@ -646,7 +628,7 @@ export default function GulfFoodDirectory() {
                       value={form.email}
                       onChange={e => setForm({ ...form, email: e.target.value })}
                       placeholder="email@company.com"
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                      className="input-field"
                     />
                   </div>
 
@@ -657,7 +639,7 @@ export default function GulfFoodDirectory() {
                       value={form.website}
                       onChange={e => setForm({ ...form, website: e.target.value })}
                       placeholder="www.company.com"
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                      className="input-field"
                     />
                   </div>
 
@@ -668,7 +650,7 @@ export default function GulfFoodDirectory() {
                       onChange={e => setForm({ ...form, profile: e.target.value })}
                       placeholder="e.g. Dairy Products, Instant Coffee, Tea..."
                       rows={3}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none"
+                      className="input-field resize-none"
                     />
                   </div>
 
@@ -676,13 +658,13 @@ export default function GulfFoodDirectory() {
                     <button
                       type="button"
                       onClick={() => setShowAddModal(false)}
-                      className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200"
+                      className="flex-1 px-4 py-2.5 min-h-[44px] bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 px-4 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700"
+                      className="flex-1 px-4 py-2.5 min-h-[44px] bg-rose-700 text-white rounded-xl text-sm font-medium hover:bg-rose-800"
                     >
                       {editingMember ? 'Update' : 'Add'} Member
                     </button>
@@ -701,13 +683,13 @@ export default function GulfFoodDirectory() {
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <button
                       onClick={() => setDuplicateWarning(null)}
-                      className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                      className="flex-1 px-4 py-2.5 min-h-[44px] bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
                     >
                       Cancel / Edit
                     </button>
                     <button
                       onClick={executeSave}
-                      className="flex-1 px-4 py-2.5 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 transition-colors"
+                      className="flex-1 px-4 py-2.5 min-h-[44px] bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 transition-colors"
                     >
                       {editingMember ? 'Update Anyhow' : 'Create New Member Anyhow'}
                     </button>
@@ -720,8 +702,8 @@ export default function GulfFoodDirectory() {
 
         {/* Double Confirmation Bulk Delete Modal */}
         {deleteStep > 0 && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-xl">
+          <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4 bg-black/50">
+            <div className="bg-white rounded-t-3xl sm:rounded-2xl max-w-md w-full p-5 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-center shadow-xl">
               <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <AlertTriangle size={32} className="text-red-600" />
               </div>
@@ -735,13 +717,13 @@ export default function GulfFoodDirectory() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => setDeleteStep(0)}
-                      className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200"
+                      className="flex-1 px-4 py-2.5 min-h-[44px] bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={() => setDeleteStep(2)}
-                      className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700"
+                      className="flex-1 px-4 py-2.5 min-h-[44px] bg-red-600 text-white rounded-xl font-medium hover:bg-red-700"
                     >
                       Yes, Proceed
                     </button>
@@ -756,13 +738,13 @@ export default function GulfFoodDirectory() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => setDeleteStep(0)}
-                      className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200"
+                      className="flex-1 px-4 py-2.5 min-h-[44px] bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={executeBulkDelete}
-                      className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700"
+                      className="flex-1 px-4 py-2.5 min-h-[44px] bg-red-600 text-white rounded-xl font-medium hover:bg-red-700"
                     >
                       Permanently Delete
                     </button>
@@ -774,6 +756,6 @@ export default function GulfFoodDirectory() {
         )}
 
       </div>
-    </div>
+    </Page>
   );
 }

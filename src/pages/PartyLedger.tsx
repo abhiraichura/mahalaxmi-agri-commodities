@@ -1,7 +1,8 @@
 // src/pages/PartyLedger.tsx
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Search, FileText, ArrowLeft, Download, Phone, ChevronDown, Check } from 'lucide-react';
+import { FileText, Download, Phone, ChevronDown, Check } from 'lucide-react';
+import { Page, Button, EmptyState } from '../ui';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function PartyLedger() {
@@ -113,22 +114,15 @@ export default function PartyLedger() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto pt-16 lg:pt-8 px-4 lg:px-8 pb-8">
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => window.history.back()} className="p-2 hover:bg-gray-100 rounded-lg">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h1 className="text-2xl font-bold">Party Ledger / Account Statement</h1>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <Page title="Party ledger" subtitle="Month-wise account statement of one party" width="wide">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-4">
         {/* Custom Party Dropdown */}
-        <div className="md:col-span-2 relative" ref={partyDropdownRef}>
+        <div className="col-span-2 relative" ref={partyDropdownRef}>
           <label className="block text-sm font-medium text-gray-700 mb-1">Select Party</label>
           <button
             type="button"
             onClick={() => setPartyDropdownOpen(!partyDropdownOpen)}
-            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm flex items-center justify-between text-left transition-colors hover:bg-gray-50"
+            className="input-field flex items-center justify-between text-left min-h-[48px]"
           >
             <span className={selectedPartyId ? 'text-gray-900 font-medium truncate pr-4' : 'text-gray-400'}>
               {selectedPartyId ? parties.find(p => p.id === selectedPartyId)?.legalName : '-- Select Party --'}
@@ -141,7 +135,7 @@ export default function PartyLedger() {
               <button
                 type="button"
                 onClick={() => { setSelectedPartyId(''); setPartyDropdownOpen(false); }}
-                className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${!selectedPartyId ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                className={`w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${!selectedPartyId ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
               >
                 <span>-- Select Party --</span>
                 {!selectedPartyId && <Check size={14} className="text-rose-600" />}
@@ -151,7 +145,7 @@ export default function PartyLedger() {
                   key={p.id}
                   type="button"
                   onClick={() => { setSelectedPartyId(p.id); setPartyDropdownOpen(false); }}
-                  className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${selectedPartyId === p.id ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                  className={`w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${selectedPartyId === p.id ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
                 >
                   <span className="truncate pr-2">{p.legalName}</span>
                   {selectedPartyId === p.id && <Check size={14} className="text-rose-600 flex-shrink-0" />}
@@ -167,7 +161,7 @@ export default function PartyLedger() {
           <button
             type="button"
             onClick={() => setMonthDropdownOpen(!monthDropdownOpen)}
-            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm flex items-center justify-between text-left transition-colors hover:bg-gray-50"
+            className="input-field flex items-center justify-between text-left min-h-[48px]"
           >
             <span className="text-gray-900 font-medium">{months[selectedMonth]}</span>
             <ChevronDown size={16} className={`text-gray-400 transition-transform ${monthDropdownOpen ? 'rotate-180' : ''}`} />
@@ -180,7 +174,7 @@ export default function PartyLedger() {
                   key={i}
                   type="button"
                   onClick={() => { setSelectedMonth(i); setMonthDropdownOpen(false); }}
-                  className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${selectedMonth === i ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                  className={`w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${selectedMonth === i ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
                 >
                   <span>{m}</span>
                   {selectedMonth === i && <Check size={14} className="text-rose-600" />}
@@ -196,7 +190,7 @@ export default function PartyLedger() {
           <button
             type="button"
             onClick={() => setYearDropdownOpen(!yearDropdownOpen)}
-            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm flex items-center justify-between text-left transition-colors hover:bg-gray-50"
+            className="input-field flex items-center justify-between text-left min-h-[48px]"
           >
             <span className="text-gray-900 font-medium">{selectedYear}</span>
             <ChevronDown size={16} className={`text-gray-400 transition-transform ${yearDropdownOpen ? 'rotate-180' : ''}`} />
@@ -209,7 +203,7 @@ export default function PartyLedger() {
                   key={y}
                   type="button"
                   onClick={() => { setSelectedYear(y); setYearDropdownOpen(false); }}
-                  className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${selectedYear === y ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
+                  className={`w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${selectedYear === y ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
                 >
                   <span>{y}</span>
                   {selectedYear === y && <Check size={14} className="text-rose-600" />}
@@ -221,16 +215,16 @@ export default function PartyLedger() {
       </div>
 
       {selectedParty && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-6">
-          <div className="flex items-start justify-between">
-            <div>
+        <div className="card p-4 lg:p-5 mb-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
               <h2 className="text-lg font-bold">{selectedParty.legalName}</h2>
               <p className="text-sm text-gray-600">{selectedParty.address}</p>
               <p className="text-sm text-gray-600">{selectedParty.city}, {selectedParty.state}</p>
               {selectedParty.gstin && <p className="text-sm text-gray-500">GSTIN: {selectedParty.gstin}</p>}
               <div className="flex flex-wrap gap-2 mt-2">
                 {parsePhones(selectedParty.phone).map((phone, idx) => (
-                  <a key={idx} href={`tel:+91${phone.replace(/\D/g, '')}`} className="text-sm text-rose-600 hover:underline">
+                  <a key={idx} href={`tel:+91${phone.replace(/\D/g, '')}`} className="inline-flex items-center min-h-[44px] lg:min-h-0 text-sm text-rose-700 hover:underline">
                     <Phone className="w-3.5 h-3.5 inline mr-1" />{phone}
                   </a>
                 ))}
@@ -247,22 +241,45 @@ export default function PartyLedger() {
 
       {selectedPartyId && (
         <div className="flex justify-end mb-3">
-          <button
-            onClick={exportLedger}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm hover:bg-gray-50 transition-colors"
-          >
-            <Download className="w-4 h-4" /> Export CSV
-          </button>
+          <Button variant="secondary" icon={<Download size={16} />} onClick={exportLedger}>Export CSV</Button>
         </div>
       )}
 
       {selectedPartyId && partyContracts.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 bg-white border border-gray-200 rounded-2xl">
-          <FileText className="w-12 h-12 mx-auto mb-3" />
-          <p>No contracts found for {selectedParty?.legalName} in {months[selectedMonth]} {selectedYear}</p>
+        <div className="card">
+          <EmptyState icon={<FileText size={24} />} title="No contracts this month">
+            No contracts found for {selectedParty?.legalName} in {months[selectedMonth]} {selectedYear}.
+          </EmptyState>
         </div>
       ) : selectedPartyId ? (
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden overflow-x-auto">
+        <>
+        {/* phone: one card per row */}
+        <div className="lg:hidden space-y-2.5">
+          {ledgerRows.map((row, idx) => (
+            <div key={idx} className="card p-3.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{row.description}</p>
+                  <p className="text-xs text-gray-500">{format(new Date(row.date), 'dd MMM')} · {row.quantity} · Rs. {row.price.toLocaleString('en-IN')}</p>
+                </div>
+                <span className={`chip shrink-0 ${row.type === 'Sale' ? 'bg-amber-50 text-amber-800' : 'bg-sky-50 text-sky-700'}`}>{row.type}</span>
+              </div>
+              <dl className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                <dt className="text-gray-500">Total value</dt><dd className="text-right text-gray-800">Rs. {row.totalValue.toLocaleString('en-IN')}</dd>
+                <dt className="text-gray-500">Brokerage</dt><dd className="text-right font-medium text-rose-700">Rs. {row.brokerage.toLocaleString('en-IN')}</dd>
+                <dt className="text-gray-500">Payments</dt><dd className="text-right font-medium text-emerald-700">Rs. {row.payments.toLocaleString('en-IN')}</dd>
+                <dt className="text-gray-500">Balance</dt><dd className="text-right font-semibold text-gray-900">Rs. {row.balance.toLocaleString('en-IN')}</dd>
+              </dl>
+            </div>
+          ))}
+          <div className="card p-3.5 bg-gray-50 text-sm">
+            <p className="font-semibold text-gray-700 mb-1">Totals</p>
+            <div className="flex justify-between"><span className="text-gray-500">Brokerage</span><span className="font-semibold text-rose-700">Rs. {totalBrokerage.toLocaleString('en-IN')}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Payments</span><span className="font-semibold text-emerald-700">Rs. {totalPayments.toLocaleString('en-IN')}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Balance</span><span className="font-semibold text-gray-900">Rs. {runningBalance.toLocaleString('en-IN')}</span></div>
+          </div>
+        </div>
+        <div className="hidden lg:block card overflow-hidden overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
@@ -306,7 +323,8 @@ export default function PartyLedger() {
             </tfoot>
           </table>
         </div>
+        </>
       ) : null}
-    </div>
+    </Page>
   );
 }

@@ -114,7 +114,7 @@ export function buildMessage({ slot, parts, picks, movement, config = DEFAULT_CO
   }
   const movementBlock = shown ? ['*Movement Since Previous Update*', movementLine, ''] : [];
 
-  // The Hindi outlook is worked out from the board alone (open, yesterday's close, last price, expiry date, the other
+  // The Hinglish outlook (mostly Hindi, with everyday English market words) is worked out from the board alone (open, yesterday's close, last price, expiry date, the other
   // spice). It does not use the Movement section, so editing or hiding that section never changes it, and it never
   // repeats what the Movement section already says. Consecutive updates of a day use different wording.
   const rot = SLOTS.indexOf(Number(slot)) >= 0 ? SLOTS.indexOf(Number(slot)) : 0;

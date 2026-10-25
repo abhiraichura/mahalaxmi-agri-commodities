@@ -6,6 +6,9 @@ import toast from 'react-hot-toast';
 import { getStoredFont, saveFont, removeFont, onFontChange, type FontMeta } from '../contractNote/fontStore';
 import { checkFont, parseFont } from '../contractNote/engine';
 import { FONT_REF } from '../contractNote/data';
+import { Page, Button } from '../ui';
+import RemindersSettings from '../reminders/RemindersSettings';
+import { useLocation } from 'react-router-dom';
 
 export default function Settings() {
   const { settings, updateSettings, saveSettingsToFirebase, loadSettingsFromFirebase } = useAppStore();
@@ -28,6 +31,14 @@ export default function Settings() {
   useEffect(() => {
     loadSettingsFromFirebase();
   }, []);
+
+  // /settings#reminders scrolls straight to the reminders
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (!hash) return;
+    const t = setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' }), 60);
+    return () => clearTimeout(t);
+  }, [hash]);
 
   useEffect(() => {
     const load = () => getStoredFont().then(f => setFontMeta(f ? f.meta : null)).catch(() => setFontMeta(null));
@@ -169,12 +180,12 @@ export default function Settings() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto pt-16 lg:pt-8 px-4 lg:px-8 pb-8">
-      <h1 className="text-2xl font-bold mb-6">Settings</h1>
+    <Page title="Settings" width="narrow">
+      <div className="space-y-4 lg:space-y-5">
+        <RemindersSettings />
 
-      <div className="space-y-6">
         {/* Logo Upload */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6">
+        <div className="card p-4 lg:p-6">
           <div className="flex items-center justify-between mb-3">
             <label className="block text-sm font-medium text-gray-700">Company Logo (max 500KB)</label>
             {logoPreview && (
@@ -197,7 +208,7 @@ export default function Settings() {
         </div>
 
         {/* Letterhead Upload */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6">
+        <div className="card p-4 lg:p-6">
           <div className="flex items-center justify-between mb-3">
             <label className="block text-sm font-medium text-gray-700">Letterhead (max 500KB)</label>
             {letterheadPreview && (
@@ -229,7 +240,7 @@ export default function Settings() {
         </div>
 
         {/* Digital Signature Upload */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6">
+        <div className="card p-4 lg:p-6">
           <div className="flex items-center justify-between mb-3">
             <label className="block text-sm font-medium text-gray-700">Digital Signature (max 500KB, transparent PNG preferred)</label>
             {sigPreview && (
@@ -252,7 +263,7 @@ export default function Settings() {
         </div>
 
         {/* Company Details */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+        <div className="card p-4 lg:p-6 space-y-4">
           <h3 className="font-semibold text-sm">Company Details</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -260,7 +271,7 @@ export default function Settings() {
               <input
                 value={formData.name}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="input-field"
               />
             </div>
             <div>
@@ -268,7 +279,7 @@ export default function Settings() {
               <input
                 value={formData.legalName}
                 onChange={e => setFormData({ ...formData, legalName: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="input-field"
               />
             </div>
           </div>
@@ -278,7 +289,7 @@ export default function Settings() {
               value={formData.address}
               onChange={e => setFormData({ ...formData, address: e.target.value })}
               rows={2}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              className="input-field"
             />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -286,25 +297,25 @@ export default function Settings() {
               value={formData.city}
               onChange={e => setFormData({ ...formData, city: e.target.value })}
               placeholder="City"
-              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              className="input-field"
             />
             <input
               value={formData.state}
               onChange={e => setFormData({ ...formData, state: e.target.value })}
               placeholder="State"
-              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              className="input-field"
             />
             <input
               value={formData.pincode}
               onChange={e => setFormData({ ...formData, pincode: e.target.value })}
               placeholder="Pincode"
-              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              className="input-field"
             />
             <input
               value={formData.phone}
               onChange={e => setFormData({ ...formData, phone: e.target.value })}
               placeholder="Phone"
-              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              className="input-field"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -312,13 +323,13 @@ export default function Settings() {
               value={formData.gstin}
               onChange={e => setFormData({ ...formData, gstin: e.target.value.toUpperCase() })}
               placeholder="GSTIN"
-              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm uppercase"
+              className="input-field uppercase"
             />
             <input
               value={formData.pan}
               onChange={e => setFormData({ ...formData, pan: e.target.value.toUpperCase() })}
               placeholder="PAN"
-              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm uppercase"
+              className="input-field uppercase"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -326,13 +337,13 @@ export default function Settings() {
               value={formData.email}
               onChange={e => setFormData({ ...formData, email: e.target.value })}
               placeholder="Email"
-              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              className="input-field"
             />
             <input
               value={formData.bankName}
               onChange={e => setFormData({ ...formData, bankName: e.target.value })}
               placeholder="Bank Name"
-              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              className="input-field"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -340,19 +351,19 @@ export default function Settings() {
               value={formData.bankAccount}
               onChange={e => setFormData({ ...formData, bankAccount: e.target.value })}
               placeholder="Account Number"
-              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              className="input-field"
             />
             <input
               value={formData.bankIfsc}
               onChange={e => setFormData({ ...formData, bankIfsc: e.target.value.toUpperCase() })}
               placeholder="IFSC Code"
-              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm uppercase"
+              className="input-field uppercase"
             />
           </div>
         </div>
 
         {/* Brokerage bills & invoices */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+        <div className="card p-4 lg:p-6 space-y-4">
           <h3 className="font-semibold text-sm">Brokerage Bills &amp; Invoices</h3>
           <p className="text-xs text-gray-500">
             Printed on the bills and invoices together with the PAN and bank details above. The PAN you set here is the one on the bills.
@@ -364,7 +375,7 @@ export default function Settings() {
                 value={formData.bankAccountName || ''}
                 onChange={e => setFormData({ ...formData, bankAccountName: e.target.value })}
                 placeholder="e.g. MAHALAXMI AGRI COMMODITIES"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="input-field"
               />
             </div>
             <div>
@@ -373,7 +384,7 @@ export default function Settings() {
                 value={formData.bankBranch || ''}
                 onChange={e => setFormData({ ...formData, bankBranch: e.target.value })}
                 placeholder="e.g. Rajkot Main Branch"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="input-field"
               />
             </div>
             <div>
@@ -385,7 +396,7 @@ export default function Settings() {
                 value={formData.invoiceStartNumber || ''}
                 onChange={e => setFormData({ ...formData, invoiceStartNumber: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
                 placeholder="1"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="input-field"
               />
               <p className="text-[11px] text-gray-400 mt-1">Numbers continue from the highest one already used. Use this to carry on from your paper books.</p>
             </div>
@@ -395,7 +406,7 @@ export default function Settings() {
                 value={formData.jurisdiction || ''}
                 onChange={e => setFormData({ ...formData, jurisdiction: e.target.value })}
                 placeholder="RAJKOT"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="input-field"
               />
             </div>
             <div>
@@ -408,7 +419,7 @@ export default function Settings() {
                 value={formData.brokerageGstPercent || ''}
                 onChange={e => setFormData({ ...formData, brokerageGstPercent: Math.max(0, Number(e.target.value) || 0) })}
                 placeholder="0 (none)"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="input-field"
               />
               <p className="text-[11px] text-gray-400 mt-1">Leave empty if you do not charge GST on brokerage. It can also be changed on the Brokerage Bills screen.</p>
             </div>
@@ -416,7 +427,7 @@ export default function Settings() {
         </div>
 
         {/* Default Values */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+        <div className="card p-4 lg:p-6 space-y-4">
           <h3 className="font-semibold text-sm">Default Contract Values</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -426,7 +437,7 @@ export default function Settings() {
                 step="0.01"
                 value={formData.defaultGstPercent}
                 onChange={e => setFormData({ ...formData, defaultGstPercent: parseFloat(e.target.value) || 0 })}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="input-field"
               />
             </div>
             <div>
@@ -434,7 +445,7 @@ export default function Settings() {
               <input
                 value={formData.defaultPaymentTerms}
                 onChange={e => setFormData({ ...formData, defaultPaymentTerms: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="input-field"
               />
             </div>
             <div>
@@ -442,7 +453,7 @@ export default function Settings() {
               <input
                 value={formData.defaultLoadingCondition}
                 onChange={e => setFormData({ ...formData, defaultLoadingCondition: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="input-field"
               />
             </div>
             <div>
@@ -450,20 +461,20 @@ export default function Settings() {
               <input
                 value={formData.defaultPacking}
                 onChange={e => setFormData({ ...formData, defaultPacking: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="input-field"
               />
             </div>
           </div>
         </div>
 
         {/* Financial Years */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+        <div className="card p-4 lg:p-6 space-y-4">
           <h3 className="font-semibold text-sm">Financial Years</h3>
           <div className="flex flex-wrap gap-2">
             {(formData.financialYears || []).map(fy => (
               <span key={fy} className="inline-flex items-center gap-1 px-3 py-1.5 bg-rose-50 text-rose-700 text-sm rounded-lg">
                 {fy}
-                <button onClick={() => removeFinancialYear(fy)} className="hover:text-rose-900">
+                <button onClick={() => removeFinancialYear(fy)} aria-label={`Remove ${fy}`} className="hover:text-rose-900 p-2 -m-1.5">
                   <X className="w-3.5 h-3.5" />
                 </button>
               </span>
@@ -486,13 +497,13 @@ export default function Settings() {
         </div>
 
         {/* Terms & Conditions */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+        <div className="card p-4 lg:p-6 space-y-4">
           <h3 className="font-semibold text-sm">Terms & Conditions</h3>
           <div className="space-y-2">
             {formData.termsAndConditions.map((term, idx) => (
               <div key={idx} className="flex items-start gap-2 p-3 bg-gray-50 rounded-xl">
                 <span className="text-sm text-gray-600 flex-1">{term}</span>
-                <button onClick={() => removeTerm(idx)} className="p-1 text-gray-400 hover:text-red-600">
+                <button onClick={() => removeTerm(idx)} aria-label="Remove this term" className="p-2.5 -m-1 text-gray-400 hover:text-red-600">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -504,11 +515,12 @@ export default function Settings() {
               onChange={e => setNewTerm(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addTerm()}
               placeholder="Add new term..."
-              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              className="input-field flex-1 min-w-0"
             />
             <button
               onClick={addTerm}
-              className="flex items-center gap-1 px-4 py-3 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700"
+              aria-label="Add term"
+              className="btn btn-primary"
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -516,7 +528,7 @@ export default function Settings() {
         </div>
 
         {/* Contract Note font */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-3">
+        <div className="card p-4 lg:p-6 space-y-3">
           <h3 className="font-semibold text-sm flex items-center gap-2"><Type className="w-4 h-4" /> Contract Note font (Verdana)</h3>
           <p className="text-xs text-gray-500">
             The exact-format Contract Note is printed in Verdana, the font of your design. Add the font file once (regular <b>Verdana.ttf</b>).
@@ -577,7 +589,7 @@ export default function Settings() {
         </div>
 
         {/* ─── SYSTEM SECTION ─── */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+        <div className="card p-4 lg:p-6 space-y-4">
           <h3 className="font-semibold text-sm">System</h3>
 
           {updateAvailable && (
@@ -617,13 +629,10 @@ export default function Settings() {
           </div>
         </div>
 
-        <button
-          onClick={handleSave}
-          className="flex items-center gap-2 px-6 py-3 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700"
-        >
-          <Save className="w-4 h-4" /> Save Settings
-        </button>
+        <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-0 z-20 -mx-4 lg:mx-0 px-4 lg:px-0 py-3 bg-gradient-to-t from-slate-50 via-slate-50 to-slate-50/0">
+          <Button variant="primary" className="w-full lg:w-auto lg:px-8" icon={<Save size={16} />} onClick={handleSave}>Save settings</Button>
+        </div>
       </div>
-    </div>
+    </Page>
   );
 }

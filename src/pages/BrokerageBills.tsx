@@ -16,6 +16,7 @@ import { loadBillAssets } from '../billing/assets';
 import { downloadFile, makeZip, previewPdf, printPdf, safeName, shareFile } from '../billing/output';
 import { getStoredFont, onFontChange } from '../contractNote/fontStore';
 import LetterheadToggle from '../components/LetterheadToggle';
+import { Page } from '../ui';
 import { usePlainCopy } from '../utils/usePlainCopy';
 import {
   billedElsewhere, getPeriodView, issueBill, savePeriodAdjustment, savePeriodPayments, setInvoiceNo,
@@ -86,7 +87,7 @@ function Modal({ children, onClose, wide }: { children: React.ReactNode; onClose
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4 bg-black/50" onClick={onClose}>
       <div
         className={`bg-white rounded-t-2xl sm:rounded-2xl w-full ${wide ? 'sm:max-w-3xl' : 'sm:max-w-md'} max-h-[92vh] overflow-y-auto p-5 sm:p-6`}
         onClick={e => e.stopPropagation()}
@@ -387,14 +388,13 @@ export default function BrokerageBills() {
   const step = (dir: 1 | -1) => { if (kind !== 'custom') setAnchor(a => shiftAnchor(kind, a, dir)); };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-28">
-      <div className="max-w-6xl mx-auto pt-16 lg:pt-8 px-4 lg:px-8 pb-8">
-        <div className="mb-5">
-          <h1 className="text-2xl font-bold text-gray-900">Brokerage Bills</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            One bill per party for the period, covering every contract they bought or sold. Make the Brokerage Bill and the Invoice for one party, or for everyone at once.
-          </p>
-        </div>
+    <Page
+      title="Brokerage bills"
+      subtitle="One bill per party for the period, covering every contract they bought or sold. Make the Brokerage Bill and the Invoice for one party, or for everyone at once."
+      width="wide"
+      className="pb-24"
+    >
+      <div>
 
         {fontOk === false && (
           <div className="mb-4 p-3 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-800 flex gap-2">
@@ -413,7 +413,7 @@ export default function BrokerageBills() {
         )}
 
         {/* period + settings for this run */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-4">
+        <div className="card p-4 mb-4">
           <div className="flex flex-col lg:flex-row lg:items-end gap-4">
             <div className="flex-1">
               <label className="block text-xs text-gray-500 mb-1">Period</label>
@@ -426,7 +426,7 @@ export default function BrokerageBills() {
                     else setAnchor(from.slice(0, 8) + '01');
                     setKind(k);
                   }}
-                  className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-base sm:text-sm"
+                  className="input-field !py-2 !w-auto"
                 >
                   <option value="month">Month</option>
                   <option value="quarter">Quarter</option>
@@ -436,9 +436,9 @@ export default function BrokerageBills() {
                 </select>
                 {kind === 'custom' ? (
                   <>
-                    <input type="date" value={custom.from} onChange={e => setCustom(c => ({ ...c, from: e.target.value }))} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-base sm:text-sm" />
+                    <input type="date" value={custom.from} onChange={e => setCustom(c => ({ ...c, from: e.target.value }))} className="input-field !py-2 !w-auto" />
                     <span className="text-gray-400 text-sm">to</span>
-                    <input type="date" value={custom.to} onChange={e => setCustom(c => ({ ...c, to: e.target.value }))} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-base sm:text-sm" />
+                    <input type="date" value={custom.to} onChange={e => setCustom(c => ({ ...c, to: e.target.value }))} className="input-field !py-2 !w-auto" />
                   </>
                 ) : (
                   <div className="flex items-center gap-1 bg-gray-50 rounded-lg border border-gray-200">
@@ -455,7 +455,7 @@ export default function BrokerageBills() {
             <div className="grid grid-cols-2 gap-3 lg:w-80">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Bill / invoice date</label>
-                <input type="date" value={effectiveBillDate} onChange={e => setBillDate(e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-base sm:text-sm" />
+                <input type="date" value={effectiveBillDate} onChange={e => setBillDate(e.target.value)} className="input-field !py-2" />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">GST on brokerage %</label>
@@ -464,7 +464,7 @@ export default function BrokerageBills() {
                   value={gstInput === '' ? (Number(settings.brokerageGstPercent) || '') : gstInput}
                   placeholder="0"
                   onChange={e => setGstInput(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-base sm:text-sm"
+                  className="input-field !py-2"
                 />
               </div>
             </div>
@@ -476,10 +476,10 @@ export default function BrokerageBills() {
 
         {/* totals */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-          <div className="bg-white rounded-xl border border-gray-200 p-3"><p className="text-xs text-gray-500">Parties / contract lines</p><p className="text-lg font-bold text-gray-900">{sum.parties} <span className="text-gray-400 text-sm font-normal">/ {sum.lines}</span></p></div>
-          <div className="bg-white rounded-xl border border-gray-200 p-3"><p className="text-xs text-gray-500">Total billed</p><p className="text-lg font-bold text-gray-900">{money(sum.total)}</p></div>
-          <div className="bg-white rounded-xl border border-gray-200 p-3"><p className="text-xs text-gray-500">Received</p><p className="text-lg font-bold text-green-600">{money(sum.paid)}</p></div>
-          <div className="bg-white rounded-xl border border-gray-200 p-3"><p className="text-xs text-gray-500">Outstanding</p><p className="text-lg font-bold text-red-600">{money(sum.balance)}</p></div>
+          <div className="card p-3"><p className="text-xs text-gray-500">Parties / contract lines</p><p className="text-lg font-bold text-gray-900">{sum.parties} <span className="text-gray-400 text-sm font-normal">/ {sum.lines}</span></p></div>
+          <div className="card p-3"><p className="text-xs text-gray-500">Total billed</p><p className="text-lg font-bold text-gray-900">{money(sum.total)}</p></div>
+          <div className="card p-3"><p className="text-xs text-gray-500">Received</p><p className="text-lg font-bold text-green-600">{money(sum.paid)}</p></div>
+          <div className="card p-3"><p className="text-xs text-gray-500">Outstanding</p><p className="text-lg font-bold text-red-600">{money(sum.balance)}</p></div>
         </div>
 
         {/* filters */}
@@ -487,13 +487,13 @@ export default function BrokerageBills() {
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="relative flex-1">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search party" className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-base sm:text-sm" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search party" className="input-field !pl-9" />
             </div>
             <div className="flex gap-1.5 flex-wrap">
               {(['all', 'pending', 'partial', 'paid'] as const).map(s => (
-                <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-2 rounded-lg text-sm border capitalize ${statusFilter === s ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{s}</button>
+                <button key={s} onClick={() => setStatusFilter(s)} className={`px-3.5 min-h-[44px] rounded-xl text-sm border capitalize ${statusFilter === s ? 'bg-rose-700 text-white border-rose-700' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{s}</button>
               ))}
-              <button onClick={toggleAll} className="px-3 py-2 rounded-lg text-sm border bg-white text-gray-700 border-gray-200 hover:bg-gray-50">
+              <button onClick={toggleAll} className="px-3.5 min-h-[44px] rounded-xl text-sm border bg-white text-gray-700 border-gray-200 hover:bg-gray-50">
                 {allShownSelected ? 'Clear selection' : 'Select all'}
               </button>
             </div>
@@ -566,16 +566,16 @@ export default function BrokerageBills() {
                         )}
 
                         <div className="flex flex-wrap gap-2 mt-3">
-                          <button disabled={!!busy} onClick={() => makeOne(r, 'bill')} className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700 disabled:opacity-50">
+                          <button disabled={!!busy} onClick={() => makeOne(r, 'bill')} className="flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700 disabled:opacity-50">
                             <FileText size={16} /> Brokerage Bill
                           </button>
-                          <button disabled={!!busy} onClick={() => makeOne(r, 'invoice')} className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 text-rose-700 rounded-xl text-sm font-medium hover:bg-rose-100 disabled:opacity-50">
+                          <button disabled={!!busy} onClick={() => makeOne(r, 'invoice')} className="flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] bg-rose-50 text-rose-700 rounded-xl text-sm font-medium hover:bg-rose-100 disabled:opacity-50">
                             <Receipt size={16} /> Invoice
                           </button>
-                          <button onClick={() => setViewId(id)} className="flex items-center gap-1.5 px-3.5 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200">
+                          <button onClick={() => setViewId(id)} className="flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200">
                             <Eye size={16} /> Details
                           </button>
-                          <button onClick={() => openPay(r)} className="flex items-center gap-1.5 px-3.5 py-2 bg-green-50 text-green-700 rounded-xl text-sm font-medium hover:bg-green-100">
+                          <button onClick={() => openPay(r)} className="flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] bg-green-50 text-green-700 rounded-xl text-sm font-medium hover:bg-green-100">
                             <DollarSign size={16} /> Payment
                           </button>
                         </div>
@@ -591,8 +591,8 @@ export default function BrokerageBills() {
 
       {/* selection bar */}
       {selectedRows.length > 0 && (
-        <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 shadow-lg px-4 py-3" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-          <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
+        <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-0 inset-x-0 lg:left-64 z-40 bg-white border-t border-gray-200 shadow-lg px-4 py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
             <p className="text-sm text-gray-700"><strong>{selectedRows.length}</strong> selected</p>
             <div className="flex gap-2">
               <button onClick={() => setSelected(new Set())} className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Clear</button>
@@ -754,7 +754,7 @@ export default function BrokerageBills() {
               <p className="text-xs text-gray-500 mb-1.5">Invoice number (shared by the Brokerage Bill and the Invoice)</p>
               {viewRow.invoiceNo || noInput ? (
                 <div className="flex gap-2">
-                  <input value={noInput} onChange={e => setNoInput(e.target.value.replace(/\D/g, ''))} inputMode="numeric" className="flex-1 min-w-0 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-base sm:text-sm" />
+                  <input value={noInput} onChange={e => setNoInput(e.target.value.replace(/\D/g, ''))} inputMode="numeric" className="flex-1 min-w-0 input-field !py-2 !w-auto" />
                   <button onClick={() => saveNo(viewRow)} disabled={!noInput || Number(noInput) === viewRow.invoiceNo} className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium disabled:opacity-40">Save</button>
                 </div>
               ) : <p className="text-sm text-gray-500">Given automatically the first time you make a PDF.</p>}
@@ -859,16 +859,16 @@ export default function BrokerageBills() {
             <span className="text-gray-500">Calculated brokerage</span><span className="font-semibold">{money(adjRow.totals.subtotal)}</span>
           </div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Adjustment amount (+ / -)</label>
-          <input type="number" inputMode="decimal" value={adjForm.amount} onChange={e => setAdjForm({ ...adjForm, amount: e.target.value })} placeholder="0" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-base sm:text-sm" />
+          <input type="number" inputMode="decimal" value={adjForm.amount} onChange={e => setAdjForm({ ...adjForm, amount: e.target.value })} placeholder="0" className="input-field" />
           <p className="text-xs text-gray-500 mt-1 mb-4">New brokerage: <strong>{money(adjRow.totals.subtotal + (Number(adjForm.amount) || 0))}</strong></p>
           <label className="block text-sm font-medium text-gray-700 mb-1">Reason (printed)</label>
-          <input type="text" value={adjForm.note} onChange={e => setAdjForm({ ...adjForm, note: e.target.value })} placeholder="e.g. Discount" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-base sm:text-sm" />
+          <input type="text" value={adjForm.note} onChange={e => setAdjForm({ ...adjForm, note: e.target.value })} placeholder="e.g. Discount" className="input-field" />
           <div className="flex gap-3 mt-6">
             <button onClick={() => setAdjId(null)} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium">Cancel</button>
             <button onClick={saveAdj} className="flex-1 px-4 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-medium">Save</button>
           </div>
         </Modal>
       )}
-    </div>
+    </Page>
   );
 }

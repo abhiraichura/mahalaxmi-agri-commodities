@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Page, Button } from '../ui';
 import { 
   CheckCircle2, 
   Circle, 
@@ -160,26 +161,19 @@ export default function Todos() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto p-4 sm:p-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-            Task Planner <CheckSquare className="w-6 h-6 text-rose-700" />
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">Organize and monitor your operational updates day-by-day.</p>
-        </div>
-        
-        <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100">
+    <Page
+      title={<span className="inline-flex items-center gap-2">Task planner <CheckSquare className="w-5 h-5 text-rose-700" /></span>}
+      subtitle="Plan and tick off your work day by day."
+      actions={
+        <span className="inline-flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200">
           <Clock className="w-4 h-4 text-gray-400" />
-          <span className="text-xs font-semibold text-gray-600">
-            {stats.completed}/{stats.total} Targets Completed
-          </span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+          <span className="text-xs font-semibold text-gray-600">{stats.completed}/{stats.total} done</span>
+        </span>
+      }
+    >
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+        <div className="lg:col-span-1 space-y-4 order-2 lg:order-1">
+          <div className="card p-4 lg:p-5 space-y-4">
             <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
               <Flame className="w-4 h-4 text-orange-500" /> New Agenda Item
             </h3>
@@ -192,7 +186,7 @@ export default function Todos() {
                   onChange={(e) => setNewTodoText(e.target.value)}
                   placeholder="Type task details here..."
                   rows={3}
-                  className="w-full p-3 bg-gray-50 text-sm font-medium text-gray-800 placeholder-gray-400 rounded-xl border border-transparent focus:bg-white focus:border-rose-500 focus:ring-4 focus:ring-rose-500/5 outline-none transition-all resize-none"
+                  className="input-field resize-none"
                 />
               </div>
 
@@ -204,7 +198,7 @@ export default function Todos() {
                       key={p}
                       type="button"
                       onClick={() => setPriority(p)}
-                      className={`text-xs py-2 font-bold rounded-xl capitalize transition-all border ${
+                      className={`text-sm min-h-[44px] py-2 font-bold rounded-xl capitalize transition-all border ${
                         priority === p 
                           ? p === 'high' ? 'bg-rose-600 text-white border-rose-600' :
                             p === 'medium' ? 'bg-amber-500 text-white border-amber-500' :
@@ -218,18 +212,12 @@ export default function Todos() {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={!newTodoText.trim()}
-                className="w-full py-2.5 bg-rose-700 disabled:bg-gray-200 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl hover:bg-rose-800 transition-all shadow-md flex items-center justify-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" /> Add to Day
-              </button>
+              <Button type="submit" variant="primary" className="w-full" disabled={!newTodoText.trim()} icon={<Plus size={16} />}>Add to this day</Button>
             </form>
           </div>
 
           {dailyTodos.length > 0 && (
-            <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-5 rounded-2xl text-white shadow-md">
+            <div className="bg-slate-900 p-4 lg:p-5 rounded-2xl text-white">
               <div className="flex justify-between items-center text-xs opacity-80 mb-2 font-medium">
                 <span>Day Progress Bar</span>
                 <span>{stats.percent}%</span>
@@ -244,11 +232,12 @@ export default function Todos() {
           )}
         </div>
 
-        <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white p-2.5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between gap-1">
+        <div className="lg:col-span-2 space-y-4 order-1 lg:order-2">
+          <div className="card p-2 flex items-center justify-between gap-1">
             <button 
               onClick={() => shiftWeek('prev')}
-              className="p-2 hover:bg-gray-50 rounded-xl text-gray-400 hover:text-gray-700 transition-colors"
+              aria-label="Previous week"
+              className="p-3 hover:bg-gray-50 rounded-xl text-gray-500 hover:text-gray-700 transition-colors shrink-0"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -263,7 +252,7 @@ export default function Todos() {
                   <button
                     key={dateStr}
                     onClick={() => setSelectedDay(dateStr)}
-                    className={`flex flex-col items-center min-w-[56px] py-2 rounded-xl transition-all duration-200 ${
+                    className={`flex flex-col items-center min-w-[48px] sm:min-w-[56px] min-h-[56px] py-2 rounded-xl transition-all duration-200 ${
                       isActive 
                         ? 'bg-rose-700 text-white shadow-md shadow-rose-100 font-bold scale-[1.02]' 
                         : 'bg-white hover:bg-gray-50 text-gray-700 border border-transparent hover:border-gray-100'
@@ -285,7 +274,8 @@ export default function Todos() {
 
             <button 
               onClick={() => shiftWeek('next')}
-              className="p-2 hover:bg-gray-50 rounded-xl text-gray-400 hover:text-gray-700 transition-colors"
+              aria-label="Next week"
+              className="p-3 hover:bg-gray-50 rounded-xl text-gray-500 hover:text-gray-700 transition-colors shrink-0"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -293,11 +283,11 @@ export default function Todos() {
 
           <div className="space-y-2.5 min-h-[300px]">
             {loading ? (
-              <div className="flex items-center justify-center py-20 bg-white rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-center py-20 card">
                 <div className="w-6 h-6 border-2 border-rose-700 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : dailyTodos.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-2xl border border-dashed border-gray-200 shadow-sm px-4">
+              <div className="flex flex-col items-center justify-center py-16 text-center card border-dashed px-4">
                 <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 mb-3 border border-gray-100">
                   <Calendar className="w-5 h-5" />
                 </div>
@@ -308,7 +298,7 @@ export default function Todos() {
               dailyTodos.map((todo) => (
                 <div
                   key={todo.id}
-                  className={`group flex items-center justify-between p-4 rounded-2xl transition-all duration-200 border ${
+                  className={`group flex items-center justify-between gap-2 p-3 lg:p-4 rounded-2xl transition-all duration-200 border ${
                     todo.completed 
                       ? 'bg-gray-50/80 border-gray-100 opacity-70' 
                       : 'bg-white border-gray-100 hover:border-gray-200 shadow-sm'
@@ -317,7 +307,8 @@ export default function Todos() {
                   <div className="flex items-center gap-3.5 flex-1 min-w-0">
                     <button 
                       onClick={() => toggleTodo(todo.id, todo.completed)}
-                      className="text-gray-400 hover:text-rose-700 transition-colors flex-shrink-0"
+                      aria-label={todo.completed ? 'Mark as not done' : 'Mark as done'}
+                      className="text-gray-400 hover:text-rose-700 transition-colors flex-shrink-0 p-2 -m-2"
                     >
                       {todo.completed ? (
                         <CheckCircle2 className="w-5 h-5 text-emerald-500 fill-emerald-50" />
@@ -334,16 +325,16 @@ export default function Todos() {
                         onBlur={() => saveUpdate(todo.id)}
                         onKeyDown={(e) => e.key === 'Enter' && saveUpdate(todo.id)}
                         autoFocus
-                        className="w-full text-xs sm:text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-300 rounded-md px-2 py-0.5 outline-none focus:border-rose-500"
+                        className="input-field !py-2"
                       />
                     ) : (
-                      <span className={`text-xs sm:text-sm font-semibold truncate flex-1 ${todo.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                      <span className={`text-sm font-semibold flex-1 break-words min-w-0 ${todo.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
                         {todo.text}
                       </span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                  <div className="flex items-center gap-1 ml-1 flex-shrink-0">
                     <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider border ${
                       todo.priority === 'high' ? 'bg-rose-50 text-rose-600 border-rose-100' :
                       todo.priority === 'medium' ? 'bg-amber-50 text-amber-600 border-amber-100' :
@@ -355,24 +346,27 @@ export default function Todos() {
                     {editingId === todo.id ? (
                       <button
                         onClick={() => saveUpdate(todo.id)}
-                        className="text-emerald-600 p-1.5 hover:bg-gray-50 rounded-lg"
+                        aria-label="Save"
+                        className="text-emerald-600 p-2.5 hover:bg-gray-50 rounded-lg"
                       >
-                        <Check className="w-3.5 h-3.5" />
+                        <Check className="w-4 h-4" />
                       </button>
                     ) : (
                       <button
                         onClick={() => startEditing(todo)}
-                        className="sm:opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 transition-all p-1.5 rounded-lg hover:bg-gray-50"
+                        aria-label="Edit task"
+                        className="lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100 text-gray-500 hover:text-gray-700 transition-all p-2.5 rounded-lg hover:bg-gray-50"
                       >
-                        <Edit3 className="w-3.5 h-3.5" />
+                        <Edit3 className="w-4 h-4" />
                       </button>
                     )}
 
                     <button
                       onClick={() => deleteTodo(todo.id)}
-                      className="sm:opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-500 transition-all p-1.5 rounded-lg hover:bg-gray-50"
+                      aria-label="Delete task"
+                      className="lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100 text-gray-500 hover:text-rose-600 transition-all p-2.5 rounded-lg hover:bg-gray-50"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -381,6 +375,6 @@ export default function Todos() {
           </div>
         </div>
       </div>
-    </div>
+    </Page>
   );
 }

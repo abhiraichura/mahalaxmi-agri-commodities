@@ -105,8 +105,33 @@ export interface Contract {
   /** brokerage rate for THIS contract (starts as the product's default, can be changed per contract) */
   brokerage?: { buyer: BrokerageConfig; seller: BrokerageConfig };
   payments: Payment[];
+  /** loading time in days, counted from the contract date (drives the loading reminders) */
+  loadingDays?: number | null;
+  /** payment is due this many days after loading (min to max; max empty = same as min) */
+  paymentDaysMin?: number | null;
+  paymentDaysMax?: number | null;
+  /** the day the goods were really loaded (YYYY-MM-DD), set by the owner */
+  loadedOn?: string | null;
+  /** the day the payment was confirmed (YYYY-MM-DD), set by the owner */
+  paymentReceivedOn?: string | null;
+  /** "the buyer said Friday": silences that part of the reminders until that day */
+  snooze?: { kind: 'loading' | 'payment'; until: string; note?: string } | null;
+  /** true = no reminders for this contract */
+  remindersOff?: boolean;
+  /** the contract's diary: what happened and when */
+  timeline?: TimelineEvent[];
   createdAt: any;
   updatedAt: any;
+}
+
+export interface TimelineEvent {
+  id: string;
+  /** the day it is about (YYYY-MM-DD) */
+  date: string;
+  /** when it was written down (milliseconds) */
+  at: number;
+  type: 'loaded' | 'not_loaded' | 'paid' | 'not_paid' | 'undo' | 'note';
+  text: string;
 }
 
 export interface Payment {

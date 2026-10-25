@@ -4,6 +4,7 @@ import { Plus, Trash2, Edit2, Save, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { Quality, SpecField } from '../types';
+import { Page, Button, EmptyState } from '../ui';
 
 export default function ProductManager() {
   const { products, addProduct, updateProduct, deleteProduct } = useAppStore();
@@ -28,6 +29,7 @@ export default function ProductManager() {
   };
 
   const startEdit = (product: any) => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     setEditing(product.id);
     setName(product.name);
     const b = product.brokerage || {
@@ -140,7 +142,8 @@ export default function ProductManager() {
     toast.success('Deleted');
   };
 
-  const BrokerageField = ({ 
+  // a plain function (not a component) so the field keeps focus while you type
+  const brokerageField = ({ 
     label, 
     type, 
     value, 
@@ -158,8 +161,9 @@ export default function ProductManager() {
       <div className="flex gap-2">
         <select
           value={type}
+          aria-label={`${label} type`}
           onChange={e => onTypeChange(e.target.value as 'percent' | 'fixed')}
-          className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+          className="input-field !w-auto"
         >
           <option value="percent">Percentage (%)</option>
           <option value="fixed">Fixed Amount (Rs.)</option>
@@ -170,7 +174,9 @@ export default function ProductManager() {
           value={value}
           onChange={e => onValueChange(parseFloat(e.target.value) || 0)}
           placeholder={type === 'percent' ? 'e.g. 2.5' : 'e.g. 5000'}
-          className="flex-1 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+          aria-label={label}
+          inputMode="decimal"
+          className="input-field flex-1 min-w-0"
         />
       </div>
       <p className="text-xs text-gray-500">
@@ -180,11 +186,9 @@ export default function ProductManager() {
   );
 
   return (
-    <div className="max-w-3xl mx-auto pt-16 lg:pt-8 px-4 lg:px-8 pb-8">
-      <h1 className="text-2xl font-bold mb-6">Products</h1>
-
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-6">
-        <h3 className="font-semibold text-sm mb-4">{editing ? 'Edit Product' : 'Add Product'}</h3>
+    <Page title="Products" subtitle="Usual brokerage and quality specifications for each product" width="narrow">
+      <div className="card p-4 lg:p-6 mb-5">
+        <h3 className="font-semibold text-sm mb-4">{editing ? 'Edit product' : 'Add product'}</h3>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Product Name *</label>
@@ -192,38 +196,32 @@ export default function ProductManager() {
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g., Coriander Seeds"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              className="input-field"
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <BrokerageField
-              label="Buyer Brokerage"
-              type={brokerage.buyer.type}
-              value={brokerage.buyer.value}
-              onTypeChange={t => setBrokerage(prev => ({ ...prev, buyer: { ...prev.buyer, type: t } }))}
-              onValueChange={v => setBrokerage(prev => ({ ...prev, buyer: { ...prev.buyer, value: v } }))}
-            />
-            <BrokerageField
-              label="Seller Brokerage"
-              type={brokerage.seller.type}
-              value={brokerage.seller.value}
-              onTypeChange={t => setBrokerage(prev => ({ ...prev, seller: { ...prev.seller, type: t } }))}
-              onValueChange={v => setBrokerage(prev => ({ ...prev, seller: { ...prev.seller, value: v } }))}
-            />
+            {brokerageField({
+              label: 'Buyer Brokerage',
+              type: brokerage.buyer.type,
+              value: brokerage.buyer.value,
+              onTypeChange: t => setBrokerage(prev => ({ ...prev, buyer: { ...prev.buyer, type: t } })),
+              onValueChange: v => setBrokerage(prev => ({ ...prev, buyer: { ...prev.buyer, value: v } })),
+            })}
+            {brokerageField({
+              label: 'Seller Brokerage',
+              type: brokerage.seller.type,
+              value: brokerage.seller.value,
+              onTypeChange: t => setBrokerage(prev => ({ ...prev, seller: { ...prev.seller, type: t } })),
+              onValueChange: v => setBrokerage(prev => ({ ...prev, seller: { ...prev.seller, value: v } })),
+            })}
           </div>
 
           {/* Qualities Section */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <label className="block text-sm font-medium text-gray-700">Qualities</label>
-              <button
-                type="button"
-                onClick={addQuality}
-                className="flex items-center gap-1 text-sm text-rose-600 hover:text-rose-700 font-medium"
-              >
-                <Plus size={16} /> Add Quality
-              </button>
+              <Button size="sm" variant="soft" icon={<Plus size={16} />} onClick={addQuality}>Add quality</Button>
             </div>
 
             {qualities.length === 0 && (
@@ -232,18 +230,19 @@ export default function ProductManager() {
 
             <div className="space-y-3">
               {qualities.map((quality) => (
-                <div key={quality.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
+                <div key={quality.id} className="border border-gray-200 rounded-xl p-3 lg:p-4 space-y-3 bg-gray-50/50">
                   <div className="flex items-center gap-2">
                     <input
                       value={quality.name}
                       onChange={e => updateQualityName(quality.id, e.target.value)}
                       placeholder="Quality Name (e.g. Z-black, Semi)"
-                      className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium"
+                      className="input-field flex-1 min-w-0 font-medium"
                     />
                     <button
                       type="button"
+                      aria-label="Remove this quality"
                       onClick={() => removeQuality(quality.id)}
-                      className="p-2 text-gray-400 hover:text-red-600"
+                      className="p-3 text-gray-400 hover:text-red-600 rounded-lg"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -252,41 +251,36 @@ export default function ProductManager() {
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-gray-500">Specifications</p>
                     {quality.specs.map((spec, idx) => (
-                      <div key={spec.id} className="flex gap-2">
+                      <div key={spec.id} className="flex flex-wrap sm:flex-nowrap gap-2">
                         <input
                           value={spec.label}
                           onChange={e => updateSpecInQuality(quality.id, idx, 'label', e.target.value)}
                           placeholder="Label (e.g. FFA)"
-                          className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                          className="input-field !py-2 flex-1 min-w-[40%]"
                         />
                         <input
                           value={spec.value}
                           onChange={e => updateSpecInQuality(quality.id, idx, 'value', e.target.value)}
                           placeholder="Value"
-                          className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                          className="input-field !py-2 flex-1 min-w-[40%]"
                         />
                         <input
                           value={spec.unit}
                           onChange={e => updateSpecInQuality(quality.id, idx, 'unit', e.target.value)}
                           placeholder="Unit"
-                          className="w-20 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                          className="input-field !py-2 !w-24 flex-1 sm:flex-none"
                         />
                         <button
                           type="button"
+                          aria-label="Remove this specification"
                           onClick={() => removeSpecFromQuality(quality.id, idx)}
-                          className="p-2 text-gray-400 hover:text-red-600"
+                          className="p-3 text-gray-400 hover:text-red-600 rounded-lg"
                         >
                           <X size={16} />
                         </button>
                       </div>
                     ))}
-                    <button
-                      type="button"
-                      onClick={() => addSpecToQuality(quality.id)}
-                      className="text-xs text-rose-600 hover:text-rose-700 font-medium"
-                    >
-                      + Add Specification
-                    </button>
+                    <Button size="sm" variant="ghost" icon={<Plus size={14} />} onClick={() => addSpecToQuality(quality.id)}>Add specification</Button>
                   </div>
                 </div>
               ))}
@@ -294,21 +288,14 @@ export default function ProductManager() {
           </div>
 
           <div className="flex gap-2">
-            <button
-              onClick={handleSave}
-              className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700"
-            >
-              <Save className="w-4 h-4" /> {editing ? 'Update' : 'Save'}
-            </button>
-            {editing && (
-              <button onClick={resetForm} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200">
-                Cancel
-              </button>
-            )}
+            <Button variant="primary" icon={<Save size={16} />} onClick={handleSave}>{editing ? 'Update product' : 'Save product'}</Button>
+            {editing && <Button variant="secondary" onClick={resetForm}>Cancel</Button>}
           </div>
         </div>
       </div>
 
+      <p className="section-label mb-2">Your products ({products.length})</p>
+      {products.length === 0 && <div className="card"><EmptyState title="No products yet">Add your first product above.</EmptyState></div>}
       <div className="space-y-3">
         {products.map(product => {
           const b = product.brokerage || {
@@ -317,8 +304,8 @@ export default function ProductManager() {
           };
           const qualityCount = product.qualities?.length || 0;
           return (
-            <div key={product.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between">
-              <div>
+            <div key={product.id} className="card p-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
                 <h3 className="font-semibold">{product.name}</h3>
                 <p className="text-sm text-gray-500">
                   Buyer: {b.buyer?.value || b.buyerPercent || 0}{b.buyer?.type === 'fixed' || b.buyerFixed ? ' Rs.' : '%'} 
@@ -331,10 +318,10 @@ export default function ProductManager() {
                 </p>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => startEdit(product)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
+                <button onClick={() => startEdit(product)} aria-label={`Edit ${product.name}`} className="p-3 text-gray-500 hover:text-sky-700 hover:bg-sky-50 rounded-lg">
                   <Edit2 className="w-4 h-4" />
                 </button>
-                <button onClick={() => handleDelete(product.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                <button onClick={() => handleDelete(product.id)} aria-label={`Delete ${product.name}`} className="p-3 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -342,6 +329,6 @@ export default function ProductManager() {
           );
         })}
       </div>
-    </div>
+    </Page>
   );
 }

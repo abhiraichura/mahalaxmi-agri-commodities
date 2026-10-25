@@ -1,8 +1,9 @@
 // src/pages/PartyMessageGenerator.tsx
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Copy, Share2, MessageSquare, ChevronDown, Search } from 'lucide-react';
+import { Copy, Share2, ChevronDown, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAppStore } from '../hooks/useAuthStore';
+import { Page, Button } from '../ui';
 
 export default function PartyMessageGenerator() {
   const { parties } = useAppStore();
@@ -83,17 +84,9 @@ export default function PartyMessageGenerator() {
   };
 
   return (
-    <div className="h-[calc(100vh-64px)] p-4 md:p-6 bg-gray-50 overflow-y-auto font-sans">
-      <div className="max-w-4xl mx-auto grid grid-cols-1 gap-6">
-        <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-sm space-y-6">
-          <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
-            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
-              <MessageSquare className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Party Message Generator</h1>
-            </div>
-          </div>
+    <Page title="Message a party" subtitle="Pick a party, write the message, send it on WhatsApp" width="narrow">
+      <div>
+        <div className="card p-4 lg:p-6 space-y-6">
           <div className="space-y-4">
             
             <div className="relative" ref={dropdownRef}>
@@ -102,8 +95,13 @@ export default function PartyMessageGenerator() {
               </label>
               
               <div 
+                role="button"
+                tabIndex={0}
+                aria-haspopup="listbox"
+                aria-expanded={isDropdownOpen}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsDropdownOpen(!isDropdownOpen); } }}
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between cursor-pointer hover:bg-gray-100/50 transition-all select-none"
+                className="input-field flex items-center justify-between cursor-pointer select-none min-h-[48px]"
               >
                 <span className={selectedParty ? 'text-gray-900 font-medium' : 'text-gray-400'}>
                   {selectedParty 
@@ -122,7 +120,7 @@ export default function PartyMessageGenerator() {
                       value={dropdownSearch}
                       onChange={(e) => setDropdownSearch(e.target.value)}
                       placeholder="Search by name, contact person, or phone..."
-                      className="w-full bg-transparent py-1.5 px-1 text-sm outline-none border-none text-gray-700"
+                      className="w-full bg-transparent py-2 px-1 text-sm outline-none border-none text-gray-700"
                     />
                   </div>
                   
@@ -136,7 +134,7 @@ export default function PartyMessageGenerator() {
                             setIsDropdownOpen(false);
                             setDropdownSearch('');
                           }}
-                          className={`px-3 py-2.5 rounded-xl text-sm cursor-pointer transition-colors ${
+                          className={`px-3 py-3 rounded-xl text-sm cursor-pointer transition-colors ${
                             selectedPartyId === party.id 
                               ? 'bg-rose-50 text-rose-700 font-semibold' 
                               : 'text-gray-700 hover:bg-gray-50'
@@ -170,32 +168,16 @@ export default function PartyMessageGenerator() {
                 rows={10}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-100 focus:bg-white outline-none transition-all resize-none"
+                className="input-field resize-none"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <button
-                type="button"
-                onClick={handleCopy}
-                disabled={!message}
-                className="flex items-center justify-center gap-2 py-3 px-4 bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-stone-200 disabled:pointer-events-none rounded-xl text-sm font-semibold transition-all border border-stone-700"
-              >
-                <Copy size={16} />
-                Copy
-              </button>
-              <button
-                type="button"
-                onClick={handleWhatsAppShare}
-                disabled={!message}
-                className="flex items-center justify-center gap-2 py-3 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white disabled:pointer-events-none rounded-xl text-sm font-bold transition-all shadow-sm"
-              >
-                <Share2 size={16} />
-                WhatsApp
-              </button>
+            <div className="grid grid-cols-2 gap-3 pt-2 sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:static bg-white py-3 -mx-4 px-4 lg:mx-0 lg:px-0 lg:py-0 border-t border-gray-100 lg:border-0">
+              <Button variant="secondary" icon={<Copy size={16} />} onClick={handleCopy} disabled={!message}>Copy</Button>
+              <Button variant="success" icon={<Share2 size={16} />} onClick={handleWhatsAppShare} disabled={!message}>WhatsApp</Button>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </Page>
   );
 }

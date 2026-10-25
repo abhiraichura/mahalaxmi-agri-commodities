@@ -4,6 +4,7 @@
 // (paste the board / type the numbers) so an update can always go out.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Page } from '../ui';
 import toast from 'react-hot-toast';
 import {
   TrendingUp, RefreshCw, Send, Copy, Share2, Bell, BellOff, CheckCircle2, AlertTriangle, Info, Clipboard, Pencil,
@@ -487,7 +488,8 @@ export default function RatesDesk() {
   );
 
   return (
-    <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4 pb-24">
+    <Page width="narrow">
+    <div className="space-y-4 pb-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold text-gray-900"><TrendingUp size={22} className="text-rose-600" /> Rates Desk</h1>
@@ -793,6 +795,7 @@ export default function RatesDesk() {
         </Card>
       )}
     </div>
+    </Page>
   );
 }
 
