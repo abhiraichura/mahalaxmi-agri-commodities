@@ -65,12 +65,13 @@ export function makeStore(db) {
       return q.docs.map((d) => ({ id: d.id, ...d.data() }));
     },
     /** one run at a time per update: true if this caller may proceed */
-    async claim(id, { ttlMs = 120000, nowMs = Date.now() } = {}) {
+    async claim(id, { ttlMs = 120000, nowMs = Date.now(), unlessReady = false } = {}) {
       const ref = col('rateUpdates').doc(id);
       return db.runTransaction(async (tx) => {
         const s = await tx.get(ref);
         const d = s.exists ? s.data() : null;
         if (d && d.status === 'running' && nowMs - (d.startedAtMs || 0) < ttlMs) return false;
+        if (unlessReady && d && d.status === 'ready') return false; // someone saved it a moment ago: never overwrite a ready update
         tx.set(ref, { status: 'running', startedAtMs: nowMs }, { merge: true });
         return true;
       });

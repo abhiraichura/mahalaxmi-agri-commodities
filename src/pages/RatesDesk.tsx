@@ -15,7 +15,7 @@ import {
   type Activity, type CommodityKey, type HealthFix, type Picks, type RateSource, type RateUpdate, type RatesConfig, type RatesStatus,
 } from '../rates/api';
 import { HealthPanel, MethodPicker, ActivityList } from '../rates/panels';
-import { pushSupport, currentSubscription, subscribeThisDevice, unsubscribeThisDevice, deviceLabel } from '../rates/push';
+import { pushSupport, currentSubscription, subscribeThisDevice, unsubscribeThisDevice, deviceLabel, subscriptionId } from '../rates/push';
 
 const SLOTS = [10, 12, 14, 16, 17];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -194,6 +194,7 @@ export default function RatesDesk() {
   const [diag, setDiag] = useState<any>(null);
   const [cfg, setCfg] = useState<RatesConfig | null>(null);
   const [subscribed, setSubscribed] = useState(false);
+  const [thisId, setThisId] = useState<string | null>(null);
   const [showGrok, setShowGrok] = useState(false);
   const [activity, setActivity] = useState<Activity | null>(null);
   const [checkedAt, setCheckedAt] = useState<number | null>(null);
@@ -259,7 +260,7 @@ export default function RatesDesk() {
     document.addEventListener('visibilitychange', onVis);
     return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVis); };
   }, [loadAll]);
-  useEffect(() => { currentSubscription().then(s => setSubscribed(!!s)); }, []);
+  useEffect(() => { currentSubscription().then(async s => { setSubscribed(!!s); setThisId(await subscriptionId(s)); }); }, []);
 
   const selected = useMemo(() => {
     if (selectedId) { const u = updates.find(x => x.id === selectedId); if (u) return u; }
@@ -380,13 +381,22 @@ export default function RatesDesk() {
       const ep = await unsubscribeThisDevice();
       if (ep) await ratesCall('unsubscribe', { endpoint: ep });
       setSubscribed(false);
+      setThisId(null);
       toast.success('Notifications turned off on this device');
     } else {
       const sub = await subscribeThisDevice(status.vapidPublicKey);
       await ratesCall('subscribe', { subscription: sub.toJSON(), label: deviceLabel() });
       setSubscribed(true);
+      setThisId(await subscriptionId(sub));
       toast.success('Notifications are on for this device');
     }
+    await loadStatus();
+  });
+
+  const removeDevice = (id: string) => guard('device', async () => {
+    await ratesCall('remove-device', { id });
+    if (id === thisId) { setSubscribed(false); try { await unsubscribeThisDevice(); } catch { /* ignore */ } setThisId(null); }
+    toast.success('Device removed');
     await loadStatus();
   });
 
@@ -672,7 +682,23 @@ export default function RatesDesk() {
           <p className="mt-2 text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-800 p-2.5">Brave only delivers notifications when this is switched on: Brave Settings &gt; Privacy and security &gt; <b>Use Google services for push messaging</b>. Switch it on, restart Brave, then press Turn on notifications.</p>
         )}
         {status?.devices && status.devices.length > 0 && (
-          <p className="mt-2 text-xs text-gray-500">Devices that will be notified: {status.devices.map(d => d.label || 'unnamed device').join(', ')}.</p>
+          <div className="mt-3">
+            <p className="text-xs font-medium text-gray-700">Devices that get a notification for every update</p>
+            <ul className="mt-1.5 divide-y divide-gray-100 rounded-xl border border-gray-200">
+              {status.devices.map((d, i) => (
+                <li key={d.id || i} className="flex items-center gap-2 px-3 py-2 text-sm">
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium text-gray-900">{d.label || 'Device'}</span>
+                    {d.host ? <span className="text-gray-500"> · {d.host}</span> : null}
+                    {d.createdAtMs ? <span className="block text-xs text-gray-400">added {new Date(d.createdAtMs).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })}</span> : null}
+                  </span>
+                  {d.id && d.id === thisId && <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-green-50 border border-green-200 text-green-700">This device</span>}
+                  {d.id && <button onClick={() => removeDevice(d.id!)} disabled={busy === 'device'} className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50">Remove</button>}
+                </li>
+              ))}
+            </ul>
+            {status.devices.length > 1 && <p className="mt-1.5 text-xs text-gray-500">Each entry rings separately. A phone that has both the Home Screen app and the browser turned on appears twice. Remove the one you do not use, and you get one notification per update on that phone.</p>}
+          </div>
         )}
         <div className="mt-3 flex flex-wrap gap-2">
           <button onClick={toggleNotifications} disabled={!support.supported || busy === 'push' || !status} className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 ${subscribed ? 'border border-gray-300 text-gray-700 hover:bg-gray-50' : 'bg-rose-600 hover:bg-rose-700 text-white'}`}>

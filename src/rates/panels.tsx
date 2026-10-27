@@ -88,6 +88,18 @@ export function HealthPanel({
           <div className="flex flex-wrap gap-x-2"><dt className="font-medium text-gray-700">Grok last sent numbers:</dt>
             <dd>{health.feed.lastAtMs ? `${dayOf(health.feed.lastAtMs)} ${timeOf(health.feed.lastAtMs)} (${health.feed.lastResult === 'saved' ? 'accepted' : health.feed.lastResult === 'already' ? 'already had it' : health.feed.lastResult === 'skipped' ? 'skipped' : 'refused'})` : 'never'}</dd></div>
         )}
+        {health.source === 'feed' && health.typical && (
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap gap-x-2"><dt className="font-medium text-gray-700">Grok usually delivers:</dt>
+              <dd>about {health.typical.median} minutes past the hour (last {health.typical.count} updates: {health.typical.min} to {health.typical.max} minutes)</dd></div>
+            {health.typical.alertsFirst && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 text-amber-900 p-2.5">
+                <p>Your alert time is {health.waitMin} minutes, but Grok usually needs longer. So a "rates need you" alert rings first, and then the real "update ready" a few minutes later. Raising the alert time means you are only alerted when something really is wrong.</p>
+                {health.typical.fix && <button onClick={() => onFix(health.typical!.fix!)} disabled={busy === 'fix'} className="mt-2 px-3 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium disabled:opacity-50">{health.typical.fix.label}</button>}
+              </div>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap gap-x-2"><dt className="font-medium text-gray-700">Scheduler last checked:</dt>
           <dd>{sched.lastAtMs ? `${dayOf(sched.lastAtMs)} ${timeOf(sched.lastAtMs)}${sched.lastMessage ? ` (${sched.lastMessage.slice(0, 80)})` : ''}` : 'never'}</dd></div>
         <div className="flex flex-wrap gap-x-2"><dt className="font-medium text-gray-700">Last notification:</dt>

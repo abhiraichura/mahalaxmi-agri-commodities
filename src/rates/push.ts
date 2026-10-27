@@ -56,6 +56,18 @@ export async function unsubscribeThisDevice(): Promise<string | null> {
   return endpoint;
 }
 
+/** The id the server gives this device's subscription (the first 24 characters of the SHA-1 of its address), to tell which entry in the list is "this device". */
+export async function subscriptionId(sub: PushSubscription | null): Promise<string | null> {
+  if (!sub) return null;
+  try {
+    const bytes = new TextEncoder().encode(sub.endpoint);
+    const hash = await crypto.subtle.digest('SHA-1', bytes);
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 24);
+  } catch {
+    return null;
+  }
+}
+
 export function deviceLabel(): string {
   const ua = navigator.userAgent || '';
   if (/iPhone/.test(ua)) return 'iPhone';

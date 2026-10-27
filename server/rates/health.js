@@ -1,7 +1,7 @@
 // "Is everything working?" - turns the activity log and today's updates into plain statements.
 // No database and no network here: it only reads what it is given, so it is easy to test.
 
-import { hourLabel } from './ist.js';
+import { hourLabel, istToEpoch } from './ist.js';
 import { SLOTS } from './message.js';
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -111,6 +111,28 @@ export function buildHealth({ log = [], updates = [], config = {}, devices = 0, 
   else if (lastAlert && lastAlert.pushed && lastAlert.pushed.error) problems.push({ level: 'bad', code: 'push_error', text: `The last notification could not be sent: ${lastAlert.pushed.error}` });
   else if (lastAlert && lastAlert.pushed && lastAlert.pushed.total > 0 && lastAlert.pushed.sent === 0) problems.push({ level: 'bad', code: 'push_failed', text: `The last notification (${clock(lastAlert.atMs)}) reached 0 of ${lastAlert.pushed.total} devices${lastAlert.pushed.errors && lastAlert.pushed.errors.length ? `: ${lastAlert.pushed.errors.join('; ')}` : '.'}` });
 
+  // ---- when does Grok usually deliver? (minutes after the hour, from the last updates that really came from the feed)
+  let typical = null;
+  if (source === 'feed') {
+    const mins = updates
+      .filter((u) => u.status === 'ready' && u.source === 'feed' && u.slotHour != null && u.date && u.createdAtMs)
+      .map((u) => Math.round((u.createdAtMs - istToEpoch(u.date, u.slotHour * 60)) / 60000))
+      .filter((m) => m >= 0 && m <= 59)
+      .slice(0, 12);
+    if (mins.length >= 3) {
+      const sorted = mins.slice().sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      const max = sorted[sorted.length - 1];
+      const suggest = clamp(max + 2, 3, 30);
+      typical = {
+        count: mins.length, median, min: sorted[0], max,
+        // true when the alert time is shorter than Grok usually takes: then "rates need you" rings first almost every time
+        alertsFirst: limit <= max, suggest: limit < suggest ? suggest : null,
+        fix: limit <= max && suggest !== limit ? { type: 'set_wait', value: suggest, label: `Alert me only after ${suggest} minutes` } : null,
+      };
+    }
+  }
+
   const order = { bad: 0, warn: 1, info: 2 };
   problems.sort((a, b) => order[a.level] - order[b.level]);
 
@@ -127,7 +149,7 @@ export function buildHealth({ log = [], updates = [], config = {}, devices = 0, 
   else headline = next ? `Nothing wrong. Waiting for the ${next.label} update.` : 'Nothing wrong.';
 
   return {
-    source, sourceName: SOURCE_NAME[source], waitMin: limit, weekday, overall, headline, problems, slots,
+    source, sourceName: SOURCE_NAME[source], waitMin: limit, weekday, overall, headline, problems, slots, typical,
     feed: { lastAtMs: lastFeed ? lastFeed.atMs : null, lastResult: lastFeed ? lastFeed.result : null, lastMessage: lastFeed ? lastFeed.message : null, todayCount: feedEntries.length, lastTestAtMs: lastFeedTest ? lastFeedTest.atMs : null },
     scheduler: {
       lastAtMs: lastCron ? lastCron.atMs : null, lastResult: lastCron ? lastCron.result : null, lastMessage: lastCron ? lastCron.message : null,

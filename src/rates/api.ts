@@ -61,7 +61,7 @@ export interface RatesStatus {
   ok: boolean;
   config: RatesConfig;
   subscribers: number;
-  devices?: { label: string; createdAtMs: number | null }[];
+  devices?: { id?: string; label: string; createdAtMs: number | null; host?: string }[];
   cronKey: string;
   feedKey: string;
   vapidPublicKey: string;
@@ -152,6 +152,8 @@ export interface Health {
   headline: string;
   problems: HealthProblem[];
   slots: HealthSlot[];
+  /** when the Grok feed usually delivers (minutes after the hour), from the last updates; null until there are 3 */
+  typical?: { count: number; median: number; min: number; max: number; alertsFirst: boolean; suggest: number | null; fix: HealthFix | null } | null;
   feed: { lastAtMs: number | null; lastResult: string | null; lastMessage: string | null; todayCount: number; lastTestAtMs: number | null };
   scheduler: { lastAtMs: number | null; lastResult: string | null; lastMessage: string | null; callsToday: { atMs: number; time: string; result: string; offset: number | null }[] };
   notifications: { devices: number; last: { atMs: number; message: string; sent?: number; total?: number; failed?: number; error?: string } | null };

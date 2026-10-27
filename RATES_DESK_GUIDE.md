@@ -1,5 +1,24 @@
 # Rates Desk guide (live rates message, phone notifications, one-tap WhatsApp)
 
+## Update 8: one notification per update, and why Grok shows up at minute 14 (read this first)
+
+**Why you got several notifications for one update.** The app can send up to three different things around one update time, and each one used to ring on its own:
+1. "⚠️ 10 AM rates need you": sent when nothing good has arrived by your **alert time** (10 minutes by default).
+2. A second "need you" each time Grok sent a number that did not add up (Grok then retries by itself).
+3. "📊 10 AM update ready": sent the moment the correct numbers arrive.
+On top of that, **every device that has notifications turned on rings separately**. A phone that has both the Home Screen app and the browser turned on counts as two devices.
+
+**What changed**
+- **One alert at most per update.** A second refusal or a retry only updates the card on the page. It never rings again.
+- **Refusals stay quiet until your alert time.** Grok normally reads the number again within a minute or two. If the numbers are still not good at your alert time, you get one alert that names the reason.
+- **One notification on the phone per update.** The alert and the "update ready" now share the same label, so the phone keeps one notification and the later one replaces the earlier one instead of stacking under it.
+- **Two deliveries at the same moment** (for example Grok opening the address twice) are saved and notified once.
+- **Your devices are listed** (Rates Desk → Notifications): name, type (Chrome / Android, Apple, Firefox, Edge), the date added, a "This device" tag and a **Remove** button for each. If one phone is listed twice, remove the one you do not use.
+
+**Why Grok shows up at minute 14.** The app notifies you in the same second the numbers arrive. So minute 14 is when Grok finishes: Grok's scheduled task starts on the hour, then opens NCDEX, reads the board and sends it, and that takes it about 12 to 15 minutes. The app cannot make Grok faster. What the app *can* do is tell you the truth and stop crying wolf. The "Is everything working?" panel now shows **"Grok usually delivers about N minutes past the hour (last K updates: a to b)"**. If your alert time is shorter than that, it says so and gives a one-tap **"Alert me only after N minutes"**, so you are only alerted when something is really wrong.
+
+If you want the update itself earlier, the only way is to start the Grok automation earlier (for example at 9:45 for the 10 AM update). That needs a different hour check in the Grok instructions and a small change in the app so an early delivery counts for the 10 AM update. Tell me if you want that.
+
 ## Update 7: the Quick Outlook is now Hinglish (read this first)
 
 The text under each commodity in **QUICK OUTLOOK** is now **mostly Hindi with the everyday English words traders use** (market, open, close, level, support, trend, buying, selling, pressure, profit booking, range, volatility, expiry, rollover, settlement, demand, supply, stock, export, weather, season). It is no longer textbook Hindi. Month names stay in Hindi ("नवंबर contract"). Example:

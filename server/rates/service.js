@@ -11,6 +11,18 @@ import { sendTelegram } from './telegram.js';
 import { newSecret } from './store.js';
 import { buildHealth } from './health.js';
 
+/** which push service a device uses (fcm = Chrome / Android, apple = iPhone, mozilla = Firefox): shown so two entries can be told apart */
+function hostOf(endpoint) {
+  try {
+    const h = new URL(String(endpoint)).hostname;
+    if (/googleapis|fcm|google/.test(h)) return 'Chrome / Android';
+    if (/apple/.test(h)) return 'Apple';
+    if (/mozilla/.test(h)) return 'Firefox';
+    if (/windows|microsoft/.test(h)) return 'Edge';
+    return h.split('.').slice(-2).join('.');
+  } catch { return ''; }
+}
+
 export class UserError extends Error {
   constructor(msg) { super(msg); this.name = 'UserError'; }
 }
@@ -215,11 +227,15 @@ export function createService({
   async function failUpdate({ parts, slotHour, now, status, reason, kind, diag, trigger, notifyUser }) {
     const slotKey = slotKeyOf(slotHour, parts);
     const id = `${parts.dateKey}_${slotKey}`;
+    // ONE alert per update. A second refusal, a retry or a late check only updates the card; it never rings again.
+    const prev = await store.getUpdate(id);
+    if (prev && (prev.alertedAtMs || prev.skipNotified || (prev.pushed && prev.status !== 'ready'))) notifyUser = false;
     const doc = {
       id, date: parts.dateKey, slot: slotKey, slotHour: slotHour ?? null, status, reason, kind: kind || null,
       createdAtMs: now.getTime(), trigger, diag: diag || null,
     };
     if (notifyUser && status === 'skipped') doc.skipNotified = true; // a holiday is announced once, not at every retry
+    if (notifyUser) doc.alertedAtMs = now.getTime();
     await store.putUpdate(id, doc);
     if (notifyUser) {
       const label = slotHour != null ? hourLabel(slotHour) : 'Rates';
@@ -227,7 +243,9 @@ export function createService({
         title: status === 'skipped' ? `ℹ️ ${label}: NCDEX board not updated today` : `⚠️ ${label} rates need you`,
         body: status === 'skipped' ? reason : `${reason} Tap to paste the board or type the numbers.`,
         url: `/rates?fix=${slotKey}`,
-        tag: `rates-fix-${slotKey}`,
+        // the same tag as the "update ready" notification of this slot: the phone keeps ONE notification per update and the
+        // later one (usually "ready") replaces the earlier one instead of stacking under it
+        tag: `rates-${slotKey}`,
       });
     }
     return doc;
@@ -247,7 +265,7 @@ export function createService({
       const [config, subs, key, vapid, fKey] = await Promise.all([store.getConfig(), store.listSubs(), cronKey(), push.publicKey(), feedKey()]);
       const parts = istParts(clock());
       return {
-        config, subscribers: subs.length, devices: subs.map((x) => ({ label: x.label || '', createdAtMs: x.createdAtMs || null })),
+        config, subscribers: subs.length, devices: subs.map((x) => ({ id: x.id, label: x.label || '', createdAtMs: x.createdAtMs || null, host: hostOf(x.subscription && x.subscription.endpoint) })),
         cronKey: key, feedKey: fKey, vapidPublicKey: vapid,
         telegram: !!(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID),
         slots: SLOTS, nowIst: { dateKey: parts.dateKey, hour: parts.hour, minute: parts.minute, weekday: parts.weekday },
@@ -320,15 +338,21 @@ export function createService({
       if (trigger === 'cron') {
         const cfg0 = await store.getConfig();
         if (cfg0.rateSource === 'feed' || cfg0.rateSource === 'browser') {
-          if (existing) return { ok: true, skipped: true, code: 'handled', reason: existing.reason || 'Already handled.', update: existing };
+          // already told you (alert or holiday note), or it is ready: nothing more to do
+          if (existing && (existing.alertedAtMs || existing.skipNotified || existing.pushed || existing.status === 'skipped' || existing.status === 'ready' || existing.status === 'running')) {
+            return { ok: true, skipped: true, code: 'handled', reason: existing.reason || 'Already handled.', update: existing };
+          }
           const waited = parts.minutesOfDay - slotHour * 60;
           const limit = Math.min(30, Math.max(3, Math.round(Number(cfg0.feedWaitMin) || 10)));
           if (waited < limit) return { ok: true, skipped: true, code: 'waiting', reason: `Waiting for the feed (${waited} of ${limit} minutes).` };
-          const reason = cfg0.rateSource === 'browser'
-            ? `${hourLabel(slotHour)} rates have not been sent from your browser after ${waited} minutes.`
-            : `${hourLabel(slotHour)} rates have not arrived from your feed after ${waited} minutes.`;
-          const doc = await failUpdate({ parts, slotHour, now, status: 'failed', reason, kind: 'late', diag: null, trigger, notifyUser: true });
-          return { ok: false, reason, kind: 'late', code: 'alerted', update: doc };
+          // numbers were refused earlier and nobody was told yet (refusals stay quiet while the feed may still retry): tell the reason now
+          const reason = existing && existing.status === 'failed' && existing.reason
+            ? existing.reason
+            : cfg0.rateSource === 'browser'
+              ? `${hourLabel(slotHour)} rates have not been sent from your browser after ${waited} minutes.`
+              : `${hourLabel(slotHour)} rates have not arrived from your feed after ${waited} minutes.`;
+          const doc = await failUpdate({ parts, slotHour, now, status: 'failed', reason, kind: existing && existing.kind ? existing.kind : 'late', diag: existing && existing.diag ? existing.diag : null, trigger, notifyUser: true });
+          return { ok: false, reason, kind: doc.kind, code: 'alerted', update: doc };
         }
       }
       if (trigger === 'cron' && !(await store.claim(id, { nowMs: now.getTime() }))) {
@@ -383,9 +407,14 @@ export function createService({
         // a refused attempt must never damage an update that is already ready
         if (existing && existing.status === 'ready') return { ok: false, reason, kind, update: existing };
         const skip = status === 'skipped';
+        // Grok normally reads the number again and retries within minutes. So a refusal before the alert time stays quiet
+        // (it is saved and shown on the page); the scheduler alerts at the alert time if nothing good has arrived by then.
+        const waitedMin = slotHour != null ? parts.minutesOfDay - slotHour * 60 : null;
+        const limitMin = Math.min(30, Math.max(3, Math.round(Number(cfg.feedWaitMin) || 10)));
+        const quiet = !skip && waitedMin !== null && waitedMin < limitMin;
         const doc = await failUpdate({
           parts, slotHour, now, status, reason, kind, diag: { feed: Object.keys(values).sort() }, trigger: 'feed',
-          notifyUser: !skip || (slotHour === SLOTS[0] && !(existing && existing.skipNotified)),
+          notifyUser: skip ? (slotHour === SLOTS[0] && !(existing && existing.skipNotified)) : !quiet,
         });
         return skip ? { ok: true, skipped: true, reason, kind, update: doc } : { ok: false, reason, kind, update: doc };
       };
@@ -403,12 +432,18 @@ export function createService({
       const { picks, errors } = feedPicks(values, keys, parts);
       if (errors.length) return refuse('bad_numbers', `Numbers not accepted: ${errors.join('; ')}.`);
 
+      // two deliveries at the same moment (Grok opening the address twice) must save and notify once, not twice
+      if (store.claim && !force && !(await store.claim(id, { nowMs: now.getTime(), unlessReady: true }))) {
+        const again = await store.getUpdate(id);
+        if (again && again.status === 'ready') return { ok: true, already: true, update: again };
+        return { ok: true, skipped: true, code: 'busy', reason: 'The same update is being saved at this moment.', update: again || undefined };
+      }
       const doc = await prepare({
         parts, now, slotHour, picks, source: 'feed', trigger: 'feed',
         boardTimeText: bt ? bt.label : null, warnings: bt ? [] : ['board time not sent'], cfg,
       });
       // it replaced a "did not arrive" card: remember that it came late
-      if (existing && existing.status === 'failed' && existing.kind === 'late') await store.putUpdate(id, { arrivedLate: true });
+      if (existing && existing.status === 'failed' && (existing.kind === 'late' || existing.alertedAtMs)) await store.putUpdate(id, { arrivedLate: true });
       const label = slotHour != null ? hourLabel(slotHour) : 'Rates';
       await notify(doc, { title: `📊 ${label} update ready`, body: `${doc.summary}\nTap to send on WhatsApp`, url: `/rates?u=${doc.id}`, tag: `rates-${doc.slot}` });
       const tg = await telegram(doc.text, { env });
@@ -506,6 +541,14 @@ export function createService({
         || !subscription.keys || !subscription.keys.p256dh || !subscription.keys.auth) throw new UserError('This device sent an invalid notification subscription.');
       const id = await store.addSub({ subscription, label: String(label || '').slice(0, 80), createdAtMs: clock().getTime() });
       return { ok: true, id };
+    },
+
+    async removeDevice(id) {
+      if (!id) throw new UserError('Missing device.');
+      const subs = await store.listSubs();
+      if (!subs.some((s) => s.id === id)) return { ok: true, removed: 0 };
+      await store.removeSub(id);
+      return { ok: true, removed: 1 };
     },
 
     async unsubscribe(endpoint) {

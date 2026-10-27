@@ -124,6 +124,7 @@ export function makeHandler(deps) {
         case 'sent': return send(200, await service.markSent(body.id, body.channel || 'whatsapp'));
         case 'subscribe': return send(200, await service.subscribe({ subscription: body.subscription, label: body.label }));
         case 'unsubscribe': return send(200, await service.unsubscribe(body.endpoint));
+        case 'remove-device': return send(200, await service.removeDevice(body.id));
         case 'test-push': return send(200, await service.testPush());
         default: return send(400, { ok: false, code: 'BAD', error: 'Unknown action.' });
       }
