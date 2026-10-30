@@ -37,16 +37,23 @@ export default function GlobalSearch({ open, onClose }: { open: boolean; onClose
     const cs = contracts.filter(c =>
       low(c.contractNo).includes(term) || low(c.seller?.legalName).includes(term) || low(c.seller?.name).includes(term)
       || low(c.buyer?.legalName).includes(term) || low(c.buyer?.name).includes(term) || low(c.product?.name).includes(term));
+    const conHits: Hit[] = [];
     for (const c of cs.slice(0, 7)) {
-      out.push({ key: 'c' + c.id, to: `/contracts/${c.id}`, title: `Contract #${c.contractNo} · ${c.product?.name || ''}`, sub: `${c.seller?.legalName || c.seller?.name || '?'} → ${c.buyer?.legalName || c.buyer?.name || '?'}`, kind: 'contract', icon: FileText });
+      conHits.push({ key: 'c' + c.id, to: `/contracts/${c.id}`, title: `Contract #${c.contractNo} · ${c.product?.name || ''}`, sub: `${c.seller?.legalName || c.seller?.name || '?'} → ${c.buyer?.legalName || c.buyer?.name || '?'}`, kind: 'contract', icon: FileText });
     }
     const ps = parties.filter(p =>
       low(p.name).includes(term) || low(p.legalName).includes(term) || low(p.city).includes(term) || low(p.gstin).includes(term)
       || (numTerm.length >= 3 && (digits(p.phone).includes(numTerm) || (p.alternatePhones || []).some(x => digits(x).includes(numTerm)))));
+    const partyHits: Hit[] = [];
     for (const p of ps.slice(0, 7)) {
-      out.push({ key: 'u' + p.id, to: `/parties/edit/${p.id}`, title: p.legalName || p.name, sub: [p.type, p.city, p.phone].filter(Boolean).join(' · '), kind: 'party', icon: Users });
+      partyHits.push({ key: 'u' + p.id, to: `/parties/${p.id}`, title: p.legalName || p.name, sub: [p.type, p.city, p.phone].filter(Boolean).join(' · '), kind: 'party', icon: Users });
     }
-    const pg = ALL_PAGES.filter(p => low(p.label).includes(term) || low(p.keywords).includes(term));
+    // a contract number typed in comes first; a name or place typed in shows the party first, then its contracts
+    const byNumber = cs.some(c => low(c.contractNo).includes(term));
+    out.push(...(byNumber ? [...conHits, ...partyHits] : [...partyHits, ...conHits]));
+    // a page named like the search comes first; a specific tab (Party ledger) before the hub that holds it (Money)
+    const rank = (p: typeof ALL_PAGES[number]) => { const l = low(p.label); return (l.startsWith(term) ? 0 : l.split(/[^a-z0-9]+/).some(w => w.startsWith(term)) ? 1 : 2) * 2 + (p.to.includes('?') ? 0 : 1); };
+    const pg = ALL_PAGES.filter(p => low(p.label).includes(term) || low(p.keywords).includes(term)).sort((a, b) => rank(a) - rank(b));
     for (const p of pg.slice(0, 4)) out.push({ key: 'p' + p.to, to: p.to, title: p.label, sub: 'Open this page', kind: 'page', icon: p.icon });
     return out;
   }, [q, contracts, parties]);
@@ -81,7 +88,7 @@ export default function GlobalSearch({ open, onClose }: { open: boolean; onClose
             return (
               <div key={h.key}>
                 {first && <p className="section-label px-5 pt-3 pb-1">{groupOf(h.kind)}</p>}
-                <button role="option" aria-selected={i === idx} onClick={() => go(h)} onMouseEnter={() => setIdx(i)}
+                <button role="option" aria-selected={i === idx} onClick={() => go(h)} onMouseMove={() => { if (idx !== i) setIdx(i); }}
                   className={`w-full flex items-center gap-3 px-5 py-3 text-left min-h-[52px] ${i === idx ? 'bg-rose-50' : 'hover:bg-gray-50'}`}>
                   <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${h.kind === 'contract' ? 'bg-sky-50 text-sky-700' : h.kind === 'party' ? 'bg-violet-50 text-violet-700' : 'bg-gray-100 text-gray-600'}`}><Icon size={17} /></span>
                   <span className="min-w-0 flex-1">

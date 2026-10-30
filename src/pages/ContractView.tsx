@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Edit2, Trash2, Printer, Download, Share2, Phone, MessageCircle, FileText, Loader2, BookOpen, Plus } from 'lucide-react';
+import { Edit2, Trash2, Printer, Download, Share2, Phone, MessageCircle, FileText, Loader2, BookOpen, Plus, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { generateContractPDF, downloadPDF } from '../utils/pdfGenerator';
 import { format } from 'date-fns';
@@ -11,12 +11,17 @@ import { decodeOverrides } from '../contractNote/mapping';
 import { copyName, downloadBytes, noteFileName, noteTitle, printBytes, shareBytes } from '../contractNote/service';
 import type { Tag } from '../contractNote/types';
 import LetterheadToggle from '../components/LetterheadToggle';
+import ContractFiles from '../contracts/ContractFiles';
+import { deleteContractFiles } from '../contracts/files';
+import NoteSync from '../contractNote/NoteSync';
 import { usePlainCopy } from '../utils/usePlainCopy';
 import { contractBrokerageConfig, describeBrokerage, goodsValue } from '../billing/calc';
 import { Page, Button, Badge, EmptyState } from '../ui';
 import { inrFull } from '../ui/format';
 import { stageInfo } from '../reminders/stage';
 import NextStep from '../reminders/NextStep';
+import LinkedWork from '../tasks/LinkedWork';
+import LoadingsCard from '../loadings/LoadingsCard';
 import { addNote } from '../reminders/actions';
 import { useToday } from '../reminders/useToday';
 import { partyPhones } from '../broadcast/phone';
@@ -50,7 +55,8 @@ export default function ContractView() {
   }
 
   const handleDelete = async () => {
-    if (!confirm('Delete this contract?')) return;
+    if (!confirm(`Delete this contract${(contract.files || []).length ? ' and its files' : ''}?`)) return;
+    if ((contract.files || []).length) { try { await deleteContractFiles(contract.id, contract.files!); } catch { /* the contract is deleted anyway */ } }
     await deleteContract(contract.id);
     toast.success('Deleted');
     navigate('/contracts');
@@ -78,24 +84,33 @@ export default function ContractView() {
   // ----- exact-format Contract Note actions (Buyer = B, Seller = S) -----
   const noteReady = (tag: Tag) => !!note.pdfs[tag] && !note.blocking[tag] && !note.rendering;
   const noteName = (tag: Tag) => noteFileName(contract.contractNo, tag, plain);
+  // remember which copy has gone out (shared, printed or downloaded), so "not sent yet" can be noticed
+  const markSent = async (tag: Tag, on = true) => {
+    const next = { ...(contract.noteSent || {}) } as { B?: string; S?: string };
+    if (on) next[tag] = new Date().toISOString(); else delete next[tag];
+    try { await updateContract(contract.id, { noteSent: next }); } catch { /* the file still went out; the mark is only a memory aid */ }
+  };
   const noteShare = async (tag: Tag) => {
     const bytes = note.pdfs[tag];
     if (!bytes) return;
     const r = await shareBytes(bytes, noteName(tag), noteTitle(contract.contractNo, tag, plain));
-    if (r === 'unsupported') { downloadBytes(bytes, noteName(tag)); toast.success('Downloaded'); }
+    if (r === 'unsupported') { downloadBytes(bytes, noteName(tag)); toast.success('Downloaded'); void markSent(tag); }
     else if (r === 'blocked') toast.error('Could not open the share sheet. Tap Share again.');
+    else void markSent(tag);
   };
   const noteDownload = (tag: Tag) => {
     const bytes = note.pdfs[tag];
     if (!bytes) return;
     downloadBytes(bytes, noteName(tag));
     toast.success(`${copyName(tag)} copy downloaded`);
+    void markSent(tag);
   };
   const notePrint = async (tag: Tag) => {
     const bytes = note.pdfs[tag];
     if (!bytes) return;
     const r = await printBytes(bytes, noteName(tag), noteTitle(contract.contractNo, tag, plain));
     if (r === 'unsupported') toast.error('Printing is not available in this browser. Download the PDF and print it from there.');
+    else void markSent(tag);
   };
 
 
@@ -115,12 +130,13 @@ export default function ContractView() {
 
   return (
     <Page back="/contracts" width="default"
-      title={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">Contract #{contract.contractNo}<Badge tone={info.tone} className="!text-xs align-middle">{info.label}</Badge></span>}
-      subtitle={`${safeFmt(contract.date, 'dd MMM yyyy')} · ${contract.financialYear || contract.year}`}
-      actions={<Button icon={<Edit2 size={16} />} onClick={() => navigate(`/contracts/edit/${contract.id}`)}>Edit</Button>}>
+      title={`Contract #${contract.contractNo}`}
+      subtitle={<span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1"><Badge tone={info.tone}>{info.label}</Badge>{safeFmt(contract.date, 'dd MMM yyyy')} · {contract.financialYear || contract.year}</span>}
+      actions={<><Button icon={<Copy size={16} />} onClick={() => navigate(`/contracts/new?from=${contract.id}`)} aria-label="Repeat this deal">Repeat</Button><Button icon={<Edit2 size={16} />} onClick={() => navigate(`/contracts/edit/${contract.id}`)}>Edit</Button></>}>
 
       <div className="space-y-5">
         <NextStep contract={contract} today={today} />
+        <LoadingsCard contract={contract} today={today} open={info.stage === 'to_load'} />
 
         {/* ---- the contract in one glance */}
         <section className="card p-4 sm:p-5">
@@ -137,8 +153,8 @@ export default function ContractView() {
             </div>
           </div>
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <PartyBox label="Seller" party={contract.seller} />
-            <PartyBox label="Buyer" party={contract.buyer} />
+            <PartyBox label="Seller" party={contract.seller} id={contract.sellerId} />
+            <PartyBox label="Buyer" party={contract.buyer} id={contract.buyerId} />
           </div>
         </section>
 
@@ -146,6 +162,7 @@ export default function ContractView() {
         <section>
           <h2 className="section-label mb-2">Documents</h2>
           <LetterheadToggle className="mb-3 max-w-md" />
+          <NoteSync contract={contract} onOpen={() => setNoteTag('B')} />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {(['B', 'S'] as Tag[]).map(tag => (
               <div key={tag} className="card p-4">
@@ -153,6 +170,7 @@ export default function ContractView() {
                   <h3 className="text-sm font-semibold text-gray-800">{copyName(tag)} copy</h3>
                   <span className="text-[11px] text-gray-400">{plain ? 'Print copy · no letterhead' : 'Contract note PDF'}</span>
                 </div>
+                {contract.noteSent?.[tag] && <p className="-mt-1.5 mb-2.5 text-xs text-emerald-700 flex items-center gap-1.5" data-sent={tag}>Sent {safeFmt(contract.noteSent[tag], 'd MMM')} <button type="button" onClick={() => void markSent(tag, false)} className="underline text-gray-500">Undo</button></p>}
                 {note.fontMissing ? (
                   <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
                     Add the Verdana font once in <Link to="/settings" className="underline font-medium">Settings</Link> to create the exact-format note.
@@ -173,6 +191,7 @@ export default function ContractView() {
                     </div>
                   </>
                 )}
+                {!contract.noteSent?.[tag] && <button type="button" onClick={() => void markSent(tag)} className="mt-2 text-xs text-gray-500 underline min-h-[28px]" aria-label={`Mark the ${copyName(tag)} copy as sent`}>Mark as sent</button>}
                 {!note.fontMissing && !note.blocking[tag] && note.issues[tag].some(i => i.level === 'warn') && (
                   <p className="mt-2 text-[11px] text-amber-700">⚠ {note.issues[tag].find(i => i.level === 'warn')!.msg}</p>
                 )}
@@ -188,6 +207,12 @@ export default function ContractView() {
             </div>
           </div>
         </section>
+
+        {/* ---- files: bills, loading slips ... */}
+        <ContractFiles contract={contract} stage={info.stage} today={today} />
+
+        {/* ---- tasks and notes about this deal */}
+        <LinkedWork link={{ type: 'contract', id: contract.id, label: `Contract #${contract.contractNo}` }} />
 
         {/* ---- terms */}
         <section className="card divide-y divide-gray-100">
@@ -261,12 +286,14 @@ function KV({ k, children }: { k: string; children: React.ReactNode }) {
   return <div><dt className="text-xs text-gray-500">{k}</dt><dd className="mt-0.5 text-gray-900">{children}</dd></div>;
 }
 
-function PartyBox({ label, party }: { label: string; party: Party }) {
+function PartyBox({ label, party, id }: { label: string; party: Party; id?: string }) {
   const phones = partyPhones(party).all;
+  const known = useAppStore(st => !!id && st.parties.some(x => x.id === id));
+  const nm = party.legalName || party.name;
   return (
     <div className="rounded-xl bg-gray-50 p-3.5">
       <p className="text-[11px] font-bold uppercase tracking-wider text-rose-700">{label}</p>
-      <p className="mt-1 font-semibold text-gray-900">{party.legalName || party.name}</p>
+      <p className="mt-1 font-semibold text-gray-900">{known ? <Link to={`/parties/${id}`} className="hover:text-rose-700 hover:underline">{nm}</Link> : nm}</p>
       <p className="text-sm text-gray-600">{[party.city, party.state].filter(Boolean).join(', ')}</p>
       {party.gstin && <p className="text-xs text-gray-500 mt-0.5">GSTIN {party.gstin}</p>}
       {phones.length > 0 && (

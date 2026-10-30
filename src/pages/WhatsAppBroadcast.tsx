@@ -13,7 +13,7 @@ import { useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   Send, Copy, Share2, Download, Undo2, SkipForward, Users, Megaphone, Rss, Trash2, Pencil, Check, CheckCircle2,
-  AlertTriangle, Info, RefreshCw, Plus, ExternalLink, ListChecks, Bookmark, History as HistoryIcon, Zap, Smartphone,
+  AlertTriangle, Info, RefreshCw, Plus, ExternalLink, ListChecks, Bookmark, History as HistoryIcon, Zap, Smartphone, UserPlus,
 } from 'lucide-react';
 import { db } from '../utils/firebase';
 import { useAppStore } from '../hooks/useAuthStore';
@@ -23,6 +23,8 @@ import {
   partyPhones, personalize, generic, usesFields, istStamp, messageKey, buildVcf, chunk, fileSafe, type PartyPhones,
 } from '../broadcast/phone';
 import { kvLoad, kvSave, localGet, localSet, localDel } from '../broadcast/storage';
+import { isBcId, newBcId, type BcContact } from '../broadcast/contacts';
+import ContactSheet, { type SaveResult } from '../broadcast/ContactSheet';
 
 interface Party {
   id: string;
@@ -132,7 +134,9 @@ export default function WhatsAppBroadcast() {
   const [showPreview, setShowPreview] = useState(false);
 
   const [manageSearch, setManageSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'buyer' | 'seller' | 'both'>('all');
+  const [contacts, setContacts] = useState<BcContact[]>([]);          // people added for broadcasts only
+  const [contactSheet, setContactSheet] = useState<null | { listId: string; edit?: BcContact }>(null);
+  const [typeFilter, setTypeFilter] = useState<'all' | 'buyer' | 'seller' | 'both' | 'broadcast'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'in' | 'out' | 'nonumber'>('all');
   const [renamingId, setRenamingId] = useState('');
   const [renameValue, setRenameValue] = useState('');
@@ -186,10 +190,11 @@ export default function WhatsAppBroadcast() {
       } finally {
         setIsLoading(false);
       }
-      const [p, t, h] = await Promise.all([kvLoad<Prefs>('prefs', DEFAULT_PREFS), kvLoad<Template[]>('templates', []), kvLoad<HistoryItem[]>('history', [])]);
+      const [p, t, h, c] = await Promise.all([kvLoad<Prefs>('prefs', DEFAULT_PREFS), kvLoad<Template[]>('templates', []), kvLoad<HistoryItem[]>('history', []), kvLoad<BcContact[]>('contacts', [])]);
       setPrefs(cur => ({ ...DEFAULT_PREFS, ...p, mode: localGet<Mode>('mode', p.mode || cur.mode) }));
       setTemplates(Array.isArray(t) ? t : []);
       setHistory(Array.isArray(h) ? h : []);
+      setContacts(Array.isArray(c) ? c.filter(x => x && x.id && x.name) : []);
     };
     void initializeData();
   }, []);
@@ -197,8 +202,17 @@ export default function WhatsAppBroadcast() {
   const phonesById = useMemo(() => {
     const m = new Map<string, Member>();
     for (const p of directory) m.set(p.id, { ...p, ph: partyPhones(p) });
+    // people added just for broadcasts sit beside the parties
+    for (const c of contacts) { const p: Party = { id: c.id, name: c.name, phone: c.phone, city: c.city, type: 'broadcast' }; m.set(c.id, { ...p, ph: partyPhones(p) }); }
     return m;
-  }, [directory]);
+  }, [directory, contacts]);
+
+  // every number we already have: digits -> who
+  const knownNumbers = useMemo(() => {
+    const k = new Map<string, { id: string; name: string }>();
+    for (const m of phonesById.values()) for (const n of m.ph.all) if (!k.has(n.digits)) k.set(n.digits, { id: m.id, name: m.name });
+    return k;
+  }, [phonesById]);
 
   // numbers that appear on more than one party (usually a double entry)
   const duplicates = useMemo(() => {
@@ -527,6 +541,42 @@ export default function WhatsAppBroadcast() {
     void saveMembers(editingList.id, ids);
   };
 
+  // ---- people added for broadcasts only
+  const persistContacts = (next: BcContact[]) => {
+    setContacts(next);
+    void kvSave('contacts', next).then(ok => { if (!ok) toast('Saved on this device only (Firebase did not accept it).', { icon: 'ℹ️' }); });
+  };
+
+  const handleSaveContacts = async (r: SaveResult, listId: string, editId?: string) => {
+    if (editId) {
+      const c = r.add[0];
+      if (!c) return;
+      persistContacts(contacts.map(x => (x.id === editId ? { ...x, name: c.name, phone: c.phone, city: c.city || undefined } : x)));
+      toast.success('Contact updated');
+      setContactSheet(null);
+      return;
+    }
+    const made: BcContact[] = r.add.map(c => ({ id: newBcId(), name: c.name, phone: c.phone, ...(c.city ? { city: c.city } : {}), createdAt: Date.now() }));
+    if (made.length) persistContacts([...contacts, ...made]);
+    const list = listId ? listsRef.current.find(l => l.id === listId) : undefined;
+    let added = 0;
+    if (list) {
+      const ids = [...new Set([...list.memberIds, ...made.map(m => m.id), ...r.existing])];
+      added = ids.length - list.memberIds.length;
+      if (added) await saveMembers(list.id, ids);
+    }
+    const parts = [made.length ? `${made.length} saved` : '', list ? `${added} added to "${list.name}"` : '', r.existing.length && !list ? `${r.existing.length} already saved` : ''].filter(Boolean);
+    toast.success(parts.join(' · ') || 'Nothing new to add');
+    setContactSheet(null);
+  };
+
+  const deleteContact = async (c: BcContact) => {
+    if (!window.confirm(`Delete ${c.name}? They will also be taken out of every list.`)) return;
+    persistContacts(contacts.filter(x => x.id !== c.id));
+    for (const l of listsRef.current.filter(x => x.memberIds.includes(c.id))) await saveMembers(l.id, l.memberIds.filter(id => id !== c.id));
+    toast.success(`${c.name} deleted`);
+  };
+
   const startRename = (l: ContactList) => { setRenamingId(l.id); setRenameValue(l.name); };
   const finishRename = async () => {
     const name = renameValue.trim();
@@ -718,6 +768,7 @@ export default function WhatsAppBroadcast() {
                           <button key={k} onClick={() => setQueueFilter(k)} className={`px-3 py-2 ${queueFilter === k ? 'bg-gray-900 text-white' : 'text-gray-700'}`}>{l}</button>
                         ))}
                       </div>
+                      <button onClick={() => setContactSheet({ listId: activeList.id })} className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-300 bg-white text-gray-800 text-xs font-medium rounded-md hover:bg-gray-100 whitespace-nowrap"><UserPlus size={14} /> Add contact</button>
                       <button onClick={resetTicks} className="sm:ml-auto px-3 py-2 bg-gray-800 text-white text-xs font-medium rounded-md hover:bg-gray-900 whitespace-nowrap">Reset Statuses</button>
                     </div>
                     <div className="p-3 overflow-y-auto max-h-[560px] bg-gray-50/50">
@@ -754,7 +805,12 @@ export default function WhatsAppBroadcast() {
                     </div>
                   </>
                 )}
-                {activeList && members.length === 0 && <p className="text-center text-gray-500 py-10 text-sm">This list is empty. Go to "Manage Lists" to add parties.</p>}
+                {activeList && members.length === 0 && (
+                  <div className="text-center text-gray-500 py-10 text-sm px-4">
+                    <p>This list is empty. Add parties in "Manage Lists", or add someone just for broadcasts.</p>
+                    <button onClick={() => setContactSheet({ listId: activeList.id })} className="mt-3 inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-rose-700 text-white text-sm font-semibold"><UserPlus size={15} /> Add contact</button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -912,6 +968,7 @@ export default function WhatsAppBroadcast() {
                 <input type="text" placeholder="New list name..." aria-label="New list name" className="flex-1 min-w-0 p-2 border border-gray-300 rounded-md text-sm focus:ring-rose-500 focus:border-rose-500" value={newListName} onChange={(e) => setNewListName(e.target.value)} />
                 <button type="submit" className="bg-rose-700 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-rose-800">Add</button>
               </form>
+              <button onClick={() => setContactSheet({ listId: editingListId })} className="w-full mb-4 inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-md border border-rose-200 bg-rose-50 text-rose-800 text-sm font-semibold hover:bg-rose-100"><UserPlus size={16} /> Add contacts (for broadcasts only)</button>
               {lists.length === 0 ? <p className="text-sm text-gray-500 italic">No lists created yet.</p> : (
                 <div className="space-y-2">
                   {lists.map(list => {
@@ -945,7 +1002,7 @@ export default function WhatsAppBroadcast() {
                     <input type="text" placeholder="Search name, number or city..." aria-label="Search directory" className="p-2 border border-gray-300 rounded-md text-sm focus:ring-rose-500 focus:border-rose-500 w-full" value={manageSearch} onChange={(e) => setManageSearch(e.target.value)} />
                     <div className="flex flex-wrap gap-2 items-center text-xs">
                       <div className="inline-flex rounded-md border border-gray-300 overflow-hidden bg-white">
-                        {([['all', 'All'], ['buyer', 'Buyers'], ['seller', 'Sellers'], ['both', 'Both']] as const).map(([k, l]) => (
+                        {([['all', 'All'], ['buyer', 'Buyers'], ['seller', 'Sellers'], ['both', 'Both'], ...(contacts.length ? [['broadcast', 'Broadcast only']] : [])] as [typeof typeFilter, string][]).map(([k, l]) => (
                           <button key={k} onClick={() => setTypeFilter(k)} className={`px-3 py-1.5 ${typeFilter === k ? 'bg-gray-900 text-white' : 'text-gray-700'}`}>{l}</button>
                         ))}
                       </div>
@@ -958,6 +1015,7 @@ export default function WhatsAppBroadcast() {
                     <div className="flex flex-wrap gap-2">
                       <button onClick={addAllShown} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-rose-700 text-white text-xs font-medium hover:bg-rose-800"><Plus size={13} /> Add all {filteredDirectory.length} shown</button>
                       <button onClick={removeAllShown} className="px-3 py-1.5 rounded-md border border-gray-300 text-gray-700 text-xs hover:bg-gray-100">Remove all shown</button>
+                      <button onClick={() => setContactSheet({ listId: editingList.id })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-gray-300 bg-white text-gray-800 text-xs font-medium hover:bg-gray-100"><UserPlus size={13} /> Add contact</button>
                     </div>
                   </>
                 )}
@@ -972,13 +1030,19 @@ export default function WhatsAppBroadcast() {
                       return (
                         <label key={party.id} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-rose-50 border-rose-400 shadow-sm' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
                           <input type="checkbox" className="w-4 h-4 text-rose-700 rounded border-gray-300 focus:ring-rose-500" checked={isSelected} onChange={() => toggleMemberInList(editingList.id, party.id)} />
-                          <div className="ml-3 flex flex-col min-w-0">
+                          <div className="ml-3 flex flex-col min-w-0 flex-1">
                             <span className="text-sm font-semibold text-gray-800 truncate">{party.name}</span>
                             <span className="text-xs text-gray-500 truncate">
-                              {typeOf(party)} • {num ? num.display : <span className="text-red-600">{party.ph.landlineOnly ? 'landline only' : party.ph.raw ? `invalid: ${party.ph.raw}` : 'no number'}</span>}
+                              {isBcId(party.id) ? 'broadcast only' : typeOf(party)} • {num ? num.display : <span className="text-red-600">{party.ph.landlineOnly ? 'landline only' : party.ph.raw ? `invalid: ${party.ph.raw}` : 'no number'}</span>}
                               {party.city ? ` • ${party.city}` : ''}
                             </span>
                           </div>
+                          {isBcId(party.id) && (
+                            <div className="flex shrink-0 -mr-1">
+                              <button type="button" aria-label={`Edit ${party.name}`} onClick={e => { e.preventDefault(); e.stopPropagation(); const c = contacts.find(x => x.id === party.id); if (c) setContactSheet({ listId: '', edit: c }); }} className="p-2 text-gray-400 hover:text-gray-700"><Pencil size={14} /></button>
+                              <button type="button" aria-label={`Delete ${party.name}`} onClick={e => { e.preventDefault(); e.stopPropagation(); const c = contacts.find(x => x.id === party.id); if (c) void deleteContact(c); }} className="p-2 text-red-400 hover:text-red-600"><Trash2 size={14} /></button>
+                            </div>
+                          )}
                         </label>
                       );
                     })}
@@ -992,6 +1056,9 @@ export default function WhatsAppBroadcast() {
           </div>
         </div>
       )}
+
+      <ContactSheet open={!!contactSheet} onClose={() => setContactSheet(null)} lists={lists.map(l => ({ id: l.id, name: l.name }))}
+        defaultListId={contactSheet?.listId || ''} edit={contactSheet?.edit || null} known={knownNumbers} onSave={handleSaveContacts} />
     </Page>
   );
 }

@@ -1,21 +1,22 @@
 // src/pages/PartyLedger.tsx
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { partyName } from '../utils/normalize';
 import { useAppStore } from '../hooks/useAuthStore';
 import { FileText, Download, Phone, ChevronDown, Check } from 'lucide-react';
-import { Page, Button, EmptyState } from '../ui';
+import { Page, Button, EmptyState, Picker, type PickItem } from '../ui';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function PartyLedger() {
   const { parties, contracts, products } = useAppStore();
-  const [selectedPartyId, setSelectedPartyId] = useState('');
+  const [qs] = useSearchParams();
+  const [selectedPartyId, setSelectedPartyId] = useState(qs.get('party') || '');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  const [partyDropdownOpen, setPartyDropdownOpen] = useState(false);
   const [monthDropdownOpen, setMonthDropdownOpen] = useState(false);
   const [yearDropdownOpen, setYearDropdownOpen] = useState(false);
 
-  const partyDropdownRef = useRef<HTMLDivElement>(null);
   const monthDropdownRef = useRef<HTMLDivElement>(null);
   const yearDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -26,9 +27,6 @@ export default function PartyLedger() {
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (partyDropdownRef.current && !partyDropdownRef.current.contains(e.target as Node)) {
-        setPartyDropdownOpen(false);
-      }
       if (monthDropdownRef.current && !monthDropdownRef.current.contains(e.target as Node)) {
         setMonthDropdownOpen(false);
       }
@@ -44,6 +42,10 @@ export default function PartyLedger() {
     return [...parties].sort((a, b) => (a.legalName || '').localeCompare(b.legalName || ''));
   }, [parties]);
 
+  const partyItems: PickItem[] = useMemo(() => sortedParties.map(p => ({
+    id: p.id, title: partyName(p), sub: [p.city, p.phone].filter(Boolean).join(' · '),
+    search: [p.name, p.gstin, p.contactPerson, ...(p.alternatePhones || [])].join(' '),
+  })), [sortedParties]);
   const selectedParty = parties.find(p => p.id === selectedPartyId);
 
   const partyContracts = contracts.filter(c => {
@@ -116,43 +118,9 @@ export default function PartyLedger() {
   return (
     <Page title="Party ledger" subtitle="Month-wise account statement of one party" width="wide">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-4">
-        {/* Custom Party Dropdown */}
-        <div className="col-span-2 relative" ref={partyDropdownRef}>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Select Party</label>
-          <button
-            type="button"
-            onClick={() => setPartyDropdownOpen(!partyDropdownOpen)}
-            className="input-field flex items-center justify-between text-left min-h-[48px]"
-          >
-            <span className={selectedPartyId ? 'text-gray-900 font-medium truncate pr-4' : 'text-gray-400'}>
-              {selectedPartyId ? parties.find(p => p.id === selectedPartyId)?.legalName : '-- Select Party --'}
-            </span>
-            <ChevronDown size={16} className={`text-gray-400 transition-transform flex-shrink-0 ${partyDropdownOpen ? 'rotate-180' : ''}`} />
-          </button>
-          
-          {partyDropdownOpen && (
-            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto py-1">
-              <button
-                type="button"
-                onClick={() => { setSelectedPartyId(''); setPartyDropdownOpen(false); }}
-                className={`w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${!selectedPartyId ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
-              >
-                <span>-- Select Party --</span>
-                {!selectedPartyId && <Check size={14} className="text-rose-600" />}
-              </button>
-              {sortedParties.map(p => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => { setSelectedPartyId(p.id); setPartyDropdownOpen(false); }}
-                  className={`w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${selectedPartyId === p.id ? 'bg-rose-50 text-rose-700 font-medium' : 'text-gray-700'}`}
-                >
-                  <span className="truncate pr-2">{p.legalName}</span>
-                  {selectedPartyId === p.id && <Check size={14} className="text-rose-600 flex-shrink-0" />}
-                </button>
-              ))}
-            </div>
-          )}
+        <div className="col-span-2">
+          <Picker label="Party" items={partyItems} value={selectedPartyId} onChange={setSelectedPartyId}
+            placeholder="Select a party" searchPlaceholder="Search name, city, phone or GSTIN" />
         </div>
 
         {/* Custom Month Dropdown */}

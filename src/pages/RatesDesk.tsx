@@ -542,7 +542,7 @@ export default function RatesDesk() {
               <button onClick={() => sendWhatsApp(selected)} className="col-span-2 sm:col-span-2 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold">
                 <Send size={16} /> Send on WhatsApp
               </button>
-              <button onClick={() => navigate('/broadcast', { state: { rateMessage: selected.text } })} className="col-span-2 sm:col-span-2 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-green-600 text-green-700 hover:bg-green-50 text-sm font-semibold">
+              <button onClick={() => navigate('/messages?tab=broadcast', { state: { rateMessage: selected.text } })} className="col-span-2 sm:col-span-2 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-green-600 text-green-700 hover:bg-green-50 text-sm font-semibold">
                 Send to my client lists
               </button>
               <button onClick={() => copyWithToast(selected.text!)} className="inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm">

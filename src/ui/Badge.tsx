@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 import { twMerge } from 'tailwind-merge';
 
 export type Tone = 'gray' | 'green' | 'amber' | 'red' | 'blue' | 'rose' | 'violet';
-const TONES: Record<Tone, string> = {
+export const TONES: Record<Tone, string> = {
   gray: 'bg-gray-100 text-gray-700',
   green: 'bg-emerald-50 text-emerald-700',
   amber: 'bg-amber-50 text-amber-800',

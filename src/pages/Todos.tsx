@@ -1,380 +1,173 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Page, Button } from '../ui';
-import { 
-  CheckCircle2, 
-  Circle, 
-  Plus, 
-  Trash2, 
-  Calendar, 
-  AlertCircle, 
-  Flame, 
-  Clock, 
-  ChevronLeft, 
-  ChevronRight,
-  CheckSquare,
-  Edit3,
-  Check
-} from 'lucide-react';
-import { db } from '../utils/firebase';
-import { 
-  collection, 
-  query, 
-  orderBy, 
-  onSnapshot, 
-  addDoc, 
-  deleteDoc, 
-  updateDoc, 
-  doc,
-  serverTimestamp 
-} from 'firebase/firestore';
+// src/pages/Todos.tsx  (shown as the Tasks tab of Tasks & notes)
+// Tasks: type one line ("Call Patel about payment tomorrow !!") and it is planned.
+//   Today = what is overdue and what is due today   Week = the next 7 days   Later = further ahead and undated   Done
+// A task can have steps, a time, a repeat (for example the GST dates every month), and a link to a contract or party.
+import { useEffect, useMemo, useState } from 'react';
+import { CalendarCheck, CalendarDays, Check, ChevronLeft, ChevronRight, Plus, Sparkles, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Button, Segmented, Sheet, EmptyState, Badge } from '../ui';
+import type { Tone } from '../ui';
+import { useToday } from '../reminders/useToday';
+import { addDays, bucketTasks, COMMON_REMINDERS, dayText, dueText, nextDom, parseQuick, type Task } from '../tasks/model';
+import { addTask, removeTask, startTasks, useTaskStore } from '../tasks/store';
+import TaskRow from '../tasks/TaskRow';
+import TaskSheet from '../tasks/TaskSheet';
 
-interface TodoItem {
-  id: string;
-  text: string;
-  completed: boolean;
-  priority: 'low' | 'medium' | 'high';
-  day: string; 
+type View = 'today' | 'week' | 'later' | 'done';
+
+function Section({ title, tone, count, children, action }: { title: string; tone?: Tone; count?: number; children: React.ReactNode; action?: React.ReactNode }) {
+  return (
+    <section>
+      <div className="flex items-center justify-between px-1 mb-1.5">
+        <h2 className="section-label flex items-center gap-2">{title}{count != null && <Badge tone={tone || 'gray'}>{count}</Badge>}</h2>
+        {action}
+      </div>
+      <div className="group-list">{children}</div>
+    </section>
+  );
 }
 
-export default function Todos() {
-  const [todos, setTodos] = useState<TodoItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [newTodoText, setNewTodoText] = useState('');
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
-  const [baseDate, setBaseDate] = useState(new Date());
-  
-  // State for handling inline adjustments
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState('');
+export function TasksView() {
+  const today = useToday();
+  const { tasks, loaded } = useTaskStore();
+  useEffect(() => startTasks(), []);
 
-  const weekDays = useMemo(() => {
-    return Array.from({ length: 7 }).map((_, i) => {
-      const d = new Date(baseDate);
-      d.setDate(baseDate.getDate() - 3 + i);
-      return d;
-    });
-  }, [baseDate]);
+  const [view, setView] = useState<View>('today');
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [quick, setQuick] = useState('');
+  const [sheet, setSheet] = useState<null | { task?: Task; preset?: Partial<Task> }>(null);
+  const [common, setCommon] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
 
-  const formatDateString = (date: Date) => {
-    const offset = date.getTimezoneOffset();
-    const localDate = new Date(date.getTime() - (offset * 60 * 1000));
-    return localDate.toISOString().split('T')[0];
+  const b = useMemo(() => bucketTasks(tasks, today), [tasks, today]);
+  const open = (t: Task) => setSheet({ task: t });
+
+  const submitQuick = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!quick.trim()) return;
+    const q = parseQuick(quick, today);
+    await addTask({ text: q.text, day: q.day ?? today, priority: q.priority || 'medium', ...(q.time ? { time: q.time } : {}), ...(q.repeat ? { repeat: q.repeat } : {}) });
+    toast.success(`Added for ${dueText(q.day ?? today, today).text.toLowerCase()}`);
+    setQuick('');
+  };
+  const quickMore = () => {
+    const q = parseQuick(quick, today);
+    setSheet({ preset: { text: q.text, day: q.day ?? today, ...(q.priority ? { priority: q.priority } : {}), ...(q.time ? { time: q.time } : {}), ...(q.repeat ? { repeat: q.repeat } : {}) } });
+    setQuick('');
   };
 
-  const [selectedDay, setSelectedDay] = useState<string>(formatDateString(new Date()));
+  const weekStart = addDays(today, weekOffset * 7);
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+  const later = useMemo(() => b.upcoming.filter(t => t.day >= addDays(today, 7)), [b.upcoming, today]);
 
-  useEffect(() => {
-    const q = query(collection(db, 'daily_todos'), orderBy('createdAt', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items: TodoItem[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        items.push({
-          id: doc.id,
-          text: data.text,
-          completed: data.completed,
-          priority: data.priority,
-          day: data.day
-        });
-      });
-      setTodos(items);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error loading tasks: ", error);
-      setLoading(false);
-    });
+  const rows = (list: Task[], showDay: boolean) => list.map(t => <TaskRow key={t.id} t={t} today={today} showDay={showDay} onOpen={open} />);
 
-    return () => unsubscribe();
-  }, []);
-
-  const dailyTodos = useMemo(() => {
-    return todos.filter((todo) => todo.day === selectedDay);
-  }, [todos, selectedDay]);
-
-  const stats = useMemo(() => {
-    if (dailyTodos.length === 0) return { percent: 0, completed: 0, total: 0 };
-    const completed = dailyTodos.filter(t => t.completed).length;
-    return {
-      completed,
-      total: dailyTodos.length,
-      percent: Math.round((completed / dailyTodos.length) * 100)
-    };
-  }, [dailyTodos]);
-
-  const handleAddTodo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTodoText.trim()) return;
-
-    try {
-      await addDoc(collection(db, 'daily_todos'), {
-        text: newTodoText.trim(),
-        completed: false,
-        priority,
-        day: selectedDay,
-        createdAt: serverTimestamp()
-      });
-      setNewTodoText('');
-    } catch (error) {
-      console.error("Error adding task: ", error);
-    }
-  };
-
-  const toggleTodo = async (id: string, currentStatus: boolean) => {
-    try {
-      const docRef = doc(db, 'daily_todos', id);
-      await updateDoc(docRef, { completed: !currentStatus });
-    } catch (error) {
-      console.error("Error shifting task state: ", error);
-    }
-  };
-
-  const startEditing = (todo: TodoItem) => {
-    setEditingId(todo.id);
-    setEditingText(todo.text);
-  };
-
-  const saveUpdate = async (id: string) => {
-    if (!editingText.trim()) return;
-    try {
-      const docRef = doc(db, 'daily_todos', id);
-      await updateDoc(docRef, { text: editingText.trim() });
-      setEditingId(null);
-    } catch (error) {
-      console.error("Error updating task text: ", error);
-    }
-  };
-
-  const deleteTodo = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, 'daily_todos', id));
-    } catch (error) {
-      console.error("Error purging task item: ", error);
-    }
-  };
-
-  const shiftWeek = (direction: 'prev' | 'next') => {
-    setBaseDate(prev => {
-      const nextDate = new Date(prev);
-      nextDate.setDate(prev.getDate() + (direction === 'next' ? 7 : -7));
-      return nextDate;
-    });
-  };
+  const counts = { today: b.overdue.length + b.today.length, week: b.upcoming.filter(t => t.day < addDays(today, 7)).length + b.overdue.length + b.today.length, later: later.length + b.someday.length };
 
   return (
-    <Page
-      title={<span className="inline-flex items-center gap-2">Task planner <CheckSquare className="w-5 h-5 text-rose-700" /></span>}
-      subtitle="Plan and tick off your work day by day."
-      actions={
-        <span className="inline-flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200">
-          <Clock className="w-4 h-4 text-gray-400" />
-          <span className="text-xs font-semibold text-gray-600">{stats.completed}/{stats.total} done</span>
-        </span>
-      }
-    >
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
-        <div className="lg:col-span-1 space-y-4 order-2 lg:order-1">
-          <div className="card p-4 lg:p-5 space-y-4">
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <Flame className="w-4 h-4 text-orange-500" /> New Agenda Item
-            </h3>
-            
-            <form onSubmit={handleAddTodo} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">Task Objective</label>
-                <textarea
-                  value={newTodoText}
-                  onChange={(e) => setNewTodoText(e.target.value)}
-                  placeholder="Type task details here..."
-                  rows={3}
-                  className="input-field resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">Execution Priority</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['low', 'medium', 'high'] as const).map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setPriority(p)}
-                      className={`text-sm min-h-[44px] py-2 font-bold rounded-xl capitalize transition-all border ${
-                        priority === p 
-                          ? p === 'high' ? 'bg-rose-600 text-white border-rose-600' :
-                            p === 'medium' ? 'bg-amber-500 text-white border-amber-500' :
-                            'bg-emerald-600 text-white border-emerald-600'
-                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <Button type="submit" variant="primary" className="w-full" disabled={!newTodoText.trim()} icon={<Plus size={16} />}>Add to this day</Button>
-            </form>
-          </div>
-
-          {dailyTodos.length > 0 && (
-            <div className="bg-slate-900 p-4 lg:p-5 rounded-2xl text-white">
-              <div className="flex justify-between items-center text-xs opacity-80 mb-2 font-medium">
-                <span>Day Progress Bar</span>
-                <span>{stats.percent}%</span>
-              </div>
-              <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
-                <div 
-                  className="bg-rose-500 h-full transition-all duration-500 ease-out" 
-                  style={{ width: `${stats.percent}%` }}
-                />
-              </div>
-            </div>
-          )}
+    <div className="space-y-4">
+      {/* type a task */}
+      <form onSubmit={submitQuick} className="card p-3.5 sm:p-4" aria-label="Quick add a task">
+        <div className="flex gap-2">
+          <input value={quick} onChange={e => setQuick(e.target.value)} placeholder="Add a task, e.g. Call Patel about payment tomorrow !!" aria-label="New task" className="input-field flex-1 min-w-0" />
+          <Button type="submit" variant="primary" icon={<Plus size={16} />} disabled={!quick.trim()}>Add</Button>
         </div>
-
-        <div className="lg:col-span-2 space-y-4 order-1 lg:order-2">
-          <div className="card p-2 flex items-center justify-between gap-1">
-            <button 
-              onClick={() => shiftWeek('prev')}
-              aria-label="Previous week"
-              className="p-3 hover:bg-gray-50 rounded-xl text-gray-500 hover:text-gray-700 transition-colors shrink-0"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              {weekDays.map((date) => {
-                const dateStr = formatDateString(date);
-                const isActive = selectedDay === dateStr;
-                const isToday = formatDateString(new Date()) === dateStr;
-                
-                return (
-                  <button
-                    key={dateStr}
-                    onClick={() => setSelectedDay(dateStr)}
-                    className={`flex flex-col items-center min-w-[48px] sm:min-w-[56px] min-h-[56px] py-2 rounded-xl transition-all duration-200 ${
-                      isActive 
-                        ? 'bg-rose-700 text-white shadow-md shadow-rose-100 font-bold scale-[1.02]' 
-                        : 'bg-white hover:bg-gray-50 text-gray-700 border border-transparent hover:border-gray-100'
-                    }`}
-                  >
-                    <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? 'text-rose-200' : 'text-gray-400'}`}>
-                      {date.toLocaleDateString('en-US', { weekday: 'short' })}
-                    </span>
-                    <span className="text-sm font-black mt-0.5">
-                      {date.getDate()}
-                    </span>
-                    {isToday && !isActive && (
-                      <span className="w-1 h-1 bg-rose-700 rounded-full mt-1" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            <button 
-              onClick={() => shiftWeek('next')}
-              aria-label="Next week"
-              className="p-3 hover:bg-gray-50 rounded-xl text-gray-500 hover:text-gray-700 transition-colors shrink-0"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="space-y-2.5 min-h-[300px]">
-            {loading ? (
-              <div className="flex items-center justify-center py-20 card">
-                <div className="w-6 h-6 border-2 border-rose-700 border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : dailyTodos.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center card border-dashed px-4">
-                <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 mb-3 border border-gray-100">
-                  <Calendar className="w-5 h-5" />
-                </div>
-                <h4 className="text-sm font-bold text-gray-800">Clear Slate for This Date</h4>
-                <p className="text-xs text-gray-400 mt-1 max-w-xs">No scheduled tasks found.</p>
-              </div>
-            ) : (
-              dailyTodos.map((todo) => (
-                <div
-                  key={todo.id}
-                  className={`group flex items-center justify-between gap-2 p-3 lg:p-4 rounded-2xl transition-all duration-200 border ${
-                    todo.completed 
-                      ? 'bg-gray-50/80 border-gray-100 opacity-70' 
-                      : 'bg-white border-gray-100 hover:border-gray-200 shadow-sm'
-                  }`}
-                >
-                  <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                    <button 
-                      onClick={() => toggleTodo(todo.id, todo.completed)}
-                      aria-label={todo.completed ? 'Mark as not done' : 'Mark as done'}
-                      className="text-gray-400 hover:text-rose-700 transition-colors flex-shrink-0 p-2 -m-2"
-                    >
-                      {todo.completed ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500 fill-emerald-50" />
-                      ) : (
-                        <Circle className="w-5 h-5 text-gray-300 group-hover:text-rose-700" />
-                      )}
-                    </button>
-                    
-                    {editingId === todo.id ? (
-                      <input
-                        type="text"
-                        value={editingText}
-                        onChange={(e) => setEditingText(e.target.value)}
-                        onBlur={() => saveUpdate(todo.id)}
-                        onKeyDown={(e) => e.key === 'Enter' && saveUpdate(todo.id)}
-                        autoFocus
-                        className="input-field !py-2"
-                      />
-                    ) : (
-                      <span className={`text-sm font-semibold flex-1 break-words min-w-0 ${todo.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-                        {todo.text}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1 ml-1 flex-shrink-0">
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider border ${
-                      todo.priority === 'high' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                      todo.priority === 'medium' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                      'bg-emerald-50 text-emerald-600 border-emerald-100'
-                    }`}>
-                      {todo.priority}
-                    </span>
-
-                    {editingId === todo.id ? (
-                      <button
-                        onClick={() => saveUpdate(todo.id)}
-                        aria-label="Save"
-                        className="text-emerald-600 p-2.5 hover:bg-gray-50 rounded-lg"
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => startEditing(todo)}
-                        aria-label="Edit task"
-                        className="lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100 text-gray-500 hover:text-gray-700 transition-all p-2.5 rounded-lg hover:bg-gray-50"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => deleteTodo(todo.id)}
-                      aria-label="Delete task"
-                      className="lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100 text-gray-500 hover:text-rose-600 transition-all p-2.5 rounded-lg hover:bg-gray-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+          <span>Type the day (<b>tomorrow</b>, <b>fri</b>, <b>5 nov</b>), <b>!!</b> for high priority, <b>every month</b> to repeat.</span>
+          <button type="button" onClick={quickMore} className="ml-auto text-[13px] font-semibold text-rose-700 min-h-[32px]">More options</button>
         </div>
+      </form>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Segmented<View> value={view} onChange={setView} label="Show" options={[
+          { value: 'today', label: 'Today', count: counts.today || undefined }, { value: 'week', label: 'Week' }, { value: 'later', label: 'Later', count: counts.later || undefined }, { value: 'done', label: 'Done' },
+        ]} />
+        <Button size="sm" variant="ghost" className="ml-auto" icon={<Sparkles size={14} />} onClick={() => setCommon(true)}>Repeating reminders</Button>
       </div>
-    </Page>
+
+      {!loaded && <div className="card"><div className="py-12 flex justify-center"><div className="w-6 h-6 border-2 border-rose-700 border-t-transparent rounded-full animate-spin" /></div></div>}
+
+      {loaded && view === 'today' && (
+        counts.today === 0 ? (
+          <div className="card"><EmptyState icon={<CalendarCheck size={24} />} title="You are clear for today" action={<Button onClick={() => setView('week')}>See the week</Button>}>
+            {b.upcoming.length ? `Next up: ${b.upcoming[0].text} (${dueText(b.upcoming[0].day, today).text.toLowerCase()}).` : 'Nothing is waiting. Type a task above.'}
+          </EmptyState></div>
+        ) : (
+          <>
+            {b.overdue.length > 0 && <Section title="Overdue" tone="red" count={b.overdue.length}>{rows(b.overdue, true)}</Section>}
+            {b.today.length > 0 && <Section title="Today" tone="amber" count={b.today.length}>{rows(b.today, false)}</Section>}
+          </>
+        )
+      )}
+
+      {loaded && view === 'week' && (
+        <>
+          <div className="flex items-center justify-between">
+            <button onClick={() => setWeekOffset(o => o - 1)} aria-label="Previous week" className="w-10 h-10 rounded-full bg-white/70 ring-1 ring-black/5 flex items-center justify-center text-gray-600"><ChevronLeft size={18} /></button>
+            <p className="text-sm font-semibold text-gray-800">{dayText(weekDays[0])} – {dayText(weekDays[6])}{weekOffset !== 0 && <button className="ml-2 text-rose-700 text-xs font-semibold" onClick={() => setWeekOffset(0)}>This week</button>}</p>
+            <button onClick={() => setWeekOffset(o => o + 1)} aria-label="Next week" className="w-10 h-10 rounded-full bg-white/70 ring-1 ring-black/5 flex items-center justify-center text-gray-600"><ChevronRight size={18} /></button>
+          </div>
+          {weekOffset === 0 && b.overdue.length > 0 && <Section title="Overdue" tone="red" count={b.overdue.length}>{rows(b.overdue, true)}</Section>}
+          {weekDays.map(day => {
+            const list = tasks.filter(t => !t.completed && t.day === day).sort((a, c) => (a.time || '99').localeCompare(c.time || '99'));
+            const label = day === today ? 'Today' : day === addDays(today, 1) ? 'Tomorrow' : dayText(day);
+            return (
+              <Section key={day} title={`${label}${label === 'Today' || label === 'Tomorrow' ? ` · ${dayText(day)}` : ''}`} count={list.length || undefined}
+                action={<button onClick={() => setSheet({ preset: { day } })} aria-label={`Add a task on ${dayText(day)}`} className="w-8 h-8 rounded-full flex items-center justify-center text-rose-700 hover:bg-rose-50"><Plus size={17} /></button>}>
+                {list.length ? rows(list, false) : <p className="px-4 py-3 text-sm text-gray-400">Nothing planned</p>}
+              </Section>
+            );
+          })}
+        </>
+      )}
+
+      {loaded && view === 'later' && (
+        later.length + b.someday.length === 0 ? (
+          <div className="card"><EmptyState icon={<CalendarDays size={24} />} title="Nothing further ahead">Tasks more than a week away, and tasks without a date, show here.</EmptyState></div>
+        ) : (
+          <>
+            {later.length > 0 && <Section title="Coming up" count={later.length}>{rows(later, true)}</Section>}
+            {b.someday.length > 0 && <Section title="No date" count={b.someday.length}>{rows(b.someday, true)}</Section>}
+          </>
+        )
+      )}
+
+      {loaded && view === 'done' && (
+        b.done.length === 0 ? (
+          <div className="card"><EmptyState icon={<Check size={24} />} title="Nothing finished yet">Tasks you tick off are kept here.</EmptyState></div>
+        ) : (
+          <Section title="Finished" count={b.done.length} action={
+            confirmClear
+              ? <span className="flex items-center gap-2"><Button size="sm" variant="danger" onClick={async () => { for (const t of b.done) await removeTask(t.id); setConfirmClear(false); toast.success('Cleared'); }}>Delete {b.done.length}</Button><Button size="sm" onClick={() => setConfirmClear(false)}>Keep</Button></span>
+              : <Button size="sm" variant="ghost" className="!text-red-600" icon={<Trash2 size={14} />} onClick={() => setConfirmClear(true)}>Clear all</Button>}>
+            {rows(b.done.slice(0, 80), false)}
+          </Section>
+        )
+      )}
+
+      <TaskSheet open={!!sheet} onClose={() => setSheet(null)} today={today} task={sheet?.task} preset={sheet?.preset} />
+
+      {/* the dates a broker repeats every month */}
+      <Sheet open={common} onClose={() => setCommon(false)} title="Repeating reminders">
+        <p className="text-sm text-gray-600 -mt-1 mb-3">One tap adds a task that comes back by itself each month, with the right date.</p>
+        <div className="group-list">
+          {COMMON_REMINDERS.map(r => {
+            const have = tasks.some(t => !t.completed && t.series === `tpl_${r.key}`);
+            return (
+              <div key={r.key} className="row !py-3 gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[15px] font-medium text-gray-900">{r.text}</p>
+                  <p className="text-xs text-gray-500">{r.details}</p>
+                </div>
+                {have
+                  ? <Badge tone="green" icon={<Check size={12} />}>Added</Badge>
+                  : <Button size="sm" variant="soft" aria-label={`Add reminder: ${r.text}`} onClick={async () => { await addTask({ text: r.text, day: nextDom(today, r.dom), repeat: r.repeat, priority: r.priority, details: r.details, series: `tpl_${r.key}` }); toast.success('Reminder added'); }}>Add</Button>}
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-xs text-gray-500 mt-3">Check the dates against your own filing schedule (quarterly filers and TDS rules differ). You can change any of them after adding.</p>
+      </Sheet>
+    </div>
   );
 }

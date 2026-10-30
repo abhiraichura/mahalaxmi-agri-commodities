@@ -88,9 +88,44 @@ export interface BillLine {
   /** how the brokerage was worked out, e.g. "0.5%" or "Rs. 500 fixed" */
   basis: string;
   brokerage: number;
+  /** the amount worked out from the contract, when you typed a different one for this bill */
+  was?: number;
+}
+
+/* ---------- hand edits on one bill ---------- */
+
+/** the key of a bill line, same as used for "what was printed" */
+export const lineKey = (l: Pick<BillLine, 'contractId' | 'side'>) => `${l.contractId}:${l.side}`;
+
+/** what you changed on one bill: a different brokerage for a line, or a line left off this bill */
+export interface LineEdit { amount?: number; off?: boolean }
+export interface BillEdits {
+  lines: Record<string, LineEdit>;
+  /** GST % for this bill only (otherwise the screen's setting) */
+  gst?: number;
+  /** bill / invoice date for this bill only */
+  date?: string;
+}
+
+export const emptyEdits = (): BillEdits => ({ lines: {} });
+export const hasEdits = (e: BillEdits) => Object.keys(e.lines).length > 0 || e.gst !== undefined || !!e.date;
+
+/** the bill as it will be printed: edited amounts in, left-off lines out. `calculated` keeps the untouched lines. */
+export function applyLineEdits(bill: PartyBill, edits: BillEdits | undefined): PartyBill {
+  const calculated = bill.calculated || bill.lines;
+  const lines: BillLine[] = [];
+  for (const l of calculated) {
+    const e = edits?.lines[lineKey(l)];
+    if (e?.off) continue;
+    if (e && typeof e.amount === 'number' && isFinite(e.amount) && Math.abs(e.amount - l.brokerage) > 0.004) lines.push({ ...l, brokerage: round2(e.amount), was: l.brokerage, basis: 'edited' });
+    else lines.push(l);
+  }
+  return { ...bill, calculated, lines, totalQtyMT: lines.reduce((s, l) => s + l.qtyMT, 0), subtotal: round2(lines.reduce((s, l) => s + l.brokerage, 0)) };
 }
 
 export interface PartyBill {
+  /** every line as worked out from the contracts, before any hand edits (the edit screen shows these) */
+  calculated?: BillLine[];
   partyId: string;
   party: Party;
   lines: BillLine[];
@@ -153,6 +188,7 @@ export function buildPartyBills(contracts: Contract[], parties: Party[], from: s
     b.lines.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : x.contractNo.localeCompare(y.contractNo, undefined, { numeric: true })));
     b.totalQtyMT = b.lines.reduce((s, l) => s + l.qtyMT, 0);
     b.subtotal = round2(b.lines.reduce((s, l) => s + l.brokerage, 0));
+    b.calculated = [...b.lines];
   }
   return bills.sort((a, b) => partyName(a.party).localeCompare(partyName(b.party)));
 }

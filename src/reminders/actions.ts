@@ -1,7 +1,7 @@
 // What happens to a contract when you answer a reminder. Each function returns the fields to save with updateContract().
 import { v4 as uuid } from 'uuid';
 import { Contract, TimelineEvent } from '../types';
-import { addDays, fmtDay, fmtDayYear } from '../../server/reminders/plan.js';
+import { addDays, fmtDay, fmtDayYear, termsOf } from '../../server/reminders/plan.js';
 
 const ev = (type: TimelineEvent['type'], date: string, text: string): TimelineEvent => ({ id: uuid(), type, date, text, at: Date.now() });
 const withEvent = (c: Contract, e: TimelineEvent) => [...(c.timeline || []), e];
@@ -63,3 +63,48 @@ export const quickDays = (today: string): { label: string; date: string }[] => [
   { label: 'In 3 days', date: addDays(today, 3) },
   { label: 'In a week', date: addDays(today, 7) },
 ];
+
+/** The three dates of a contract as they stand now ('' when not set). */
+export interface DatesInput { deadline: string; loadedOn: string; paidOn: string }
+export function currentDates(c: Contract): DatesInput {
+  return { deadline: termsOf(c).deadline || '', loadedOn: c.loadedOn || '', paidOn: c.paymentReceivedOn || '' };
+}
+
+/**
+ * Change the loading deadline, the loading date or the payment date (any time, as often as needed).
+ * Each change is written in the diary with the old and the new day, so there is always a record.
+ * `completed` says whether a newly entered payment date should also mark the contract as completed.
+ */
+export function datesUpdate(c: Contract, today: string, next: DatesInput, completed: boolean): Partial<Contract> {
+  const old = currentDates(c);
+  const out: Partial<Contract> = {};
+  const events: TimelineEvent[] = [];
+  const from = (d: string) => (d ? ` from ${fmtDayYear(d)}` : '');
+
+  if (next.deadline !== old.deadline) {
+    out.loadingDeadline = next.deadline;
+    events.push(ev('note', today, next.deadline
+      ? `Loading deadline ${old.deadline ? 'changed' : 'set'}${from(old.deadline)} to ${fmtDayYear(next.deadline)}`
+      : 'Loading deadline cleared (it follows the loading days again)'));
+  }
+  if (next.loadedOn !== old.loadedOn) {
+    out.loadedOn = next.loadedOn || null;
+    if (next.loadedOn) {
+      events.push(ev('loaded', next.loadedOn, old.loadedOn ? `Loading date changed${from(old.loadedOn)} to ${fmtDayYear(next.loadedOn)}` : `Loaded on ${fmtDayYear(next.loadedOn)}`));
+      if (c.snooze?.kind === 'loading') out.snooze = null;
+    } else events.push(ev('undo', today, 'Loading date removed'));
+  }
+  if (next.paidOn !== old.paidOn) {
+    out.paymentReceivedOn = next.paidOn || null;
+    if (next.paidOn) {
+      events.push(ev('paid', next.paidOn, old.paidOn ? `Payment date changed${from(old.paidOn)} to ${fmtDayYear(next.paidOn)}` : `Payment confirmed on ${fmtDayYear(next.paidOn)}`));
+      out.snooze = null;
+      if (!old.paidOn && completed && c.status !== 'completed') out.status = 'completed';
+    } else {
+      events.push(ev('undo', today, 'Payment confirmation removed'));
+      if (c.status === 'completed') out.status = 'confirmed';
+    }
+  }
+  if (events.length) out.timeline = [...(c.timeline || []), ...events];
+  return out;
+}

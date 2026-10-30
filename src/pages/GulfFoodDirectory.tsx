@@ -5,6 +5,7 @@ import { Search, Plus, Phone, Mail, MapPin, Globe, User, X, Download, Upload, Fi
 import toast from 'react-hot-toast';
 import { getColData, addDoc, updateDocData, deleteDocData } from '../utils/firebase';
 import { Page, Button } from '../ui';
+import PartiesTabs from '../components/PartiesTabs';
 
 interface GulfFoodMember {
   id: string;
@@ -80,7 +81,8 @@ export default function GulfFoodDirectory() {
             setMembers([]);
           }
         } else {
-          setMembers(fbData as GulfFoodMember[]);
+          // an old record may be missing a field: give every text field a value so nothing below breaks
+          setMembers((fbData as GulfFoodMember[]).map(m => ({ ...m, companyName: m.companyName || '', contactNumber: m.contactNumber || '', cityState: m.cityState || '', contactPerson: m.contactPerson || '', email: m.email || '', profile: m.profile || '' })));
         }
       } catch (error) {
         console.error('Error fetching Gulfood members:', error);
@@ -145,16 +147,16 @@ result.sort((a, b) => (a.companyName || '').localeCompare(b.companyName || ''));
 
   const handleInitialSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.companyName.trim()) {
+    if (!(form.companyName || '').trim()) {
       toast.error('Company name is required');
       return;
     }
 
-    const cleanContact = form.contactNumber.replace(/\s/g, '');
+    const cleanContact = (form.contactNumber || '').replace(/\s/g, '');
     if (cleanContact) {
       const isDuplicate = members.find(m => 
         m.id !== editingMember?.id && 
-        m.contactNumber.replace(/\s/g, '') === cleanContact
+        (m.contactNumber || '').replace(/\s/g, '') === cleanContact
       );
 
       if (isDuplicate) {
@@ -325,9 +327,9 @@ result.sort((a, b) => (a.companyName || '').localeCompare(b.companyName || ''));
 
   return (
     <Page
-      title="Gulfood directory"
-      subtitle={`${members.length} members registered`}
-      width="wide"
+      title="Parties"
+      subtitle={`${members.length} Gulfood member${members.length === 1 ? '' : 's'}`}
+      width="default"
       actions={
         <>
           <input
@@ -356,6 +358,7 @@ result.sort((a, b) => (a.companyName || '').localeCompare(b.companyName || ''));
         </>
       }
     >
+      <PartiesTabs />
       <div>
         {/* Search */}
         <div className="card p-3 lg:p-4 mb-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
@@ -452,7 +455,7 @@ result.sort((a, b) => (a.companyName || '').localeCompare(b.companyName || ''));
 
                     {member.contactNumber && (
                       <a
-                        href={`tel:${member.contactNumber.replace(/\s/g, '')}`}
+                        href={`tel:${(member.contactNumber || '').replace(/\s/g, '')}`}
                         onClick={e => e.stopPropagation()}
                         className="flex items-center gap-1.5 text-rose-700 hover:text-rose-800 min-h-[36px]"
                       >
@@ -505,7 +508,7 @@ result.sort((a, b) => (a.companyName || '').localeCompare(b.companyName || ''));
                 )}
 
                 {viewingMember.contactNumber && (
-                  <a href={`tel:${viewingMember.contactNumber.replace(/\s/g, '')}`} className="flex items-center gap-2 text-sm text-rose-600 hover:underline">
+                  <a href={`tel:${(viewingMember.contactNumber || '').replace(/\s/g, '')}`} className="flex items-center gap-2 text-sm text-rose-600 hover:underline">
                     <Phone size={16} />
                     {viewingMember.contactNumber}
                   </a>

@@ -1,12 +1,19 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../hooks/useAuthStore';
-import { Save, ChevronDown, Plus, Check, BellRing, AlertTriangle } from 'lucide-react';
+import { Save, ChevronDown, Plus, Check, BellRing, AlertTriangle, History, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
-import { BrokerageConfig, SpecField } from '../types';
+import { BrokerageConfig, Contract, Party, SpecField } from '../types';
+import { reconcileOverrides } from '../contractNote/writeback';
 import { brokerageAmount, goodsValue, productBrokerageDefaults } from '../billing/calc';
-import { Page, Button } from '../ui';
+import { Page, Button, Picker } from '../ui';
+import type { PickItem } from '../ui';
+import QuickParty from '../components/QuickParty';
+import { partyName } from '../utils/normalize';
+import { dealHeadsUp, lastDealBetween } from '../crm/guards';
+import { useNcdexRef } from '../rates/useNcdexRef';
+import { clockIST } from '../ui/format';
 import { addDays, cleanKey, fmtDay, parseLoadingDays, parsePaymentDays, termsOf, todayIST } from '../../server/reminders/plan.js';
 
 const QUANTITY_UNITS = [
@@ -17,6 +24,7 @@ const QUANTITY_UNITS = [
 export default function ContractForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [query] = useSearchParams();
   const { parties, products, contracts, addContract, updateContract, settings, currentFinancialYear, setCurrentFinancialYear, loadParties } = useAppStore();
 
   useEffect(() => {
@@ -69,42 +77,22 @@ export default function ContractForm() {
     seller: { type: 'percent', value: '' },
   });
   const lastProductRef = useRef('');
+  const pendingQuality = useRef<{ id: string; specs: SpecField[] } | null>(null);
+  const [usedFrom, setUsedFrom] = useState<string | null>(null);
 
-  // Custom Dropdown States
-  const [sellerDropdownOpen, setSellerDropdownOpen] = useState(false);
-  const [buyerDropdownOpen, setBuyerDropdownOpen] = useState(false);
-  const [productDropdownOpen, setProductDropdownOpen] = useState(false);
-  const [qualityDropdownOpen, setQualityDropdownOpen] = useState(false);
-  const [highlightIndex, setHighlightIndex] = useState<number>(-1);
-
-  const sellerRef = useRef<HTMLDivElement>(null);
-  const buyerRef = useRef<HTMLDivElement>(null);
-  const productRef = useRef<HTMLDivElement>(null);
-  const qualityRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdowns on click outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (sellerRef.current && !sellerRef.current.contains(e.target as Node)) setSellerDropdownOpen(false);
-      if (buyerRef.current && !buyerRef.current.contains(e.target as Node)) setBuyerDropdownOpen(false);
-      if (productRef.current && !productRef.current.contains(e.target as Node)) setProductDropdownOpen(false);
-      if (qualityRef.current && !qualityRef.current.contains(e.target as Node)) setQualityDropdownOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Smart scrolling for keyboard navigation inside dropdowns
-  useEffect(() => {
-    if (highlightIndex >= 0) {
-      const element = document.getElementById(`dropdown-item-${highlightIndex}`);
-      if (element) {
-        element.scrollIntoView({ block: 'nearest' });
-      }
-    }
-  }, [highlightIndex]);
+  const [quickParty, setQuickParty] = useState<{ side: 'seller' | 'buyer'; name: string } | null>(null);
 
   const existing = id ? contracts.find(c => c.id === id) : null;
+
+  // "New deal" from a party's page arrives with that party already chosen
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (id || prefilled.current || !parties.length) return;
+    const s = query.get('seller'); const b = query.get('buyer');
+    if (!s && !b) return;
+    prefilled.current = true;
+    setForm(f => ({ ...f, ...(s && parties.some(p => p.id === s) ? { sellerId: s } : {}), ...(b && parties.some(p => p.id === b) ? { buyerId: b } : {}) }));
+  }, [id, query, parties]);
 
   useEffect(() => {
     if (existing) {
@@ -200,58 +188,13 @@ export default function ContractForm() {
     return [...selectedProduct.qualities].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [selectedProduct]);
 
-  // --- Generic Dropdown Logic for Keyboard Support ---
-  const toggleDropdown = (isOpen: boolean, setIsOpen: (val: boolean) => void, items: any[], currentSelectedId: string | null) => {
-    if (!isOpen) {
-      const idx = items.findIndex(item => item.id === currentSelectedId);
-      setHighlightIndex(idx >= 0 ? idx : 0);
-    } else {
-      setHighlightIndex(-1);
-    }
-    setIsOpen(!isOpen);
-  };
-
-  const handleDropdownKeyDown = (e: React.KeyboardEvent, isOpen: boolean, setIsOpen: (val: boolean) => void, items: any[], onSelect: (item: any) => void, currentSelectedId: string | null) => {
-    if (!isOpen) {
-      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
-        e.preventDefault();
-        const idx = items.findIndex(item => item.id === currentSelectedId);
-        setHighlightIndex(idx >= 0 ? idx : 0);
-        setIsOpen(true);
-      }
-      return;
-    }
-
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        setHighlightIndex(prev => (prev < items.length - 1 ? prev + 1 : prev));
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setHighlightIndex(prev => (prev > 0 ? prev - 1 : 0));
-        break;
-      case 'Enter':
-        e.preventDefault();
-        if (highlightIndex >= 0 && highlightIndex < items.length) {
-          onSelect(items[highlightIndex]);
-          setIsOpen(false);
-        }
-        break;
-      case 'Escape':
-        e.preventDefault();
-        setIsOpen(false);
-        break;
-      case 'Tab':
-        setIsOpen(false);
-        break;
-    }
-  };
-
   // Rest of calculations
   useEffect(() => {
     if (!existing && selectedProduct) {
-      if (selectedProduct.qualities && selectedProduct.qualities.length > 0) {
+      if (pendingQuality.current) {
+        // the details of an earlier deal were just used: keep its quality and specs
+        setSelectedQualityId(pendingQuality.current.id); setContractSpecs(pendingQuality.current.specs); pendingQuality.current = null;
+      } else if (selectedProduct.qualities && selectedProduct.qualities.length > 0) {
         const firstQuality = selectedProduct.qualities[0];
         setSelectedQualityId(firstQuality.id);
         setContractSpecs(firstQuality.specs.map(s => ({...s})));
@@ -313,6 +256,18 @@ export default function ContractForm() {
 
   const brokerages = calculateBrokerages();
 
+  // the Indian financial year (April to March) that a date falls in
+  const fyOfDate = (d: string) => { const y = Number(d.slice(0, 4)); const m = Number(d.slice(5, 7)); if (!y || !m) return ''; const a = m >= 4 ? y : y - 1; return `${a}-${a + 1}`; };
+  const dateFy = fyOfDate(form.date);
+  const useFinancialYear = (fy: string) => {
+    if (!settings.financialYears.includes(fy)) {
+      useAppStore.getState().updateSettings({ ...settings, financialYears: [...settings.financialYears, fy].sort() });
+      useAppStore.getState().saveSettingsToFirebase();
+    }
+    setForm(f => ({ ...f, financialYear: fy }));
+    setCurrentFinancialYear(fy);
+  };
+
   const handleAddFinancialYear = () => {
     if (!newFyInput.match(/^\d{4}-\d{4}$/)) {
       toast.error('Format must be YYYY-YYYY (e.g. 2026-2027)');
@@ -329,6 +284,49 @@ export default function ContractForm() {
     toast.success('Financial year added');
   };
 
+  /** copy the terms of an earlier deal into this new contract (not its number, date or progress) */
+  const applyDeal = (c: Contract) => {
+    setForm(f => ({
+      ...f,
+      productId: c.productId || f.productId, quantity: c.quantity || 0, quantityUnit: (c.quantityUnit as 'MT' | 'KG') || f.quantityUnit,
+      price: c.price || 0, priceUnit: c.priceUnit || 'KG',
+      deliveryLocation: c.deliveryLocation || '', deliveryAddress: c.deliveryAddress || '', packing: c.packing || f.packing,
+      loadingCondition: c.loadingCondition || f.loadingCondition, paymentTerms: c.paymentTerms || f.paymentTerms,
+      gstPercent: c.gstPercent || f.gstPercent, otherTerms: c.otherTerms || '',
+    }));
+    const l = c.loadingDays != null && Number(c.loadingDays) > 0 ? Number(c.loadingDays) : parseLoadingDays(c.loadingCondition || '');
+    setLoadDays(l ? String(l) : ''); setLoadTouched(c.loadingDays != null);
+    const t = parsePaymentDays(c.paymentTerms || '');
+    const pMin = c.paymentDaysMin != null ? Number(c.paymentDaysMin) : t?.min ?? null;
+    const pMax = c.paymentDaysMax != null ? Number(c.paymentDaysMax) : t?.max ?? null;
+    setPayMin(pMin != null ? String(pMin) : ''); setPayMax(pMax != null ? String(pMax) : ''); setPayTouched(c.paymentDaysMin != null);
+    setDeadlineManual(false);
+    const b = c.brokerage || productBrokerageDefaults(c.product);
+    setBrk({ buyer: toBrkInput(b.buyer), seller: toBrkInput(b.seller) });
+    lastProductRef.current = c.productId || '';
+    const specs = (c.contractSpecs || []).map(x => ({ ...x }));
+    pendingQuality.current = { id: c.qualityId || '', specs };
+    setSelectedQualityId(c.qualityId || ''); setContractSpecs(specs);
+    setUsedFrom(c.id);
+  };
+
+  // "Repeat this deal" arrives as /contracts/new?from=<contract id>
+  const repeated = useRef(false);
+  useEffect(() => {
+    const from = query.get('from');
+    if (id || !from || repeated.current || !contracts.length || !parties.length) return;
+    const c = contracts.find(x => x.id === from);
+    if (!c) return;
+    repeated.current = true; prefilled.current = true;
+    setForm(f => ({ ...f, sellerId: c.sellerId || f.sellerId, buyerId: c.buyerId || f.buyerId }));
+    applyDeal(c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, query, contracts, parties]);
+
+  const lastDeal = !id && !usedFrom && form.quantity === 0 ? lastDealBetween(contracts, form.sellerId, form.buyerId) : null;
+  const ncdex = useNcdexRef(selectedProduct?.name || '');
+  const heads = dealHeadsUp(form, contracts, parties, brokerages.total, todayIST(), id);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.sellerId || !form.buyerId || !form.productId) {
@@ -337,6 +335,10 @@ export default function ContractForm() {
     }
     if (!form.contractNo.trim()) {
       toast.error('Contract number is required');
+      return;
+    }
+    if (form.sellerId === form.buyerId) {
+      toast.error('The seller and the buyer are the same party');
       return;
     }
 
@@ -381,7 +383,9 @@ export default function ContractForm() {
 
     try {
       if (id) {
-        await updateContract(id, payload);
+        // the printed note follows the contract: note edits for fields that just changed are dropped
+        const keep = existing ? reconcileOverrides(existing, { ...existing, ...payload } as Contract, { defaultGstPercent: settings.defaultGstPercent }) : null;
+        await updateContract(id, keep ? { ...payload, noteOverrides: keep } : payload);
         toast.success('Contract updated');
       } else {
         await addContract({ ...payload, createdAt: new Date().toISOString() });
@@ -420,54 +424,26 @@ export default function ContractForm() {
     if (!payTouched) { const p = parsePaymentDays(v); setPayMin(p ? String(p.min) : ''); setPayMax(p ? String(p.max) : ''); }
   };
 
-  // a drop-down list (seller, buyer, product, quality) with keyboard support
+  // a list you can search (seller, buyer, product, quality)
   const picker = (o: {
-    label: string; required?: boolean; refEl: React.RefObject<HTMLDivElement>; open: boolean; setOpen: (v: boolean) => void;
-    items: { id: string; name: string }[]; selectedId: string; placeholder: string; onSelect: (id: string) => void; below?: React.ReactNode;
+    label: string; required?: boolean; items: PickItem[]; selectedId: string; placeholder: string; onSelect: (id: string) => void;
+    below?: React.ReactNode; recent?: string[]; onAdd?: (typed: string) => void; addLabel?: string; searchPlaceholder?: string;
   }) => (
-    <div className="relative" ref={o.refEl}>
-      <span className="block text-sm font-medium text-gray-700 mb-1">{o.label}{o.required && <span className="text-rose-600"> *</span>}</span>
-      <button
-        type="button"
-        aria-haspopup="listbox"
-        aria-expanded={o.open}
-        aria-label={o.label}
-        onClick={() => toggleDropdown(o.open, o.setOpen, o.items, o.selectedId)}
-        onKeyDown={(e) => handleDropdownKeyDown(e, o.open, o.setOpen, o.items, (item) => o.onSelect(item.id), o.selectedId)}
-        className="input-field flex items-center justify-between text-left min-h-[48px]"
-      >
-        <span className={o.selectedId ? 'text-gray-900 font-medium line-clamp-1' : 'text-gray-500'}>
-          {o.items.find(p => p.id === o.selectedId)?.name || o.placeholder}
-        </span>
-        <ChevronDown size={16} className={`text-gray-400 flex-shrink-0 transition-transform ${o.open ? 'rotate-180' : ''}`} />
-      </button>
-      {o.open && (
-        <div role="listbox" className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-auto py-1">
-          {o.items.length === 0 && <p className="px-4 py-3 text-sm text-gray-500">Nothing to pick yet.</p>}
-          {o.items.map((p, index) => {
-            const isSelected = o.selectedId === p.id;
-            const isHighlighted = highlightIndex === index;
-            return (
-              <button
-                key={p.id}
-                id={`dropdown-item-${index}`}
-                type="button"
-                role="option"
-                aria-selected={isSelected}
-                onMouseEnter={() => setHighlightIndex(index)}
-                onClick={() => { o.onSelect(p.id); o.setOpen(false); }}
-                className={`w-full px-4 py-3 text-left text-sm flex items-center justify-between transition-colors ${isSelected ? 'bg-rose-50 text-rose-700 font-medium' : isHighlighted ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}
-              >
-                <span className="truncate pr-2">{p.name}</span>
-                {isSelected && <Check size={14} className="text-rose-600 flex-shrink-0" />}
-              </button>
-            );
-          })}
-        </div>
-      )}
-      {o.below}
-    </div>
+    <Picker label={o.label} required={o.required} items={o.items} value={o.selectedId} placeholder={o.placeholder} onChange={o.onSelect}
+      below={o.below} recent={o.recent} onAdd={o.onAdd} addLabel={o.addLabel} searchPlaceholder={o.searchPlaceholder} />
   );
+  const partyItem = (p: Party): PickItem => ({
+    id: p.id, title: partyName(p), sub: [p.city, p.phone].filter(Boolean).join(' · '),
+    search: [p.name, p.gstin, p.contactPerson, ...(p.alternatePhones || [])].join(' '),
+  });
+  // the parties and products you used most recently come first
+  const recentIds = (pick: (c: Contract) => string) => {
+    const seen: string[] = [];
+    for (const c of [...contracts].sort((a, b) => String(b.date).localeCompare(String(a.date)))) { const v = pick(c); if (v && !seen.includes(v)) seen.push(v); if (seen.length >= 5) break; }
+    return seen;
+  };
+  const sellerItems = useMemo(() => sortedSellers.map(partyItem), [sortedSellers]); // eslint-disable-line react-hooks/exhaustive-deps
+  const buyerItems = useMemo(() => sortedBuyers.map(partyItem), [sortedBuyers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const partyNote = (p?: { address?: string; city?: string; state?: string; gstin?: string }) => p ? (
     <div className="mt-2 px-3 py-2 bg-gray-50 rounded-xl text-xs text-gray-600 space-y-0.5 border border-gray-100">
@@ -528,6 +504,12 @@ export default function ContractForm() {
               )}
             </div>
           </div>
+          {!id && dateFy && dateFy !== form.financialYear && (
+            <p className="rounded-xl bg-amber-50 ring-1 ring-amber-100 px-3 py-2 text-[13px] text-amber-900 flex flex-wrap items-center gap-x-2 gap-y-1">
+              This date falls in the financial year {dateFy}, but the contract is set to {form.financialYear}.
+              <button type="button" onClick={() => useFinancialYear(dateFy)} className="font-semibold underline">Use {dateFy}</button>
+            </p>
+          )}
         </section>
 
         {/* Parties and goods */}
@@ -535,26 +517,25 @@ export default function ContractForm() {
           <p className="section-label">Who and what</p>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {picker({
-              label: 'Seller', required: true, refEl: sellerRef, open: sellerDropdownOpen, setOpen: setSellerDropdownOpen,
-              items: sortedSellers.map(p => ({ id: p.id, name: p.legalName })), selectedId: form.sellerId, placeholder: 'Select seller',
-              onSelect: (pid) => setForm(f => ({ ...f, sellerId: pid })), below: partyNote(selectedSeller),
+              label: 'Seller', required: true, items: sellerItems, selectedId: form.sellerId, placeholder: 'Select seller', searchPlaceholder: 'Name, city, phone or GSTIN',
+              recent: recentIds(c => c.sellerId), onSelect: (pid) => setForm(f => ({ ...f, sellerId: pid })), below: partyNote(selectedSeller),
+              onAdd: (typed) => setQuickParty({ side: 'seller', name: typed }), addLabel: 'Add a new seller',
             })}
             {picker({
-              label: 'Buyer', required: true, refEl: buyerRef, open: buyerDropdownOpen, setOpen: setBuyerDropdownOpen,
-              items: sortedBuyers.map(p => ({ id: p.id, name: p.legalName })), selectedId: form.buyerId, placeholder: 'Select buyer',
-              onSelect: (pid) => setForm(f => ({ ...f, buyerId: pid })), below: partyNote(selectedBuyer),
+              label: 'Buyer', required: true, items: buyerItems, selectedId: form.buyerId, placeholder: 'Select buyer', searchPlaceholder: 'Name, city, phone or GSTIN',
+              recent: recentIds(c => c.buyerId), onSelect: (pid) => setForm(f => ({ ...f, buyerId: pid })), below: partyNote(selectedBuyer),
+              onAdd: (typed) => setQuickParty({ side: 'buyer', name: typed }), addLabel: 'Add a new buyer',
             })}
           </div>
 
           {picker({
-            label: 'Product', required: true, refEl: productRef, open: productDropdownOpen, setOpen: setProductDropdownOpen,
-            items: sortedProducts.map(p => ({ id: p.id, name: p.name })), selectedId: form.productId, placeholder: 'Select product',
+            label: 'Product', required: true, items: sortedProducts.map(p => ({ id: p.id, title: p.name, sub: (p.qualities || []).length ? `${p.qualities.length} qualit${p.qualities.length === 1 ? 'y' : 'ies'}` : '' })),
+            selectedId: form.productId, placeholder: 'Select product', searchPlaceholder: 'Search product', recent: recentIds(c => c.productId),
             onSelect: (pid) => setForm(f => ({ ...f, productId: pid })),
           })}
 
           {selectedProduct && selectedProduct.qualities && selectedProduct.qualities.length > 0 && picker({
-            label: 'Quality', refEl: qualityRef, open: qualityDropdownOpen, setOpen: setQualityDropdownOpen,
-            items: sortedQualities.map(q => ({ id: q.id, name: q.name })), selectedId: selectedQualityId, placeholder: 'Select quality',
+            label: 'Quality', items: sortedQualities.map(q => ({ id: q.id, title: q.name })), selectedId: selectedQualityId, placeholder: 'Select quality', searchPlaceholder: 'Search quality',
             onSelect: (qid) => handleQualityChange(qid),
           })}
 
@@ -578,6 +559,17 @@ export default function ContractForm() {
             </div>
           )}
         </section>
+
+        {lastDeal && (
+          <div className="rounded-2xl bg-sky-50 ring-1 ring-sky-100 p-3.5 flex items-start gap-3" role="status">
+            <History size={18} className="text-sky-700 mt-0.5 shrink-0" />
+            <div className="min-w-0 flex-1 text-sm">
+              <p className="font-medium text-gray-900">You dealt with them before: #{lastDeal.contractNo}</p>
+              <p className="text-gray-600">{lastDeal.quantity} {lastDeal.quantityUnit} {lastDeal.product?.name} at ₹{Number(lastDeal.price || 0).toLocaleString('en-IN')} per {lastDeal.priceUnit}{lastDeal.deliveryLocation ? `, ${lastDeal.deliveryLocation}` : ''}</p>
+            </div>
+            <Button size="sm" variant="soft" onClick={() => applyDeal(lastDeal)}>Use these details</Button>
+          </div>
+        )}
 
         {/* Quantity, price, brokerage */}
         <section className={card} aria-label="Quantity and price">
@@ -609,6 +601,11 @@ export default function ContractForm() {
                 />
                 <input aria-label="Price per" value={form.priceUnit} onChange={e => setForm({ ...form, priceUnit: e.target.value })} placeholder="per KG / MT / Quintal" className="input-field !w-32" />
               </div>
+              {ncdex && (
+                <p className="text-xs text-gray-500 mt-1" data-ncdex>
+                  NCDEX {ncdex.name}: <b className="text-gray-700">₹{Math.round(ncdex.perQuintal).toLocaleString('en-IN')}</b> per quintal (₹{(Math.round(ncdex.perKg * 100) / 100).toLocaleString('en-IN')}/kg), {ncdex.changePct >= 0 ? '+' : ''}{ncdex.changePct}% · {ncdex.date === todayIST() ? `today ${clockIST(ncdex.atMs)}` : fmtDay(ncdex.date)}. For reference only.
+                </p>
+              )}
             </div>
           </div>
 
@@ -674,6 +671,17 @@ export default function ContractForm() {
             </div>
           )}
         </section>
+
+        {heads.length > 0 && (
+          <section className="space-y-2" aria-label="Heads-up">
+            {heads.map(h => (
+              <div key={h.id} role="alert" className={`flex items-start gap-2.5 rounded-2xl px-3.5 py-3 text-sm ring-1 ${h.tone === 'red' ? 'bg-red-50 ring-red-200 text-red-900' : 'bg-amber-50 ring-amber-200 text-amber-900'}`}>
+                {h.tone === 'red' ? <ShieldAlert size={17} className="mt-0.5 shrink-0 text-red-600" /> : <AlertTriangle size={17} className="mt-0.5 shrink-0 text-amber-600" />}
+                <span>{h.text}</span>
+              </div>
+            ))}
+          </section>
+        )}
 
         {/* Delivery and packing */}
         <section className={card} aria-label="Delivery and packing">
@@ -824,11 +832,14 @@ export default function ContractForm() {
         </section>
 
         {/* Save bar: always in reach, never hidden behind the tabs */}
-        <div className="sticky bottom-0 z-20 -mx-4 lg:mx-0 px-4 lg:px-0 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-slate-50 via-slate-50 to-slate-50/0 flex gap-3">
+        <div className="sticky bottom-0 z-20 -mx-4 lg:mx-0 px-4 lg:px-0 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-[rgba(244,245,249,0.86)] backdrop-blur-xl border-t border-black/5 flex gap-3">
           <Button variant="secondary" className="flex-1 lg:flex-none lg:px-6" onClick={() => navigate(id ? `/contracts/${id}` : '/contracts')}>Cancel</Button>
           <Button type="submit" variant="primary" className="flex-[2] lg:flex-none lg:px-8" icon={<Save size={16} />}>{id ? 'Save changes' : 'Save contract'}</Button>
         </div>
       </form>
+
+      <QuickParty open={!!quickParty} type={quickParty?.side || 'seller'} initialName={quickParty?.name || ''} onClose={() => setQuickParty(null)}
+        onCreated={pid => setForm(f => (quickParty?.side === 'buyer' ? { ...f, buyerId: pid } : { ...f, sellerId: pid }))} />
     </Page>
   );
 }

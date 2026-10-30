@@ -12,6 +12,7 @@ import { collection, doc, onSnapshot, setDoc, Timestamp } from 'firebase/firesto
 import { useSyncExternalStore } from 'react';
 import { db } from './firebase';
 import type { BillPayment } from '../types';
+import { emptyEdits, type BillEdits } from '../billing/calc';
 
 const COL = 'billRecords';
 const PAY_PREFIX = 'bill_payments_';
@@ -31,6 +32,8 @@ export interface BillRecord {
   to?: string;
   invoiceNo?: number;
   billDate?: string;
+  /** hand edits on this bill (a different brokerage for a line, lines left off, GST, date), kept as one JSON text so a save replaces it whole */
+  edits?: string;
   /** what the last generated PDF contained: lines as "<contractId>:<buyer|seller>" and the grand total */
   keys?: string[];
   pdfTotal?: number;
@@ -111,6 +114,28 @@ export function savePeriodPayments(partyId: string, from: string, to: string, pa
 }
 export function savePeriodAdjustment(partyId: string, from: string, to: string, adjustment: BillAdjustment) {
   return write(periodId(partyId, from, to), { partyId, from, to, adjustment });
+}
+
+export function getEdits(partyId: string, from: string, to: string): BillEdits {
+  const raw = cache.get(periodId(partyId, from, to))?.edits;
+  if (!raw) return emptyEdits();
+  try {
+    const o = JSON.parse(raw);
+    const lines: BillEdits['lines'] = {};
+    for (const [k, v] of Object.entries((o && o.lines) || {})) {
+      const e = v as { amount?: unknown; off?: unknown };
+      const amount = Number(e?.amount);
+      lines[k] = { ...(e?.off ? { off: true } : {}), ...(e?.amount !== undefined && isFinite(amount) ? { amount } : {}) };
+    }
+    return { lines, ...(isFinite(Number(o?.gst)) && o?.gst !== null && o?.gst !== undefined ? { gst: Number(o.gst) } : {}), ...(typeof o?.date === 'string' && o.date ? { date: o.date } : {}) };
+  } catch { return emptyEdits(); }
+}
+export function saveEdits(partyId: string, from: string, to: string, edits: BillEdits) {
+  // empty edits are stored as an empty text so the record forgets them
+  const clean: BillEdits = { lines: {}, ...(edits.gst !== undefined ? { gst: edits.gst } : {}), ...(edits.date ? { date: edits.date } : {}) };
+  for (const [k, v] of Object.entries(edits.lines)) if (v.off || v.amount !== undefined) clean.lines[k] = v;
+  const empty = !Object.keys(clean.lines).length && clean.gst === undefined && !clean.date;
+  return write(periodId(partyId, from, to), { partyId, from, to, edits: empty ? '' : JSON.stringify(clean) });
 }
 
 /** highest invoice number used so far (0 when none) */
@@ -246,4 +271,29 @@ export function useBillVersion(): number {
     cb => { listeners.add(cb); return () => { listeners.delete(cb); }; },
     () => version,
   );
+}
+
+/* ---------- what has been billed (for the reminders on Today) ---------- */
+
+/** every contract line ("<contractId>:<buyer|seller>") that a made bill already contains */
+export function billedKeys(): Set<string> {
+  const s = new Set<string>();
+  cache.forEach((r, id) => { if (id.startsWith(PERIOD_PREFIX)) (r.keys || []).forEach(k => s.add(k)); });
+  return s;
+}
+
+export interface IssuedBill { id: string; partyId: string; partyName: string; from: string; to: string; invoiceNo: number; madeAt: string; total: number; paid: number }
+
+/** bills that were made (a PDF was produced), with what has been received against each */
+export function issuedBills(): IssuedBill[] {
+  const out: IssuedBill[] = [];
+  cache.forEach((r, id) => {
+    if (!id.startsWith(PERIOD_PREFIX) || !r.partyId || !r.from || !r.to || !(Number(r.invoiceNo) > 0) || typeof r.pdfTotal !== 'number') return;
+    const view = getPeriodView(r.partyId, r.from, r.to);
+    out.push({
+      id, partyId: r.partyId, partyName: r.partyName || '', from: r.from, to: r.to, invoiceNo: Number(r.invoiceNo),
+      madeAt: r.pdfAt || '', total: r.pdfTotal, paid: view.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0),
+    });
+  });
+  return out;
 }

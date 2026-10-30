@@ -9,6 +9,9 @@ import { FONT_REF } from '../contractNote/data';
 import { Page, Button } from '../ui';
 import RemindersSettings from '../reminders/RemindersSettings';
 import { useLocation } from 'react-router-dom';
+import { Database, FileSpreadsheet } from 'lucide-react';
+import { downloadBackup, downloadContractsCsv } from '../utils/backup';
+import { kvLoad } from '../broadcast/storage';
 
 export default function Settings() {
   const { settings, updateSettings, saveSettingsToFirebase, loadSettingsFromFirebase } = useAppStore();
@@ -183,6 +186,9 @@ export default function Settings() {
     <Page title="Settings" width="narrow">
       <div className="space-y-4 lg:space-y-5">
         <RemindersSettings />
+
+        {/* Backup */}
+        <BackupCard />
 
         {/* Logo Upload */}
         <div className="card p-4 lg:p-6">
@@ -634,5 +640,39 @@ export default function Settings() {
         </div>
       </div>
     </Page>
+  );
+}
+
+/** A copy of your data on your own device, and your contracts as a spreadsheet. */
+function BackupCard() {
+  const contracts = useAppStore(st => st.contracts);
+  const [busy, setBusy] = useState(false);
+  const [last, setLast] = useState<string | null>(null);
+  useEffect(() => { let live = true; kvLoad<string | null>('last_backup', null).then(v => { if (live) setLast(v); }); return () => { live = false; }; }, []);
+  const when = last ? new Date(last).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
+  const run = async () => {
+    setBusy(true);
+    try {
+      const b = await downloadBackup();
+      setLast(new Date().toISOString());
+      toast.success(`Backup downloaded: ${b.counts.contracts || 0} contracts, ${b.counts.parties || 0} parties`);
+    } catch { toast.error('Could not make the backup. Check the connection and try again.'); }
+    setBusy(false);
+  };
+  return (
+    <section className="card p-4 lg:p-6" aria-label="Backup">
+      <div className="flex items-start gap-3">
+        <span className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0"><Database size={20} /></span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[15px] font-semibold text-gray-900">Backup</h2>
+          <p className="text-sm text-gray-600 mt-0.5">Keep a copy of your contracts, parties, products, bills, notes and tasks on your own device. {when ? <>Last backup: <b>{when}</b>.</> : 'No backup has been made yet.'}</p>
+          <p className="text-xs text-gray-500 mt-1">Photos and PDFs attached to contracts stay in the cloud; the backup lists them but does not contain the files.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button variant="primary" loading={busy} icon={<Database size={16} />} onClick={run}>Download backup</Button>
+            <Button icon={<FileSpreadsheet size={16} />} onClick={() => { downloadContractsCsv(contracts); toast.success('Contracts downloaded'); }} disabled={!contracts.length}>Contracts for Excel</Button>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }

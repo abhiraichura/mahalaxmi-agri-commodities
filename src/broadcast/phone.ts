@@ -124,7 +124,7 @@ export function messageKey(text: string): string {
 
 // ---------------------------------------------------------------- contact files (vCard)
 
-const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/;/g, '\\;').replace(/,/g, '\\,');
+const esc = (s: string | undefined) => String(s ?? '').replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/;/g, '\\;').replace(/,/g, '\\,');
 
 export interface Card { name: string; phone: string; org?: string }
 
@@ -132,7 +132,7 @@ export interface Card { name: string; phone: string; org?: string }
 export function buildVcf(cards: Card[]): string {
   const lines: string[] = [];
   for (const c of cards) {
-    const digits = c.phone.replace(/\D/g, '');
+    const digits = String(c.phone ?? '').replace(/\D/g, '');
     if (!digits) continue;
     lines.push('BEGIN:VCARD', 'VERSION:3.0', `N:${esc(c.name)};;;;`, `FN:${esc(c.name)}`);
     if (c.org) lines.push(`ORG:${esc(c.org)}`);

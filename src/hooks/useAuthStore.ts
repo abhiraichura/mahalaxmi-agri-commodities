@@ -6,6 +6,7 @@ import {
   COLLECTIONS, db, Timestamp, setDocData
 } from '../utils/firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { normalizeContract, normalizeNote, normalizeParty, normalizeProduct } from '../utils/normalize';
 
 const defaultSettings: CompanySettings = {
   name: 'MAHALAXMI AGRI COMMODITIES',
@@ -135,15 +136,7 @@ export const useAppStore = create<AppState>()(
       },
       loadParties: async () => {
         const data = await getColData(COLLECTIONS.PARTIES);
-        const normalized = (data as Party[]).map(p => ({
-          ...p,
-          productIds: p.productIds || [],
-          alternatePhones: p.alternatePhones || [],
-          alternateEmails: p.alternateEmails || [],
-          otherContacts: p.otherContacts || [],
-          contactPerson: p.contactPerson || ''
-        }));
-        set({ parties: normalized });
+        set({ parties: (data as Party[]).map(normalizeParty) });
       },
 
       products: [],
@@ -164,12 +157,7 @@ export const useAppStore = create<AppState>()(
       },
       loadProducts: async () => {
         const data = await getColData(COLLECTIONS.PRODUCTS);
-        const normalized = (data as ProductSpec[]).map(p => ({
-          ...p,
-          qualities: p.qualities || [],
-          specs: p.specs || []
-        }));
-        set({ products: normalized });
+        set({ products: (data as ProductSpec[]).map(normalizeProduct) });
       },
 
       contracts: [],
@@ -190,18 +178,7 @@ export const useAppStore = create<AppState>()(
       },
       loadContracts: async () => {
         const data = await getColData(COLLECTIONS.CONTRACTS);
-        const normalized = (data as Contract[]).map(c => ({
-          ...c,
-          financialYear: c.financialYear || `${c.year}-${c.year + 1}`,
-          loadingDeadline: c.loadingDeadline || '',
-          payments: c.payments || [],
-          buyerBrokerageAmount: c.buyerBrokerageAmount || 0,
-          sellerBrokerageAmount: c.sellerBrokerageAmount || 0,
-          qualityId: c.qualityId || '',
-          qualityName: c.qualityName || '',
-          contractSpecs: c.contractSpecs || []
-        }));
-        set({ contracts: normalized });
+        set({ contracts: (data as Contract[]).map(normalizeContract) });
       },
 
       notes: [],
@@ -222,7 +199,7 @@ export const useAppStore = create<AppState>()(
       },
       loadNotes: async () => {
         const data = await getColData(COLLECTIONS.NOTES);
-        set({ notes: data as Note[] });
+        set({ notes: (data as Note[]).map(normalizeNote) });
       },
 
       currentFinancialYear: '2025-2026',

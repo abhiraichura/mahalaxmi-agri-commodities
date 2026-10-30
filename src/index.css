@@ -2,42 +2,107 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================================
+   The look: soft light surfaces, frosted glass for bars and sheets, large rounded corners,
+   iOS-style grouped lists and fields, and a springy feel when things open.
+   ============================================================================================ */
+
+:root {
+  --tint: #be123c;               /* brand rose */
+  --tint-soft: rgba(190, 18, 60, 0.08);
+  --fill: rgba(118, 118, 128, 0.10);   /* the grey fill behind fields and tracks (iOS "tertiary fill") */
+  --hairline: rgba(60, 60, 67, 0.12);
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-strong: rgba(255, 255, 255, 0.86);
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 @layer base {
-  html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; touch-action: manipulation; scroll-padding-top: 4.5rem; scroll-padding-bottom: 8rem; }
+  html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; touch-action: manipulation; scroll-padding-top: 4.5rem; scroll-padding-bottom: 8rem; background: #f4f5f9; }
   /* iPhone: respect the notch / home-indicator area when installed on the home screen */
   body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
   /* iPhone Safari zooms the page when a field smaller than 16px gets focus: keep fields at 16px on phones */
   @media (max-width: 1023px) {
     input:not([type='checkbox']):not([type='radio']), select, textarea { font-size: 16px; }
   }
-  body { @apply antialiased text-gray-900 bg-slate-50; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  body {
+    @apply antialiased text-gray-900;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, system-ui, sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+    background:
+      radial-gradient(900px 520px at 8% -8%, rgba(244, 63, 94, 0.09), transparent 60%),
+      radial-gradient(800px 480px at 100% 0%, rgba(99, 102, 241, 0.07), transparent 55%),
+      radial-gradient(700px 500px at 50% 110%, rgba(16, 185, 129, 0.05), transparent 60%),
+      #f4f5f9;
+    background-attachment: fixed;
+  }
+  h1, h2, h3 { letter-spacing: -0.02em; }
+  ::selection { background: rgba(190, 18, 60, 0.18); }
 }
 
 @layer components {
-  .input-field { @apply w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all placeholder:text-gray-400 disabled:bg-gray-50 disabled:text-gray-500; }
+  /* ---- fields: a soft grey fill, no hard border, a gentle ring when focused */
+  .input-field {
+    @apply w-full px-4 py-3 text-sm rounded-xl outline-none placeholder:text-gray-400 disabled:text-gray-500 disabled:opacity-70;
+    background: var(--fill);
+    border: 1px solid transparent;
+    transition: background-color .18s, box-shadow .18s, border-color .18s;
+  }
+  .input-field:hover:not(:disabled) { background: rgba(118, 118, 128, 0.14); }
+  .input-field:focus { background: #fff; border-color: rgba(190, 18, 60, 0.55); box-shadow: 0 0 0 4px rgba(190, 18, 60, 0.12); }
+
   /* The area every page sits in: side spacing only (the top bar and the bottom tab bar are handled by the layout) */
-  .page-container { @apply px-4 lg:px-8 py-5 lg:py-8; }
+  .page-container { @apply px-4 lg:px-8 pt-3 pb-6 lg:pt-6 lg:pb-8; }
 
-  /* ---- buttons: every tap target is at least 44px tall on a phone */
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors select-none min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1; }
-  .btn-sm { @apply px-3 py-1.5 text-xs min-h-[36px] rounded-lg; }
-  .btn-primary { @apply bg-rose-700 text-white hover:bg-rose-800 active:bg-rose-900; }
-  .btn-secondary { @apply bg-white text-gray-800 border border-gray-300 hover:bg-gray-50 active:bg-gray-100; }
-  .btn-soft { @apply bg-rose-50 text-rose-700 hover:bg-rose-100 active:bg-rose-100; }
-  .btn-ghost { @apply text-gray-600 hover:bg-gray-100 active:bg-gray-200; }
-  .btn-danger { @apply bg-red-600 text-white hover:bg-red-700 active:bg-red-800; }
-  .btn-success { @apply bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800; }
+  /* ---- buttons: every tap target is at least 44px tall on a phone; they dip slightly when pressed */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold select-none min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2;
+    transition: background-color .18s, transform .18s var(--ease-spring), box-shadow .18s, color .18s;
+  }
+  .btn:active:not(:disabled) { transform: scale(0.97); }
+  .btn-sm { @apply px-3.5 py-1.5 text-[13px] min-h-[36px] rounded-lg; }
+  .btn-primary { color: #fff; background: linear-gradient(180deg, #e11d48 0%, #be123c 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 2px rgba(190,18,60,.35), 0 6px 14px -6px rgba(190,18,60,.55); }
+  .btn-primary:hover:not(:disabled) { background: linear-gradient(180deg, #f0275a 0%, #cf1442 100%); }
+  .btn-secondary { background: var(--glass-strong); color: theme('colors.gray.800'); box-shadow: inset 0 0 0 1px var(--hairline), 0 1px 2px rgba(20,20,40,.05); }
+  .btn-secondary:hover:not(:disabled) { background: #fff; }
+  .btn-soft { background: var(--tint-soft); color: #9f1239; }
+  .btn-soft:hover:not(:disabled) { background: rgba(190, 18, 60, 0.14); }
+  .btn-ghost { @apply text-gray-600; }
+  .btn-ghost:hover:not(:disabled) { background: var(--fill); }
+  .btn-danger { color: #fff; background: linear-gradient(180deg, #f04438 0%, #d92d20 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 6px 14px -6px rgba(217,45,32,.5); }
+  .btn-success { color: #fff; background: linear-gradient(180deg, #2fbf71 0%, #12a150 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 6px 14px -6px rgba(18,161,80,.5); }
 
-  /* ---- surfaces and small text styles */
-  .card { @apply bg-white border border-gray-200 rounded-2xl shadow-[0_1px_2px_rgba(16,24,40,0.04)]; }
-  .section-label { @apply text-[11px] font-semibold uppercase tracking-wider text-gray-500; }
+  /* ---- surfaces */
+  .card { @apply rounded-2xl; background: var(--glass-strong); border: 1px solid rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 1px rgba(60,60,67,.05), 0 2px 8px rgba(20,20,40,.04), 0 12px 28px -14px rgba(20,20,40,.10); }
+  .glass { background: var(--glass); -webkit-backdrop-filter: saturate(180%) blur(22px); backdrop-filter: saturate(180%) blur(22px); border: 1px solid rgba(255,255,255,.7); box-shadow: theme('boxShadow.glass'); }
+  .section-label { @apply text-[11.5px] font-semibold uppercase tracking-[0.06em] text-gray-500; }
   .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap; }
+
+  /* ---- iOS-style grouped list: rows inside one rounded block, separated by hairlines */
+  .group-list { @apply rounded-2xl overflow-hidden; background: var(--glass-strong); box-shadow: 0 0 0 1px rgba(60,60,67,.06), 0 2px 8px rgba(20,20,40,.04); }
+  .group-list > * + * { border-top: 1px solid var(--hairline); }
+  .row { @apply flex items-center gap-3 px-4 py-3 min-h-[52px]; transition: background-color .15s; }
+  a.row:active, button.row:active { background: var(--fill); }
+  a.row:hover, button.row:hover { background: rgba(118,118,128,.06); }
+
+  /* ---- the segmented control (tabs inside a page) */
+  .seg { @apply inline-flex p-[3px] rounded-xl max-w-full overflow-x-auto scrollbar-hide; background: var(--fill); }
+  .seg-item { @apply shrink-0 px-3.5 py-1.5 rounded-[10px] text-[13px] font-semibold text-gray-600 min-h-[34px] inline-flex items-center gap-1.5; transition: background-color .2s var(--ease-spring), color .2s, box-shadow .2s; }
+  .seg-item[aria-selected='true'] { @apply text-gray-900; background: #fff; box-shadow: 0 1px 3px rgba(20,20,40,.14), 0 0 0 .5px rgba(20,20,40,.06); }
 }
 
 @layer utilities {
   .text-balance { text-wrap: balance; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
   .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+/* ---- screens fade in softly when you open them */
+@keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
+.page-enter { animation: page-in 200ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
 
 @media print {
@@ -45,7 +110,7 @@
   body { background: white; }
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+::-webkit-scrollbar-thumb { background: rgba(60,60,67,.22); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(60,60,67,.38); border: 2px solid transparent; background-clip: padding-box; }

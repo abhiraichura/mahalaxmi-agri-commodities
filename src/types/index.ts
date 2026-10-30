@@ -120,8 +120,40 @@ export interface Contract {
   remindersOff?: boolean;
   /** the contract's diary: what happened and when */
   timeline?: TimelineEvent[];
+  /** bills, loading slips, weighment slips ... (the file itself is kept in the database, see src/contracts/files.ts) */
+  files?: ContractFile[];
+  /** goods loaded in parts (one row per truck); the contract is "loaded" when you say so, usually once the parts add up */
+  loadings?: Loading[];
+  /** when each printed copy of the contract note was shared / printed / downloaded (B = buyer copy, S = seller copy; ISO time) */
+  noteSent?: { B?: string; S?: string };
   createdAt: any;
   updatedAt: any;
+}
+
+/** one truck / one part of the quantity */
+export interface Loading {
+  id: string;
+  /** the day it was loaded (YYYY-MM-DD) */
+  date: string;
+  /** in the contract's own quantity unit */
+  qty: number;
+  vehicle?: string;
+  note?: string;
+}
+
+export type ContractFileKind = 'bill' | 'loading_slip' | 'weighment' | 'lr' | 'payment' | 'quality' | 'other';
+
+export interface ContractFile {
+  id: string;
+  name: string;
+  kind: ContractFileKind;
+  mime: string;
+  /** bytes of the stored file (after an image was made smaller) */
+  size: number;
+  /** how many database documents the file is cut into */
+  chunks: number;
+  addedAt: number;
+  note?: string;
 }
 
 export interface TimelineEvent {
@@ -210,6 +242,12 @@ export interface Note {
   tags: string[];
   createdAt: any;
   updatedAt: any;
+  /** pinned notes stay at the top of the list */
+  pinned?: boolean;
+  /** steps with tick boxes */
+  checklist?: { id: string; text: string; done: boolean }[];
+  /** the contract or party the note is about */
+  link?: { type: 'contract' | 'party'; id: string; label: string } | null;
 }
 
 export interface User {

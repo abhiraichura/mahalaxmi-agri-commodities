@@ -4,17 +4,25 @@
 //   Computer: a grouped menu on the left, a top bar with "find anything" and "New contract"
 // Forms and other focused screens hide the bottom tabs so the Save button is never covered.
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, FileText, Users, Plus, Menu, Search, Bell, LogOut, RefreshCw, X, TrendingUp, StickyNote, UserCog, ChevronRight } from 'lucide-react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { CalendarCheck, FileText, Users, Plus, Menu, Search, Bell, LogOut, RefreshCw, X, TrendingUp, StickyNote, UserCog } from 'lucide-react';
 import { useAuthStore, useAppStore } from '../hooks/useAuthStore';
 import { checkForUpdate, markVersionSeen, clearAppCache } from '../utils/cacheManager';
-import { Sheet } from '../ui';
+import { Sheet, Group, Row, useChrome } from '../ui';
 import GlobalSearch from './GlobalSearch';
 import { NAV_GROUPS, SETTINGS_ITEM } from './nav';
 import { todaySummary } from '../../server/reminders/plan.js';
 import { useToday } from '../reminders/useToday';
+import { startTasks, useDueCount } from '../tasks/store';
 
 const FOCUS_ROUTES = [/^\/contracts\/(new|edit\/)/, /^\/parties\/(new|edit\/)/];
+
+/** Opening another screen always starts at its top (never "in between"), and the browser does not restore old positions on its own. */
+function useScrollToTop() {
+  const { pathname, hash } = useLocation();
+  useEffect(() => { try { window.history.scrollRestoration = 'manual'; } catch { /* old browsers */ } }, []);
+  useLayoutEffect(() => { if (!hash) window.scrollTo(0, 0); }, [pathname, hash]);
+}
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuthStore();
@@ -22,6 +30,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const today = useToday();
+  useScrollToTop();
+  const { title: pageTitle, compact } = useChrome();
   const [moreOpen, setMoreOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -41,7 +51,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  const needs = useMemo(() => todaySummary(contracts, today).needs.length, [contracts, today]);
+  const dealNeeds = useMemo(() => todaySummary(contracts, today).needs.length, [contracts, today]);
+  useEffect(() => startTasks(), []);
+  const needs = dealNeeds + useDueCount(today);
   const path = location.pathname;
   const focused = FOCUS_ROUTES.some(r => r.test(path));
   const inTab = path === '/' || path.startsWith('/contracts') || path.startsWith('/parties') || path.startsWith('/gulfood');
@@ -50,14 +62,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const handleDismiss = () => { markVersionSeen(); setShowUpdateBanner(false); };
 
   const side = (isActive: boolean, sub = false) =>
-    `flex items-center gap-3 rounded-xl text-sm transition-colors ${sub ? 'px-3 py-2 ml-7' : 'px-3 py-2.5 font-medium'} ${isActive ? 'bg-rose-50 text-rose-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`;
+    `flex items-center gap-3 rounded-xl text-sm transition-all ${sub ? 'px-3 py-1.5 ml-8 text-[13px]' : 'px-3 py-2 font-medium'} ${isActive ? 'bg-white text-rose-700 shadow-sm ring-1 ring-black/5' : 'text-gray-600 hover:bg-black/[0.045] hover:text-gray-900'}`;
 
   const tab = (to: string, label: string, Icon: typeof FileText, on: boolean, exact = false) => (
     <NavLink to={to} end={exact} aria-label={label}
-      className={`flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[56px] text-[11px] font-medium ${on ? 'text-rose-700' : 'text-gray-500'}`}>
-      <span className={`relative flex items-center justify-center w-12 h-7 rounded-full transition-colors ${on ? 'bg-rose-50' : ''}`}>
-        <Icon size={21} strokeWidth={on ? 2.4 : 2} />
-        {to === '/' && needs > 0 && <span className="absolute -top-1 right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-600 text-white text-[10px] leading-[17px] text-center font-semibold">{needs > 9 ? '9+' : needs}</span>}
+      className={`relative flex-1 flex flex-col items-center justify-center gap-0.5 h-[52px] rounded-[20px] text-[10.5px] font-semibold transition-colors ${on ? 'text-rose-700 bg-rose-700/10' : 'text-gray-500 active:bg-black/5'}`}>
+      <span className="relative">
+        <Icon size={22} strokeWidth={on ? 2.4 : 2} />
+        {to === '/' && needs > 0 && <span className="absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-600 text-white text-[10px] leading-[17px] text-center font-semibold ring-2 ring-white">{needs > 9 ? '9+' : needs}</span>}
       </span>
       {label}
     </NavLink>
@@ -65,23 +77,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex">
-      {/* ===== computer: menu on the left ===== */}
-      <aside className="hidden lg:flex bg-white border-r border-gray-200 flex-col fixed h-full z-40 w-64">
-        <NavLink to="/" className="flex items-center gap-3 px-5 py-5 border-b border-gray-100">
+      {/* ===== computer: a floating glass menu on the left ===== */}
+      <aside className="hidden lg:flex glass flex-col fixed z-40 left-3 top-3 bottom-3 w-[15rem] rounded-[28px] overflow-hidden">
+        <NavLink to="/" className="flex items-center gap-3 px-5 pt-5 pb-4">
           <img src="/mahalaxmi-logo.svg" alt="" className="w-9 h-9" />
           <span>
-            <span className="block text-base font-bold text-rose-700 leading-tight">Mahalaxmi Agri</span>
+            <span className="block text-[15px] font-bold text-rose-700 leading-tight">Mahalaxmi Agri</span>
             <span className="block text-xs text-gray-500">Commodity broker</span>
           </span>
         </NavLink>
-        <nav className="flex-1 px-3 py-4 overflow-y-auto" aria-label="Main menu">
+        <nav className="flex-1 px-3 pb-3 overflow-y-auto" aria-label="Main menu">
           <NavLink to="/" end className={({ isActive }) => side(isActive)}>
             <CalendarCheck size={18} />Today
             {needs > 0 && <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-rose-600 text-white text-xs leading-5 text-center font-semibold">{needs}</span>}
           </NavLink>
           {NAV_GROUPS.map(g => (
-            <div key={g.label} className="mt-5">
-              <p className="section-label px-3 mb-1.5">{g.label}</p>
+            <div key={g.label} className="mt-4">
+              <p className="section-label px-3 mb-1">{g.label}</p>
               <div className="space-y-0.5">
                 {g.items.map(it => (
                   <div key={it.to}>
@@ -101,16 +113,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </nav>
-        <div className="p-3 border-t border-gray-100">
+        <div className="p-3 border-t border-black/5">
           <NavLink to={SETTINGS_ITEM.to} className={({ isActive }) => side(isActive)}><SETTINGS_ITEM.icon size={18} />{SETTINGS_ITEM.label}</NavLink>
-          <div className="flex items-center gap-2 px-3 pt-3">
+          <div className="flex items-center gap-2 px-3 pt-2">
             <p className="text-xs text-gray-500 truncate flex-1" title={user?.email}>{user?.email}</p>
-            <button onClick={logout} aria-label="Log out" title="Log out" className="p-2 rounded-lg text-gray-500 hover:bg-gray-100"><LogOut size={16} /></button>
+            <button onClick={logout} aria-label="Log out" title="Log out" className="p-2 rounded-lg text-gray-500 hover:bg-black/5"><LogOut size={16} /></button>
           </div>
         </div>
       </aside>
 
-      <div className="flex-1 min-w-0 lg:ml-64 flex flex-col min-h-screen">
+      <div className="flex-1 min-w-0 lg:ml-[16.5rem] flex flex-col min-h-screen">
         {showUpdateBanner && (
           <div className="sticky top-0 z-50 bg-amber-500 text-white px-4 py-2 flex items-center justify-between gap-2 shadow-md" style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}>
             <div className="flex items-center gap-2 text-sm font-medium"><RefreshCw className="w-4 h-4 shrink-0" />New version available.</div>
@@ -122,44 +134,49 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* ===== top bar ===== */}
-        <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-gray-200" style={{ paddingTop: showUpdateBanner ? 0 : 'env(safe-area-inset-top)' }}>
-          <div className="flex items-center gap-3 px-4 lg:px-8 h-14">
-            <NavLink to="/" className="lg:hidden flex items-center gap-2 min-w-0">
-              <img src="/mahalaxmi-logo.svg" alt="" className="w-8 h-8" />
-              <span className="text-base font-bold text-rose-700 truncate">Mahalaxmi Agri</span>
-            </NavLink>
+        {/* ===== top bar: frosted glass. On a phone the app name gives way to the page title once you scroll ===== */}
+        <header className="sticky top-0 z-30 bg-[rgba(244,245,249,0.72)] backdrop-blur-xl backdrop-saturate-150 border-b border-black/[0.06]" style={{ paddingTop: showUpdateBanner ? 0 : 'env(safe-area-inset-top)' }}>
+          <div className="flex items-center gap-3 px-4 lg:px-8 h-[52px] lg:h-14">
+            <div className="lg:hidden relative flex-1 min-w-0 h-full">
+              <NavLink to="/" className={`absolute inset-y-0 left-0 flex items-center gap-2 min-w-0 transition-all duration-200 ${compact && pageTitle ? 'opacity-0 -translate-y-1 pointer-events-none' : ''}`}>
+                <img src="/mahalaxmi-logo.svg" alt="" className="w-7 h-7" />
+                <span className="text-[15px] font-bold text-rose-700 truncate">Mahalaxmi Agri</span>
+              </NavLink>
+              <span aria-hidden={!(compact && pageTitle)} className={`absolute inset-y-0 left-0 right-0 flex items-center text-[16px] font-semibold text-gray-900 truncate transition-all duration-200 ${compact && pageTitle ? 'opacity-100' : 'opacity-0 translate-y-1 pointer-events-none'}`}>
+                <span className="truncate">{pageTitle}</span>
+              </span>
+            </div>
             <button onClick={() => setSearchOpen(true)} aria-label="Find anything"
-              className="hidden lg:flex items-center gap-2 flex-1 max-w-md h-10 px-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-500 hover:bg-white hover:border-gray-300 transition-colors">
-              <Search size={16} /><span className="flex-1 text-left">Find a contract, party or page</span><kbd className="text-[11px] px-1.5 py-0.5 rounded border border-gray-300 bg-white text-gray-500">/</kbd>
+              className="hidden lg:flex items-center gap-2 flex-1 max-w-md h-10 px-3 rounded-xl bg-black/[0.05] text-sm text-gray-500 hover:bg-black/[0.08] transition-colors">
+              <Search size={16} /><span className="flex-1 text-left">Find a contract, party or page</span><kbd className="text-[11px] px-1.5 py-0.5 rounded-md bg-white/80 text-gray-500 ring-1 ring-black/5">/</kbd>
             </button>
-            <div className="ml-auto flex items-center gap-1">
-              <button onClick={() => setSearchOpen(true)} aria-label="Find anything" className="lg:hidden p-2.5 rounded-full text-gray-600 hover:bg-gray-100"><Search size={20} /></button>
-              <button onClick={() => navigate('/')} aria-label={needs ? `${needs} things need you today` : 'Nothing needs you today'} className="relative p-2.5 rounded-full text-gray-600 hover:bg-gray-100">
+            <div className="ml-auto flex items-center gap-0.5">
+              <button onClick={() => setSearchOpen(true)} aria-label="Find anything" className="lg:hidden w-10 h-10 flex items-center justify-center rounded-full text-gray-700 active:bg-black/5"><Search size={20} /></button>
+              <button onClick={() => navigate('/')} aria-label={needs ? `${needs} things need you today` : 'Nothing needs you today'} className="relative w-10 h-10 flex items-center justify-center rounded-full text-gray-700 hover:bg-black/5 active:bg-black/5">
                 <Bell size={20} />
-                {needs > 0 && <span className="absolute top-1 right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-600 text-white text-[10px] leading-[17px] text-center font-semibold">{needs > 9 ? '9+' : needs}</span>}
+                {needs > 0 && <span className="absolute top-0.5 right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-600 text-white text-[10px] leading-[17px] text-center font-semibold">{needs > 9 ? '9+' : needs}</span>}
               </button>
               <button onClick={() => navigate('/contracts/new')} className="hidden lg:inline-flex btn btn-primary btn-sm ml-2"><Plus size={16} />New contract</button>
             </div>
           </div>
         </header>
 
-        <main className={`flex-1 min-w-0 ${focused ? '' : 'pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-0'}`}>
-          {children}
+        <main className={`flex-1 min-w-0 ${focused ? '' : 'pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-0'}`}>
+          <div key={path} className="page-enter">{children}</div>
         </main>
       </div>
 
-      {/* ===== phone: tabs at the bottom ===== */}
+      {/* ===== phone: a floating glass tab bar ===== */}
       {!focused && (
-        <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-gray-200 flex items-end" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} aria-label="Main tabs">
+        <nav className="lg:hidden glass !bg-white/[0.88] fixed z-40 inset-x-3 mx-auto max-w-md h-[64px] rounded-[30px] flex items-center gap-0.5 px-1.5" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }} aria-label="Main tabs">
           {tab('/', 'Today', CalendarCheck, path === '/', true)}
           {tab('/contracts', 'Contracts', FileText, path.startsWith('/contracts'))}
-          <div className="flex-1 flex justify-center pb-2">
-            <button onClick={() => setCreateOpen(true)} aria-label="Add new" className="-mt-5 w-14 h-14 rounded-full bg-rose-700 text-white shadow-lg shadow-rose-900/20 flex items-center justify-center active:bg-rose-800"><Plus size={28} /></button>
+          <div className="flex-1 flex justify-center">
+            <button onClick={() => setCreateOpen(true)} aria-label="Add new" className="-mt-7 w-[58px] h-[58px] rounded-full text-white flex items-center justify-center ring-4 ring-[#f4f5f9]/90 active:scale-95 transition-transform btn-primary"><Plus size={28} strokeWidth={2.4} /></button>
           </div>
           {tab('/parties', 'Parties', Users, path.startsWith('/parties') || path.startsWith('/gulfood'))}
-          <button onClick={() => setMoreOpen(true)} aria-label="More" className={`flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[56px] text-[11px] font-medium ${!inTab ? 'text-rose-700' : 'text-gray-500'}`}>
-            <span className={`flex items-center justify-center w-12 h-7 rounded-full ${!inTab ? 'bg-rose-50' : ''}`}><Menu size={21} /></span>More
+          <button onClick={() => setMoreOpen(true)} aria-label="More" className={`flex-1 flex flex-col items-center justify-center gap-0.5 h-[52px] rounded-[20px] text-[10.5px] font-semibold transition-colors ${!inTab ? 'text-rose-700 bg-rose-700/10' : 'text-gray-500 active:bg-black/5'}`}>
+            <Menu size={22} strokeWidth={!inTab ? 2.4 : 2} />More
           </button>
         </nav>
       )}
@@ -171,10 +188,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             { to: '/contracts/new', label: 'New contract', icon: FileText, tone: 'bg-rose-50 text-rose-700' },
             { to: '/parties/new', label: 'New party', icon: Users, tone: 'bg-violet-50 text-violet-700' },
             { to: '/rates', label: 'Rates update', icon: TrendingUp, tone: 'bg-emerald-50 text-emerald-700' },
-            { to: '/party-message', label: 'Message a party', icon: UserCog, tone: 'bg-sky-50 text-sky-700' },
-            { to: '/notes', label: 'Quick note', icon: StickyNote, tone: 'bg-amber-50 text-amber-800' },
+            { to: '/messages?tab=party', label: 'Message a party', icon: UserCog, tone: 'bg-sky-50 text-sky-700' },
+            { to: '/planner?tab=notes', label: 'Quick note', icon: StickyNote, tone: 'bg-amber-50 text-amber-800' },
           ].map(a => (
-            <button key={a.to} onClick={() => navigate(a.to)} className="flex flex-col items-start gap-3 p-4 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 text-left min-h-[96px]">
+            <button key={a.to} onClick={() => navigate(a.to)} className="card flex flex-col items-start gap-3 p-4 text-left min-h-[96px] active:scale-[0.97] transition-transform">
               <span className={`w-10 h-10 rounded-xl flex items-center justify-center ${a.tone}`}><a.icon size={20} /></span>
               <span className="text-sm font-semibold text-gray-900">{a.label}</span>
             </button>
@@ -184,32 +201,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* ===== phone: everything else ===== */}
       <Sheet open={moreOpen} onClose={() => setMoreOpen(false)} title="More">
-        <div className="space-y-5 pb-2">
+        <div className="space-y-4 pb-2">
           {NAV_GROUPS.map(g => (
-            <div key={g.label}>
-              <p className="section-label mb-2">{g.label}</p>
-              <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden bg-white">
-                {g.items.filter(i => i.to !== '/contracts' && i.to !== '/parties').concat(g.items.some(i => i.to === '/parties') ? [{ to: '/parties/directory', label: 'Party directory', icon: Users, hint: 'Browse and export' }, { to: '/parties/gulfood', label: 'Gulfood directory', icon: Users, hint: 'Gulfood contacts' }] : []).map(it => (
-                  <NavLink key={it.to} to={it.to} className="flex items-center gap-3 px-4 py-3 min-h-[56px] active:bg-gray-50">
-                    <span className="w-9 h-9 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center shrink-0"><it.icon size={18} /></span>
-                    <span className="flex-1 min-w-0"><span className="block text-sm font-medium text-gray-900">{it.label}</span>{it.hint && <span className="block text-xs text-gray-500 truncate">{it.hint}</span>}</span>
-                    <ChevronRight size={16} className="text-gray-300" />
-                  </NavLink>
-                ))}
-              </div>
-            </div>
+            <Group key={g.label} title={g.label}>
+              {g.items.filter(i => i.to !== '/contracts' && i.to !== '/parties').map(it => (
+                <Row key={it.to} to={it.to} icon={<it.icon size={18} />} title={it.label} sub={it.hint} />
+              ))}
+            </Group>
           ))}
-          <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden bg-white">
-            <NavLink to={SETTINGS_ITEM.to} className="flex items-center gap-3 px-4 py-3 min-h-[56px] active:bg-gray-50">
-              <span className="w-9 h-9 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center"><SETTINGS_ITEM.icon size={18} /></span>
-              <span className="flex-1"><span className="block text-sm font-medium text-gray-900">{SETTINGS_ITEM.label}</span><span className="block text-xs text-gray-500">{SETTINGS_ITEM.hint}</span></span>
-              <ChevronRight size={16} className="text-gray-300" />
-            </NavLink>
-            <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 min-h-[56px] text-left active:bg-gray-50">
-              <span className="w-9 h-9 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center"><LogOut size={18} /></span>
-              <span className="flex-1"><span className="block text-sm font-medium text-gray-900">Log out</span><span className="block text-xs text-gray-500 truncate">{user?.email}</span></span>
-            </button>
-          </div>
+          <Group>
+            <Row to={SETTINGS_ITEM.to} icon={<SETTINGS_ITEM.icon size={18} />} title={SETTINGS_ITEM.label} sub={SETTINGS_ITEM.hint} />
+            <Row onClick={logout} icon={<LogOut size={18} />} title="Log out" sub={user?.email} chevron={false} />
+          </Group>
         </div>
       </Sheet>
 

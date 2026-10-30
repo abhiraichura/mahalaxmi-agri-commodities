@@ -1,8 +1,8 @@
 // src/pages/AllContracts.tsx
 // Every contract, with the stage it is in (to load / awaiting payment / paid) and what is next.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, Plus, FileText, X, ChevronRight } from 'lucide-react';
+import { Search, Plus, FileText, X, ChevronRight, Paperclip } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Page, Button, Badge, Segmented, EmptyState } from '../ui';
@@ -25,15 +25,25 @@ export default function AllContracts() {
   const { contracts, currentFinancialYear, settings } = useAppStore();
   const today = useToday();
   const [search, setSearch] = useState('');
-  const [fy, setFy] = useState<string>(currentFinancialYear);
+  const [fy, setFyState] = useState<string>(currentFinancialYear);
+  const fyTouched = useRef(false);
+  const setFy = (v: string) => { fyTouched.current = true; setFyState(v); };
+  const fyOf = (c: Contract) => c.financialYear || `${c.year}-${c.year + 1}`;
+  // every year that has contracts is offered, plus the years in Settings
+  const years = useMemo(() => [...new Set([...(settings.financialYears || []), ...contracts.map(fyOf)])].sort().reverse(), [settings.financialYears, contracts]);
+  // the saved "current year" may have no contracts at all: then show everything instead of an empty list
+  useEffect(() => {
+    if (fyTouched.current || !contracts.length || fy === 'all') return;
+    if (!contracts.some(c => fyOf(c) === fy)) setFyState('all');
+  }, [contracts, fy]);
   const [sort, setSort] = useState<'newest' | 'due'>('newest');
   const asked = params.get('stage') as Filter | null;
   const filter: Filter = asked && FILTERS.includes(asked) ? asked : 'all';
   const setFilter = (f: Filter) => { const n = new URLSearchParams(params); if (f === 'all') n.delete('stage'); else n.set('stage', f); setParams(n, { replace: true }); };
 
   const rows = useMemo(() => contracts
-    .filter(c => fy === 'all' || (c.financialYear || `${c.year}-${c.year + 1}`) === fy)
-    .map(c => ({ c, info: stageInfo(c, today), plan: planFor(c, today) })), [contracts, fy, today]);
+    .filter(c => fy === 'all' || fyOf(c) === fy)
+    .map(c => ({ c, info: stageInfo(c, today), plan: planFor(c, today) })), [contracts, fy, today]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const counts = useMemo(() => {
     const n: Record<Filter, number> = { all: rows.length, action: 0, to_load: 0, awaiting_payment: 0, overdue: 0, paid: 0, draft: 0, cancelled: 0 };
@@ -48,7 +58,7 @@ export default function AllContracts() {
   const q = search.trim().toLowerCase();
   const list = useMemo(() => {
     const out = rows.filter(({ c, info, plan }) => {
-      const hit = !q || [c.contractNo, c.seller?.legalName, c.seller?.name, c.buyer?.legalName, c.buyer?.name, c.product?.name].some(x => String(x || '').toLowerCase().includes(q));
+      const hit = !q || [c.contractNo, c.seller?.legalName, c.seller?.name, c.seller?.city, c.buyer?.legalName, c.buyer?.name, c.buyer?.city, c.product?.name].some(x => String(x || '').toLowerCase().includes(q));
       const f = filter === 'all' ? true : filter === 'action' ? !!(plan.eligible && plan.ask)
         : filter === 'overdue' ? info.tone === 'red' && (info.stage === 'to_load' || info.stage === 'awaiting_payment') : info.stage === filter;
       return hit && f;
@@ -75,7 +85,7 @@ export default function AllContracts() {
         <div className="flex gap-3">
           <select value={fy} onChange={e => setFy(e.target.value)} aria-label="Financial year" className="input-field w-auto flex-1 sm:flex-none">
             <option value="all">All years</option>
-            {settings.financialYears?.map(y => <option key={y} value={y}>{y}</option>)}
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <select value={sort} onChange={e => setSort(e.target.value as 'newest' | 'due')} aria-label="Sort" className="input-field w-auto flex-1 sm:flex-none">
             <option value="newest">Newest first</option>
@@ -108,7 +118,7 @@ export default function AllContracts() {
                     </span>
                     <span className="block mt-1 text-sm text-gray-800">{c.quantity} {c.quantityUnit} {c.product?.name}</span>
                     <span className="block text-sm text-gray-500 truncate">{nm(c.seller)} → {nm(c.buyer)}</span>
-                    {info.line && <span className={`block mt-1.5 text-xs ${info.urgent ? 'text-amber-800 font-medium' : 'text-gray-500'}`}>{info.line}</span>}
+                    {(info.line || (c.files || []).length > 0) && <span className={`mt-1.5 flex items-center gap-2 text-xs ${info.urgent ? 'text-amber-800 font-medium' : 'text-gray-500'}`}>{info.line}{(c.files || []).length > 0 && <span className="inline-flex items-center gap-0.5 text-gray-500 font-normal"><Paperclip size={11} />{c.files!.length}</span>}</span>}
                   </span>
                   <ChevronRight size={18} className="text-gray-300 mt-1 shrink-0" />
                 </button>
@@ -131,7 +141,7 @@ export default function AllContracts() {
               <tbody>
                 {list.map(({ c, info }) => (
                   <tr key={c.id} onClick={() => navigate(`/contracts/${c.id}`)} className="border-b border-gray-50 last:border-0 hover:bg-rose-50/40 cursor-pointer">
-                    <td className="px-4 py-3"><span className="font-semibold text-gray-900">#{c.contractNo}</span><span className="block text-xs text-gray-500">{safeDate(c.date)}</span></td>
+                    <td className="px-4 py-3"><span className="font-semibold text-gray-900">#{c.contractNo}</span>{(c.files || []).length > 0 && <Paperclip size={11} className="inline ml-1.5 text-gray-400" />}<span className="block text-xs text-gray-500">{safeDate(c.date)}</span></td>
                     <td className="px-4 py-3 max-w-[280px]"><span className="block truncate text-gray-900">{nm(c.seller)}</span><span className="block truncate text-xs text-gray-500">→ {nm(c.buyer)}</span></td>
                     <td className="px-4 py-3"><span className="block text-gray-900">{c.product?.name}</span><span className="block text-xs text-gray-500">{c.quantity} {c.quantityUnit} @ ₹{Number(c.price || 0).toLocaleString('en-IN')}/{c.priceUnit}</span></td>
                     <td className="px-4 py-3 text-right text-gray-900">{inrShort(valueOf(c))}</td>

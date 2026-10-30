@@ -1,18 +1,18 @@
 // "What is next for this contract": the loading question and the payment question, answered in two taps.
 // Used on the Today screen (compact) and on the contract screen (full).
 import { useMemo, useState } from 'react';
-import { Truck, IndianRupee, Check, Clock, MessageCircle, Undo2, CalendarClock, BellOff, Bell } from 'lucide-react';
+import { Truck, IndianRupee, Check, Clock, MessageCircle, Undo2, CalendarClock, BellOff, Bell, Pencil, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Contract } from '../types';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Button, Sheet, Badge } from '../ui';
 import { partyPhones } from '../broadcast/phone';
 import { planFor, termsOf, addDays, diffDays, fmtDay, fmtDayYear, relDay, dealLine } from '../../server/reminders/plan.js';
-import { loadedUpdate, notLoadedUpdate, paidUpdate, notPaidUpdate, undoLoaded, undoPaid, quickDays } from './actions';
+import { loadedUpdate, notLoadedUpdate, paidUpdate, notPaidUpdate, undoLoaded, undoPaid, quickDays, currentDates, datesUpdate, type DatesInput } from './actions';
 
 const nameOf = (p?: { legalName?: string; name?: string }) => (p && (p.legalName || p.name)) || 'Party';
 
-type Which = null | 'loaded' | 'not_loaded' | 'paid' | 'not_paid';
+type Which = null | 'loaded' | 'not_loaded' | 'paid' | 'not_paid' | 'dates';
 
 export default function NextStep({ contract, today, compact = false, initial = null }: { contract: Contract; today: string; compact?: boolean; initial?: Which }) {
   const { updateContract, parties, settings } = useAppStore();
@@ -110,28 +110,40 @@ export default function NextStep({ contract, today, compact = false, initial = n
               {badge && <Badge tone={tone === 'red' ? 'red' : 'amber'}>{badge}</Badge>}
             </div>
             <p className="mt-0.5 text-sm text-gray-600">{detail}</p>
+          </div>
+        </div>
 
-            <div className="mt-3 flex flex-wrap gap-2">
+        {/* the actions use the full width of the card on a phone */}
+        <div className="sm:pl-[52px]">
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               {plan.stage === 'to_load' && (<>
-                <Button variant="success" size={compact ? 'sm' : 'md'} icon={<Check size={16} />} onClick={() => open('loaded')}>{plan.ask ? 'Yes, loaded' : 'Mark as loaded'}</Button>
+                <Button variant="success" className="col-span-2 sm:col-auto" size={compact ? 'sm' : 'md'} icon={<Check size={16} />} onClick={() => open('loaded')}>{plan.ask ? 'Yes, loaded' : 'Mark as loaded'}</Button>
                 {plan.ask && <Button size={compact ? 'sm' : 'md'} icon={<Clock size={16} />} onClick={() => open('not_loaded')}>Not yet</Button>}
                 <Button variant="ghost" size={compact ? 'sm' : 'md'} icon={<MessageCircle size={16} />} onClick={askSeller}>Ask seller</Button>
               </>)}
               {plan.stage === 'awaiting_payment' && (<>
-                <Button variant="success" size={compact ? 'sm' : 'md'} icon={<Check size={16} />} onClick={() => open('paid')}>{plan.ask ? 'Payment received' : 'Mark payment received'}</Button>
+                <Button variant="success" className="col-span-2 sm:col-auto" size={compact ? 'sm' : 'md'} icon={<Check size={16} />} onClick={() => open('paid')}>{plan.ask ? 'Payment received' : 'Mark payment received'}</Button>
                 {plan.ask && <Button size={compact ? 'sm' : 'md'} icon={<Clock size={16} />} onClick={() => open('not_paid')}>Not yet</Button>}
                 <Button variant="ghost" size={compact ? 'sm' : 'md'} icon={<MessageCircle size={16} />} onClick={askBuyer}>Ask buyer</Button>
-                {!compact && <Button variant="ghost" size="sm" icon={<Undo2 size={14} />} onClick={() => save(undoLoaded(contract, today), 'Loading date removed')}>Not loaded after all</Button>}
+                {!compact && <Button variant="ghost" size="sm" className="col-span-2 sm:col-auto" icon={<Undo2 size={14} />} onClick={() => save(undoLoaded(contract, today), 'Loading date removed')}>Not loaded after all</Button>}
               </>)}
               {plan.stage === 'paid' && !compact && (
                 <Button variant="ghost" size="sm" icon={<Undo2 size={14} />} onClick={() => save(undoPaid(contract, today), 'Payment confirmation removed')}>Undo</Button>
               )}
             </div>
 
+            {!compact && (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Dates">
+                {L.deadline && plan.stage === 'to_load' && <DateChip label="Deadline" day={L.deadline} onClick={() => open('dates')} />}
+                {L.loadedOn && <DateChip label="Loaded" day={L.loadedOn} onClick={() => open('dates')} />}
+                {P.receivedOn && <DateChip label="Paid" day={P.receivedOn} onClick={() => open('dates')} />}
+                <button onClick={() => open('dates')} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-700/10 hover:bg-rose-700/15 min-h-[28px]"><Pencil size={12} />Edit dates</button>
+              </div>
+            )}
+
             {!compact && (plan.eligible || (!!contract.remindersOff && (contract.status || 'confirmed') === 'confirmed')) && (plan.stage === 'to_load' || plan.stage === 'awaiting_payment') && (
               <Reminders contract={contract} today={today} />
             )}
-          </div>
         </div>
       </div>
 
@@ -168,6 +180,9 @@ export default function NextStep({ contract, today, compact = false, initial = n
           <input value={note} onChange={e => setNote(e.target.value)} maxLength={80} placeholder="What was said? (optional)" aria-label="What was said" className="input-field mt-3" />
         </Sheet>
       )}
+
+      {/* ---- edit the dates any time */}
+      {which === 'dates' && <DatesSheet contract={contract} today={today} onClose={() => setWhich(null)} onSave={(u, text) => save(u, text)} busy={busy} />}
 
       {/* ---- Payment received */}
       <Sheet open={which === 'paid'} onClose={() => setWhich(null)} title="When was the payment received?"
@@ -214,5 +229,55 @@ function Reminders({ contract, today }: { contract: Contract; today: string }) {
         : lines.length ? <span className="inline-flex items-center gap-1"><Bell size={13} />Reminders: {lines.join(' · ')}</span> : null}
       <button onClick={toggle} className="underline hover:no-underline text-gray-700 py-2.5 lg:py-1">{off ? 'Turn reminders on' : 'Stop reminders for this contract'}</button>
     </div>
+  );
+}
+
+function DateChip({ label, day, onClick }: { label: string; day: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs text-gray-700 bg-black/[0.05] hover:bg-black/[0.08] min-h-[28px]">
+      <span className="text-gray-500">{label}</span><span className="font-semibold">{fmtDay(day)}</span>
+    </button>
+  );
+}
+
+/** One sheet for every date of the contract: change them whenever you like, each change is written in the diary. */
+function DatesSheet({ contract, today, onClose, onSave, busy }: { contract: Contract; today: string; onClose: () => void; onSave: (u: Partial<Contract>, okText: string) => void; busy: boolean }) {
+  const start = useMemo(() => currentDates(contract), [contract]);
+  const [d, setD] = useState<DatesInput>(start);
+  const [completed, setCompleted] = useState(true);
+  const t = termsOf(contract);
+  const ok = (v: string) => v === '' || /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const changed = d.deadline !== start.deadline || d.loadedOn !== start.loadedOn || d.paidOn !== start.paidOn;
+  const warn: string[] = [];
+  if (d.deadline && diffDays(contract.date, d.deadline) <= 0) warn.push('The deadline should be after the contract date.');
+  if (d.loadedOn && diffDays(contract.date, d.loadedOn) < 0) warn.push('Loading is before the contract date.');
+  if (d.loadedOn && diffDays(today, d.loadedOn) > 0) warn.push('The loading date is in the future.');
+  if (d.paidOn && d.loadedOn && diffDays(d.loadedOn, d.paidOn) < 0) warn.push('Payment is before loading.');
+  if (d.paidOn && diffDays(today, d.paidOn) > 0) warn.push('The payment date is in the future.');
+  const blockers = [d.deadline, d.loadedOn, d.paidOn].some(v => !ok(v)) || (!!d.deadline && diffDays(contract.date, d.deadline) <= 0);
+  const window = d.loadedOn && t.pay ? `Payment window: ${fmtDay(addDays(d.loadedOn, t.pay.min))}${t.pay.max !== t.pay.min ? ` to ${fmtDay(addDays(d.loadedOn, t.pay.max))}` : ''}` : '';
+  const field = (label: string, key: keyof DatesInput, help?: string, min?: string) => (
+    <div>
+      <div className="flex items-center justify-between mb-1.5"><label className="text-[13px] font-semibold text-gray-800">{label}</label>
+        {d[key] && <button onClick={() => setD({ ...d, [key]: '' })} className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-red-600 min-h-[28px]"><X size={12} />Clear</button>}</div>
+      <input type="date" aria-label={label} value={d[key]} min={min} onChange={e => setD({ ...d, [key]: e.target.value })} className="input-field" />
+      {help && <p className="mt-1 text-xs text-gray-500">{help}</p>}
+    </div>
+  );
+  return (
+    <Sheet open onClose={onClose} title="Edit dates"
+      footer={<Button variant="primary" className="w-full" loading={busy} disabled={!changed || blockers} onClick={() => onSave(datesUpdate(contract, today, d, completed), 'Dates saved')}>{changed ? 'Save dates' : 'No changes yet'}</Button>}>
+      <p className="text-sm text-gray-600 mb-4">Contract {contract.contractNo} · made on {fmtDayYear(contract.date)}. Change any date, as often as you need. Every change is written in the diary.</p>
+      <div className="space-y-4">
+        {field('Loading deadline', 'deadline', start.deadline && t.source.loading !== 'deadline' ? 'Worked out from the loading days. Pick a date to override it.' : 'The last day the seller can load.')}
+        {field('Loaded on', 'loadedOn', window || 'Leave empty if it is not loaded yet.')}
+        {field('Payment received on', 'paidOn', 'Leave empty if the payment has not come.')}
+      </div>
+      {d.paidOn && !start.paidOn && contract.status !== 'completed' && (
+        <label className="mt-4 flex items-start gap-3 text-sm text-gray-700"><input type="checkbox" checked={completed} onChange={e => setCompleted(e.target.checked)} className="mt-0.5 w-5 h-5 accent-rose-700" /><span>Mark this contract as completed</span></label>
+      )}
+      {!d.paidOn && start.paidOn && contract.status === 'completed' && <p className="mt-4 text-sm text-amber-800 bg-amber-50 rounded-xl p-3">Removing the payment date moves this contract back from Completed to Confirmed.</p>}
+      {warn.length > 0 && <ul className="mt-4 space-y-1">{warn.map(w => <li key={w} className="text-xs text-amber-800 bg-amber-50 rounded-lg px-3 py-2">{w}</li>)}</ul>}
+    </Sheet>
   );
 }

@@ -1,7 +1,7 @@
 // "Today": what needs you now, what is coming, and the money in motion. Replaces the old dashboard.
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, ChevronRight, Bell, BellOff, TrendingUp, Plus, Truck, IndianRupee, MessageCircle, AlertTriangle, Smartphone } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Bell, BellOff, TrendingUp, Plus, Truck, IndianRupee, MessageCircle, AlertTriangle, Smartphone, ListTodo, Lightbulb, Receipt, UserRound, FileWarning, Database, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAppStore } from '../hooks/useAuthStore';
 import { Page, Button, Badge, EmptyState } from '../ui';
@@ -11,6 +11,14 @@ import { useToday } from '../reminders/useToday';
 import { useNotifications } from '../reminders/notify';
 import { remindersCall, ReminderStatus } from '../reminders/api';
 import { ratesCall, RateUpdate } from '../rates/api';
+import { addTask, startTasks, useTaskStore } from '../tasks/store';
+import { bucketTasks, dueText, parseQuick, type Task } from '../tasks/model';
+import TaskRow from '../tasks/TaskRow';
+import TaskSheet from '../tasks/TaskSheet';
+import { buildInsights, type Insight } from '../crm/insights';
+import { billedKeys, issuedBills, useBillVersion } from '../utils/billStore';
+import { kvLoad, kvSave, localGet } from '../broadcast/storage';
+import { partyPhones } from '../broadcast/phone';
 import { goodsValue } from '../billing/calc';
 import { todaySummary, planFor, fmtDay, relDay, dealLine } from '../../server/reminders/plan.js';
 import { Contract } from '../types';
@@ -22,6 +30,8 @@ export default function Today() {
   const contracts = useAppStore(s => s.contracts);
   const today = useToday();
   const { needs, soon } = useMemo(() => todaySummary(contracts, today, 7), [contracts, today]);
+  const taskDue = useTaskStore(st => st.tasks.reduce((n, t) => n + (!t.completed && t.day && t.day <= today ? 1 : 0), 0));
+  const total = needs.length + taskDue;
 
   // ---- money in motion
   const money = useMemo(() => {
@@ -37,7 +47,7 @@ export default function Today() {
   }, [contracts, today]);
 
   return (
-    <Page title={greeting()} subtitle={`${fmtDay(today)} · ${needs.length ? `${needs.length} thing${needs.length === 1 ? '' : 's'} need${needs.length === 1 ? 's' : ''} you` : 'nothing is waiting for you'}`} width="wide">
+    <Page title={greeting()} subtitle={`${fmtDay(today)} · ${total ? `${total} thing${total === 1 ? '' : 's'} need${total === 1 ? 's' : ''} you` : 'nothing is waiting for you'}`} width="wide">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-5 min-w-0">
           <TurnOnReminders />
@@ -66,6 +76,10 @@ export default function Today() {
               </div>
             )}
           </section>
+
+          <TodayTasks today={today} />
+
+          <WorthALook today={today} />
 
           <section aria-label="Coming up">
             <h2 className="section-label mb-2">Coming up · next 7 days</h2>
@@ -106,6 +120,116 @@ export default function Today() {
         </aside>
       </div>
     </Page>
+  );
+}
+
+/** Things the app noticed by itself: bills not made, bills not paid, parties gone quiet, contracts with no brokerage. */
+function WorthALook({ today }: { today: string }) {
+  const navigate = useNavigate();
+  const contracts = useAppStore(st => st.contracts);
+  const parties = useAppStore(st => st.parties);
+  const billVersion = useBillVersion();
+  const [snoozed, setSnoozed] = useState<Record<string, string>>(() => localGet<Record<string, string>>('insight_snooze', {}));
+  useEffect(() => { let live = true; kvLoad<Record<string, string>>('insight_snooze', {}).then(v => { if (live && v) setSnoozed(v); }); return () => { live = false; }; }, []);
+
+  const [lastBackup, setLastBackup] = useState<string | null | undefined>(undefined);
+  useEffect(() => { let live = true; kvLoad<string | null>('last_backup', null).then(v => { if (live) setLastBackup(v ?? null); }); return () => { live = false; }; }, []);
+
+  const items = useMemo(
+    () => buildInsights({ contracts, parties, billed: billedKeys(), issued: issuedBills(), today, snoozed, lastBackup }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contracts, parties, today, snoozed, billVersion, lastBackup],
+  );
+  if (!items.length) return null;
+  const shown = items.slice(0, 4);
+
+  const hide = (i: Insight) => {
+    const until = new Date(`${today}T00:00:00Z`); until.setUTCDate(until.getUTCDate() + i.snooze);
+    // forget old snoozes so the saved list stays short
+    const next: Record<string, string> = {};
+    for (const [k, v] of Object.entries(snoozed)) if (v > today) next[k] = v;
+    next[i.id] = until.toISOString().slice(0, 10);
+    setSnoozed(next); void kvSave('insight_snooze', next);
+    toast.success(`Hidden for ${i.snooze} days`);
+  };
+  const whatsapp = (i: Insight) => {
+    const party = parties.find(p => p.id === i.partyId);
+    const num = party ? partyPhones(party).best?.digits : '';
+    window.open(`https://wa.me/${num || ''}?text=${encodeURIComponent(i.message || '')}`, '_blank');
+  };
+  const task = async (i: Insight) => {
+    const party = parties.find(p => p.id === i.partyId);
+    if (!i.task) return;
+    await addTask({ text: i.task.text, day: i.task.day, priority: 'medium', ...(party ? { link: { type: 'party' as const, id: party.id, label: nm(party) } } : {}) });
+    toast.success('Task added for tomorrow');
+  };
+  const icon = (k: Insight['kind']) => k === 'unsent' ? <Send size={18} /> : k === 'backup' ? <Database size={18} /> : k === 'bills' ? <Receipt size={18} /> : k === 'unpaid' ? <IndianRupee size={18} /> : k === 'quiet' ? <UserRound size={18} /> : <FileWarning size={18} />;
+  const tone = (t: Insight['tone']) => t === 'red' ? 'bg-red-50 text-red-700' : t === 'amber' ? 'bg-amber-50 text-amber-700' : 'bg-sky-50 text-sky-700';
+
+  return (
+    <section aria-label="Worth a look">
+      <div className="flex items-center gap-2 px-1 mb-1.5"><Lightbulb size={14} className="text-amber-500" /><h2 className="section-label">Worth a look · {items.length}</h2></div>
+      <div className="group-list">
+        {shown.map(i => {
+          const hasPhone = !!(i.message && i.partyId && parties.find(p => p.id === i.partyId && partyPhones(p).best));
+          return (
+            <div key={i.id} className="row !items-start !py-3 gap-3" data-insight={i.kind}>
+              <span className={`w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0 ${tone(i.tone)}`}>{icon(i.kind)}</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-semibold text-gray-900">{i.title}</p>
+                <p className="text-[13px] text-gray-600 mt-0.5">{i.text}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="soft" onClick={() => navigate(i.to)}>Open</Button>
+                  {hasPhone && <Button size="sm" variant="success" icon={<MessageCircle size={14} />} onClick={() => whatsapp(i)}>WhatsApp</Button>}
+                  {i.task && <Button size="sm" onClick={() => void task(i)} icon={<ListTodo size={14} />}>Add task</Button>}
+                  <Button size="sm" variant="ghost" onClick={() => hide(i)}>Not now</Button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {items.length > shown.length && <p className="px-4 py-2.5 text-xs text-gray-500">+ {items.length - shown.length} more. Press &ldquo;Not now&rdquo; on one to see the next.</p>}
+      </div>
+    </section>
+  );
+}
+
+/** Tasks that are late or due today, with a one-line way to add another. */
+function TodayTasks({ today }: { today: string }) {
+  const navigate = useNavigate();
+  const { tasks, loaded } = useTaskStore();
+  useEffect(() => startTasks(), []);
+  const [quick, setQuick] = useState('');
+  const [sheet, setSheet] = useState<Task | null>(null);
+  const b = useMemo(() => bucketTasks(tasks, today), [tasks, today]);
+  const due = [...b.overdue, ...b.today];
+  const shown = due.slice(0, 5);
+  const add = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quick.trim()) return;
+    const q = parseQuick(quick, today);
+    await addTask({ text: q.text, day: q.day ?? today, priority: q.priority || 'medium', ...(q.time ? { time: q.time } : {}), ...(q.repeat ? { repeat: q.repeat } : {}) });
+    toast.success(`Added for ${dueText(q.day ?? today, today).text.toLowerCase()}`);
+    setQuick('');
+  };
+  return (
+    <section aria-label="Your tasks">
+      <div className="flex items-center justify-between px-1 mb-1.5">
+        <h2 className="section-label">Your tasks{due.length ? ` · ${due.length}` : ''}</h2>
+        <button type="button" onClick={() => navigate('/planner?tab=tasks')} className="text-[13px] font-semibold text-rose-700 min-h-[32px]">All tasks</button>
+      </div>
+      <div className="group-list">
+        {loaded && shown.map(t => <TaskRow key={t.id} t={t} today={today} showDay={false} onOpen={setSheet} />)}
+        {loaded && due.length > shown.length && <button type="button" onClick={() => navigate('/planner?tab=tasks')} className="row w-full text-sm text-gray-600 justify-center">+ {due.length - shown.length} more</button>}
+        {loaded && due.length === 0 && <p className="px-4 py-3 text-sm text-gray-500 flex items-center gap-2"><ListTodo size={16} className="text-gray-400" />No task is due today.</p>}
+        <form onSubmit={add} className="row !py-1.5" aria-label="Quick add a task">
+          <Plus size={18} className="text-gray-400 shrink-0" />
+          <input value={quick} onChange={e => setQuick(e.target.value)} placeholder="Add a task, e.g. Call Patel tomorrow" aria-label="New task" className="flex-1 min-w-0 bg-transparent py-2.5 text-[15px] outline-none placeholder:text-gray-400" />
+          {quick.trim() && <Button type="submit" size="sm" variant="primary">Add</Button>}
+        </form>
+      </div>
+      <TaskSheet open={!!sheet} onClose={() => setSheet(null)} today={today} task={sheet} />
+    </section>
   );
 }
 

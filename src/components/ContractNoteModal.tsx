@@ -8,6 +8,9 @@ import { useContractNote } from '../contractNote/useContractNote';
 import {
   applyOverrides, decodeOverrides, diffOverrides, encodeOverrides, getValue, setValue, type Overrides,
 } from '../contractNote/mapping';
+import { labelOf, splitEdits } from '../contractNote/writeback';
+import { todayIST } from '../../server/reminders/plan.js';
+import { v4 as uuid } from 'uuid';
 import {
   copyName, downloadBytes, noteFileName, noteTitle, printBytes, shareBytes,
 } from '../contractNote/service';
@@ -61,6 +64,7 @@ const inputCls = 'w-full px-3 py-2.5 bg-gray-50 border rounded-xl text-sm focus:
 
 export default function ContractNoteModal({ contract, initialTag = 'B', onClose }: { contract: Contract; initialTag?: Tag; onClose: () => void }) {
   const { updateContract } = useAppStore();
+  const gst = useAppStore(st => st.settings.defaultGstPercent);
   const [ov, setOv] = useState<Overrides>(() => decodeOverrides(contract.noteOverrides));
   const [tag, setTag] = useState<Tag>(initialTag);
   const [saving, setSaving] = useState(false);
@@ -119,18 +123,27 @@ export default function ContractNoteModal({ contract, initialTag = 'B', onClose 
     const r = await printBytes(pdf, fileName, title);
     if (r === 'unsupported') toast.error('Printing is not available in this browser. Download the PDF and print it from there.');
   };
+  // what this edit will do: which changes go into the contract, and which stay as wording only on the note
+  const split = useMemo(() => (values ? splitEdits(contract, values, { defaultGstPercent: gst }) : null), [contract, values, gst]);
+  const noteOnly = useMemo(() => new Set(Object.keys(split?.overrides || {})), [split]);
+  const goesToContract = useMemo(() => new Set(split?.moved || []), [split]);
+
   const save = async () => {
-    if (!base || !values) return;
+    if (!values || !split) return;
     setSaving(true);
     try {
-      await updateContract(contract.id, { noteOverrides: encodeOverrides(diffOverrides(base, values)) });
-      toast.success('Saved to this contract');
+      const moved = [...new Set(split.moved.map(labelOf))];
+      const event = moved.length ? { id: uuid(), type: 'note' as const, date: todayIST(), text: `Contract updated from the contract note: ${moved.join(', ')}`, at: Date.now() } : null;
+      await updateContract(contract.id, { ...split.patch, noteOverrides: encodeOverrides(split.overrides), ...(event ? { timeline: [...(contract.timeline || []), event] } : {}) });
+      setOv(split.overrides);
+      toast.success(moved.length ? 'Saved: the contract is updated too' : 'Saved on this note');
     } catch {
       toast.error('Could not save');
     } finally {
       setSaving(false);
     }
   };
+  const resetKey = (key: string) => { if (base && values) setOv(diffOverrides(base, setValue(values, key, getValue(base, key)))); };
   const reset = () => setOv({});
 
   const tagIssues = issues[tag];
@@ -145,7 +158,7 @@ export default function ContractNoteModal({ contract, initialTag = 'B', onClose 
         </div>
         {dirty && (
           <button onClick={save} disabled={saving} className="flex items-center gap-1.5 px-3 py-2 bg-rose-600 text-white rounded-xl text-xs font-medium hover:bg-rose-700 disabled:opacity-50">
-            <Save className="w-4 h-4" /> Save edits
+            <Save className="w-4 h-4" /> Save to contract
           </button>
         )}
       </div>
@@ -225,7 +238,7 @@ export default function ContractNoteModal({ contract, initialTag = 'B', onClose 
         {/* ---------- editable values ---------- */}
         <div className="lg:order-1 space-y-5">
           <p className="text-xs text-gray-500">
-            These values come from the contract. Change anything here and the PDF updates; use <b>Save edits</b> to keep the changes with this contract.
+            These values come from the contract. Change anything here and the PDF updates. <b>Save to contract</b> writes your changes into the contract itself, so both always agree. Only wording the contract has no place for (such as the city line or the specification line) stays on the note, and is marked.
           </p>
           {GROUPS.map(g => (
             <section key={g.title} className="bg-white border border-gray-200 rounded-2xl p-4">
@@ -245,6 +258,12 @@ export default function ContractNoteModal({ contract, initialTag = 'B', onClose 
                         <input type={f.type || 'text'} value={f.type === 'date' ? val.slice(0, 10) : val} onChange={e => edit(f.key, e.target.value)} className={cls} />
                       )}
                       {issue ? <p className={`text-xs mt-1 ${bad ? 'text-red-600' : 'text-amber-700'}`}>{issue.msg}</p> : f.hint ? <p className="text-[11px] text-gray-400 mt-1">{f.hint}</p> : null}
+                      {base && values && getValue(base, f.key) !== getValue(values, f.key) && (
+                        <p className="text-[11px] mt-1 flex flex-wrap items-center gap-x-2 text-gray-500">
+                          {noteOnly.has(f.key) ? <span className="text-amber-700">Only on this printed note</span> : goesToContract.has(f.key) ? <span className="text-emerald-700">Will update the contract</span> : null}
+                          <button type="button" onClick={() => resetKey(f.key)} className="underline hover:no-underline">Use the contract's value</button>
+                        </p>
+                      )}
                     </div>
                   );
                 })}
